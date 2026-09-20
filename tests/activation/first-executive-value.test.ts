@@ -98,6 +98,70 @@ describe("Seção 46 — Partial Company: apenas DRE ainda produz valor executiv
   });
 });
 
+describe("Mission 196 — Founding Company: pacotes parciais de dois documentos (DRE+Extrato e Balanço+Extrato) também alcançam valor executivo real", () => {
+  test("DRE + Extrato (sem Balanço): indicadores de DRE disponíveis, indicadores de Balanço/cross-source indisponíveis, ativação libera análise", async () => {
+    const companyId = "activation-dre-plus-bank";
+    const documents = [
+      buildRealisticDre("dre-plus-bank", companyId),
+      buildRealisticBankStatement("bank-plus-dre", companyId),
+    ];
+
+    const result = await runIngestion(companyId, documents);
+
+    assert.equal(result.indicatorsStatus, "completed");
+    assert.equal(statusOf(result.indicators, "Margem Bruta"), "available");
+    assert.equal(
+      statusOf(result.indicators, "Liquidez Corrente"),
+      "unavailable",
+      "nenhum Balanço no lote — Liquidez nunca fabricada a partir de um extrato"
+    );
+    assert.equal(
+      statusOf(result.indicators, "ROA"),
+      "unavailable",
+      "ROA e cross-source: ausência total de Balanço nunca vira zero (D-119)"
+    );
+
+    const activation = resolveActivationState({
+      documentsCount: documents.length,
+      analyzableDocumentsCount: analyzableCount(documents.map((d) => d.source)),
+      executionsCount: 0,
+      diagnosesCount: 0,
+    });
+    assert.equal(activation.state, "ready_for_analysis");
+  });
+
+  test("Balanço + Extrato (sem DRE): indicadores de Balanço disponíveis, indicadores de DRE/cross-source indisponíveis, ativação libera análise", async () => {
+    const companyId = "activation-balance-plus-bank";
+    const documents = [
+      buildRealisticBalance("bal-plus-bank", companyId),
+      buildRealisticBankStatement("bank-plus-bal", companyId),
+    ];
+
+    const result = await runIngestion(companyId, documents);
+
+    assert.equal(result.indicatorsStatus, "completed");
+    assert.equal(statusOf(result.indicators, "Liquidez Corrente"), "available");
+    // Sem DRE, o extrato ainda alimenta o fallback D-004 (eventos de
+    // recebimento/pagamento contam como receita/custo transacional real)
+    // — Margem Bruta/ROA ficam disponíveis a partir desses eventos
+    // genuínos, nunca fabricados: nenhum StatementLine de DRE existe,
+    // mas a ausência TOTAL de dado de resultado não se aplica aqui.
+    assert.equal(
+      statusOf(result.indicators, "Margem Bruta"),
+      "available",
+      "extrato com eventos de recebimento/pagamento alimenta o fallback D-004, mesmo sem DRE"
+    );
+
+    const activation = resolveActivationState({
+      documentsCount: documents.length,
+      analyzableDocumentsCount: analyzableCount(documents.map((d) => d.source)),
+      executionsCount: 0,
+      diagnosesCount: 0,
+    });
+    assert.equal(activation.state, "ready_for_analysis");
+  });
+});
+
 describe("Seção 47 — Conflict Company: conflito de DRE nunca bloqueia a ativação; Balanço válido não relacionado permanece útil", () => {
   test("duas DREs conflitantes + Balanço válido: conflito visível, Balanço ainda contribui, ativação continua possível", async () => {
     const companyId = "activation-conflict-company";
