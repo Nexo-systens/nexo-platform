@@ -111,14 +111,26 @@ export async function getSignedDownloadUrl(
  * (ex.: `createDocumentAction()` rejeitando uma extensão não permitida
  * detectada apenas no servidor — o upload em si já aconteceu direto do
  * cliente para o Storage antes desta validação rodar, D-030/Mission
- * 042). Nunca lança — se a remoção falhar, o objeto órfão fica apenas
- * ocupando espaço, nunca bloqueia a rejeição do registro em si (a
- * garantia real é "nunca vira um `public.documents` válido", não
- * "nunca sobra bytes no bucket").
+ * 042). Todo chamador já envolve esta função em `.catch(() => {})`
+ * (nunca bloqueia a rejeição do registro em si — a garantia real é
+ * "nunca vira um `public.documents` válido", não "nunca sobra bytes no
+ * bucket") — mas a função em si precisa OBSERVAR a falha real para que
+ * "melhor esforço" seja uma garantia honesta, nunca um sucesso
+ * fabricado (Mission 197, Seção 8, item D: "cleanup failure does not
+ * falsely claim success").
+ *
+ * Mission 197 — `documents_storage_delete_own` (Migration 015) é a
+ * primeira policy de DELETE já criada em `storage.objects` — antes
+ * desta migration, toda chamada a esta função era um no-op silencioso
+ * sob RLS (nenhuma exceção, porque `.remove()` nunca lançava por conta
+ * própria e o `error` devolvido nunca era verificado aqui). Mesmo
+ * padrão `if (error) throw error` já usado por toda outra função deste
+ * arquivo.
  */
 export async function removeStorageObject(storagePath: string): Promise<void> {
   const supabase = await createClient();
-  await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+  if (error) throw error;
 }
 
 /**

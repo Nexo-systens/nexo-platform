@@ -4,6 +4,7 @@ import type { RawFinancialDocument } from "@/efos/engines/data";
 import type { StatementConflict } from "@/efos/domain";
 import { createClient } from "@/lib/supabase/server";
 import { EFOSPlatform } from "@/efos/platform";
+import { getCompanyById } from "@/modules/companies/services/company.service";
 import type { DocumentRow } from "@/modules/documents/services/document.service";
 import {
   downloadDocumentFile,
@@ -20,9 +21,29 @@ import {
 import type { ExcludedDocument } from "../../../_shared/resolveStatementConflicts";
 import { prepareFinancialDocuments } from "../../../_shared/prepareFinancialDocuments";
 
-// Mission 175 — Production Executive Analysis API. Espelha
-// `../route.ts` (POST /api/efos/analyze/[companyId], Mission 041/081/
-// 082) byte a byte no carregamento de documentos e no tratamento de
+// Mission 175 — Production Executive Analysis API. Endpoint canônico
+// (único) de análise executiva da Plataforma — Mission 197 removeu os
+// dois irmãos legados (`POST /api/efos/upload`, `POST /api/efos/analyze/
+// [companyId]` sem contexto executivo) por não terem consumidor real
+// algum (confirmado por busca em todo o código-fonte por chamadas
+// client-side) e por dependerem de RLS para eventualmente rejeitar um
+// `companyId` não autorizado, em vez de estabelecer autoridade de
+// empresa deliberadamente na fronteira HTTP (Seção 5 da missão). Este
+// arquivo permanece a única porta de entrada HTTP de análise executiva
+// em produção.
+//
+// Mission 197, Seção 5 — Company Authority at HTTP Boundary:
+// `getCompanyById(companyId)` (mesmo mecanismo canônico já usado por
+// `app/(app)/companies/[id]/page.tsx`, RLS-scoped) é chamado ANTES de
+// qualquer I/O de documento/Storage/pipeline — um `companyId` que não
+// pertence ao usuário autenticado (ou que não existe) nunca aciona
+// `beginProcessingAttempt()`/download/parsing/Engines, nunca apenas
+// "descoberto" depois por uma escrita de `executions`/`documents`
+// rejeitada pelo RLS. `getCompanyById()` devolve `null` tanto para
+// "não existe" quanto para "não autorizado" (mesmo não-vazamento de
+// informação já usado por `notFound()` na página da empresa) — a
+// resposta aqui espelha essa ambiguidade deliberada, nunca distinguindo
+// os dois casos para quem chama a API.
 // erro — a ÚNICA diferença é a chamada final a
 // `platform.analyzeCompanyWithExecutiveContext()` em vez de
 // `platform.analyzeCompany()` (EFOSPlatform, Mission 175, repassando
@@ -73,6 +94,21 @@ export async function POST(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
+
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "unauthorized",
+          message: "Empresa não encontrada ou não autorizada.",
+        },
+      },
+      { status: 404 }
+    );
+  }
+
   const attempt = await beginProcessingAttempt();
 
   let storedDocuments: readonly DocumentRow[] = [];

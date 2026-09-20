@@ -8,9 +8,32 @@ name: CI
 # nunca haviam sido conectadas a um pipeline — rodavam apenas quando
 # alguém lembrava de executá-las manualmente. Workflow mínimo,
 # consistente com o repositório: instala, type-checka, linta, roda as
-# três suítes e builda — nenhuma automação de deploy, nenhum ambiente
+# suítes e builda — nenhuma automação de deploy, nenhum ambiente
 # novo, nenhum secret além dos já necessários para `next build`
 # (nenhuma chamada real a Supabase/IA acontece em nenhum passo).
+#
+# Mission 197 — Production Surface & Deployment Closure Gate. Este
+# workflow rodou pela primeira vez contra um runner real nesta missão
+# (`gh run view`, leitura, nenhuma configuração de repositório alterada)
+# e FALHOU: `node-version: "20"` mais o shell `bash` padrão do runner
+# (sem `globstar`) faziam `tests/financial-ingestion/**/*.test.ts`
+# (glob sem aspas em `package.json`) expandir de forma NÃO recursiva —
+# `**` sem globstar equivale a um único `*`, então o padrão só batia
+# arquivos exatamente UM nível abaixo (`tests/financial-ingestion/
+# document-governance/*.test.ts`, 28 dos 65 testes), nunca os arquivos
+# diretamente em `tests/executive-report/*.test.ts` (zero subpastas —
+# zero arquivos encontrados, falha explícita "Could not find"). Local
+# mente nunca reproduzia porque `npm run` nesta máquina passa pelo
+# `cmd.exe` do Windows (que não expande glob nenhum), deixando o glob
+# resolver corretamente dentro do próprio `tsx`/Node. Corrigido na
+# raiz — `package.json` agora usa os quatro padrões `--test` sempre
+# ENTRE ASPAS (nunca expandidos por nenhum shell, resolvidos pelo
+# glob recursivo do próprio Node — mesmo resultado determinístico em
+# qualquer SO) — e `node-version` passou de "20" para "24" (versão
+# real usada em desenvolvimento; `@supabase/auth-js`/`functions-js`/
+# `postgrest-js` já declaram `engines.node >= 22`, e Node 20 emitia
+# `EBADENGINE` a cada `npm ci`, nunca antes observado por não haver
+# execução real contra um runner até esta missão).
 on:
   push:
     branches: [main, develop]
@@ -25,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -45,6 +68,9 @@ jobs:
 
       - name: Activation regression suite
         run: npm run test:activation
+
+      - name: Production surface regression suite
+        run: npm run test:production-surface
 
       - name: Build
         run: npm run build
