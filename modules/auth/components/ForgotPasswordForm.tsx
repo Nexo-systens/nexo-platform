@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -30,7 +30,9 @@ export function ForgotPasswordForm() {
   function onSubmit(values: ForgotPasswordInput) {
     const formData = new FormData();
     formData.append("email", values.email);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   }
 
   if (state.status === "success") {

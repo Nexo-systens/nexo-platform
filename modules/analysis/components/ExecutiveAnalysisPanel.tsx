@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, FileWarning, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
@@ -69,7 +69,12 @@ export function ExecutiveAnalysisPanel({
   hasDocuments,
   onAnalysisComplete,
 }: ExecutiveAnalysisPanelProps) {
-  const [status, setStatus] = useState<Status>("idle");
+  // Mission 199B Closure — Persisted Analysis Hydration (Bug P1):
+  // começa em "loading", nunca "idle" — o estado inicial real não é
+  // conhecido até a hidratação (abaixo) responder; assumir "idle" de
+  // cara é exatamente o que fazia este painel esquecer uma execução já
+  // persistida a cada reload/retorno à página.
+  const [status, setStatus] = useState<Status>("loading");
   const [report, setReport] = useState<ExecutiveReport | null>(null);
   const [executiveContext, setExecutiveContext] = useState<
     ExecutiveFinancialContext | undefined
@@ -78,6 +83,54 @@ export function ExecutiveAnalysisPanel({
     readonly DocumentGovernanceResult[]
   >([]);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+
+  // Mission 199B Closure — Persisted Analysis Hydration (Bug P1). Lê a
+  // última execução já persistida (`GET /api/efos/analyze/{companyId}/executive`,
+  // companheiro somente-leitura do `POST` que `runAnalysis()` já usa)
+  // uma vez ao montar/trocar de empresa — nunca dispara o pipeline,
+  // nunca persiste nada, apenas HIDRATA o mesmo estado que `runAnalysis()`
+  // já preenche após uma análise real. Uma falha aqui (rede, erro
+  // inesperado) nunca bloqueia a tela com um estado de erro — apenas
+  // volta para "idle" (o usuário sempre pode clicar "Executar análise"
+  // manualmente), porque isto é uma conveniência de leitura, não a
+  // única forma de obter o relatório.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateFromPersistedExecution() {
+      setStatus("loading");
+
+      try {
+        const response = await fetch(`/api/efos/analyze/${companyId}/executive`);
+        const result: ApplicationResult<{
+          readonly report: ExecutiveReport;
+          readonly executiveContext?: ExecutiveFinancialContext;
+        } | undefined> & {
+          readonly documentGovernance?: readonly DocumentGovernanceResult[];
+        } = await response.json();
+
+        if (cancelled) return;
+
+        if (!result.success || !result.value) {
+          setStatus("idle");
+          return;
+        }
+
+        setDocumentGovernance(result.documentGovernance ?? []);
+        setReport(result.value.report);
+        setExecutiveContext(result.value.executiveContext);
+        setStatus(hasNoSections(result.value.report) ? "empty" : "success");
+      } catch {
+        if (!cancelled) setStatus("idle");
+      }
+    }
+
+    hydrateFromPersistedExecution();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   async function runAnalysis() {
     setStatus("loading");

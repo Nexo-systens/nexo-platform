@@ -9,7 +9,9 @@ import type { DocumentRow } from "@/modules/documents/services/document.service"
 import {
   downloadDocumentFile,
   listAnalyzableDocumentsByCompany,
+  listDocumentGovernanceByExecution,
 } from "@/modules/documents/services/document.service";
+import type { DocumentGovernanceOutcome } from "../../../_shared/documentGovernance";
 
 import {
   applyDocumentGovernanceOutcomes,
@@ -224,6 +226,81 @@ export async function POST(
             error instanceof Error
               ? error.message
               : "Erro inesperado ao executar a análise executiva.",
+        },
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Mission 199B Closure — Persisted Analysis Hydration (Bug P1:
+// `ExecutiveAnalysisPanel` nunca lia a última execução já persistida
+// ao montar — cada reload/retorno à página voltava a exibir "Nenhuma
+// análise executada ainda" mesmo com uma execução canônica existindo).
+// Companheira SOMENTE LEITURA do `POST` acima, no mesmo path (par
+// REST padrão: POST cria/roda, GET lê o que já existe) — nunca chama
+// `beginProcessingAttempt()`/Storage/o pipeline financeiro; repassa
+// direto para `EFOSPlatform.getLatestExecutiveAnalysis()` (aditivo,
+// Mission 199B), que por sua vez reaproveita a MESMA composição pura
+// (`buildExecutiveFinancialContext()`) já usada pelo `POST`, aplicada
+// sobre um snapshot lido de volta do repositório em vez de um
+// recém-produzido. Mesma fronteira de autorização do `POST`
+// (`getCompanyById()` antes de qualquer I/O de execução).
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ companyId: string }> }
+) {
+  const { companyId } = await params;
+
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "unauthorized",
+          message: "Empresa não encontrada ou não autorizada.",
+        },
+      },
+      { status: 404 }
+    );
+  }
+
+  try {
+    const supabaseClient = await createClient();
+    const platform = new EFOSPlatform(supabaseClient);
+    const result = await platform.getLatestExecutiveAnalysis(companyId);
+
+    if (!result.success || !result.value) {
+      return NextResponse.json({ ...result, documentGovernance: [] });
+    }
+
+    // Mesmo vocabulário server-autoritativo do `POST` (`documentGovernance`),
+    // reconstruído por leitura pura de `documents.metadata->governance`
+    // (Mission 193) para a execução identificada — nunca reclassificado,
+    // nunca recalculado.
+    const documentGovernanceRows = await listDocumentGovernanceByExecution(
+      companyId,
+      result.value.report.metadata.executionId
+    );
+    const documentGovernance = documentGovernanceRows.map((row) => ({
+      documentId: row.documentId,
+      source: row.source,
+      outcome: row.outcome as DocumentGovernanceOutcome,
+      reason: row.reason,
+    }));
+
+    return NextResponse.json({ ...result, documentGovernance });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "unexpected",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Erro inesperado ao carregar a análise executiva já persistida.",
         },
       },
       { status: 500 }

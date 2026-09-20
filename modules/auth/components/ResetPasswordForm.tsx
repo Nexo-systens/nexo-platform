@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -30,7 +30,9 @@ export function ResetPasswordForm() {
     const formData = new FormData();
     formData.append("password", values.password);
     formData.append("confirmPassword", values.confirmPassword);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   }
 
   return (

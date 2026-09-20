@@ -148,6 +148,56 @@ export class DefaultEFOSFacade implements EFOSFacade {
   }
 
   /**
+   * Mission 199B Closure — Persisted Analysis Hydration (Bug P1: o
+   * painel executivo perdia o estado após reload/retorno à página,
+   * mesmo com uma execução canônica já persistida — a UI nunca tinha
+   * de onde ler essa autoridade). Somente leitura: nunca chama
+   * `analysisService`/`reportService`, nunca chama
+   * `executionRepository.save()` — a assinatura pública (sem
+   * `documents`/`conflicts`) já impede estruturalmente rodar uma nova
+   * análise a partir daqui.
+   *
+   * Reaproveita EXATAMENTE os mesmos dois passos que
+   * `buildExecutiveContext()` (privado, abaixo) já executa logo depois
+   * de `runAnalysisAndPersist()`: (1) `historicalExecutionService.
+   * getHistory()` — a mesma leitura já usada por `GET /api/efos/
+   * history/:companyId`; (2) a última entrada (mais recente,
+   * `getHistory()` já ordena ascendente) alimenta o MESMO
+   * `buildExecutiveContext()` privado — nenhuma segunda implementação
+   * de composição, nenhuma derivação nova. A única diferença é que o
+   * snapshot usado não acabou de ser produzido nesta chamada — ele é
+   * lido de volta do repositório, exatamente como qualquer outra
+   * execução histórica.
+   *
+   * `undefined` (nunca erro) quando a empresa não tem nenhuma execução
+   * persistida ainda, ou quando a mais recente não tem `report`
+   * (nunca deveria acontecer para uma execução bem-sucedida — defesa
+   * conservadora, nunca uma composição parcial fabricada).
+   */
+  async getLatestExecutiveAnalysis(companyId: string): Promise<
+    ApplicationResult<
+      | { readonly report: ExecutiveReport; readonly executiveContext?: ExecutiveFinancialContext }
+      | undefined
+    >
+  > {
+    const history = await this.historicalExecutionService.getHistory(companyId);
+
+    if (history.length === 0) {
+      return { success: true, value: undefined };
+    }
+
+    const latest = history[history.length - 1];
+
+    if (!latest.report) {
+      return { success: true, value: undefined };
+    }
+
+    const executiveContext = await this.buildExecutiveContext(companyId, latest.snapshot);
+
+    return { success: true, value: { report: latest.report, executiveContext } };
+  }
+
+  /**
    * Lógica compartilhada entre `analyzeCompany()` e
    * `analyzeCompanyWithExecutiveContext()` — roda a análise, gera o
    * `ExecutiveReport`, persiste o `ExecutionSnapshot` completo. Devolve

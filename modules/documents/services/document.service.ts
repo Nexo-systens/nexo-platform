@@ -404,3 +404,62 @@ export async function countDocumentsByCompany(companyId: string): Promise<number
   if (error) throw error;
   return count ?? 0;
 }
+
+/**
+ * Mission 199B Closure — Persisted Analysis Hydration. Reconstrói o
+ * desfecho de governança de CADA documento de uma execução já
+ * persistida — puramente leitura, nunca uma segunda classificação:
+ * `documents.metadata->governance` já É o mesmo
+ * `DocumentGovernanceSnapshot` gravado por `updateDocumentGovernance()`
+ * no momento em que a análise rodou (Mission 193). Usado apenas para
+ * HIDRATAR a UI a partir de uma execução existente (nunca durante uma
+ * análise em andamento — nesse caso `applyDocumentGovernanceOutcomes()`
+ * continua a única gravadora).
+ *
+ * Filtra em memória (nunca uma string de filtro JSONB solta em SQL) —
+ * mesmo princípio de "nenhuma paginação, coleção completa da empresa"
+ * já usado por `listAnalyzableDocumentsByCompany()`: o número de
+ * documentos de uma empresa é sempre pequeno o suficiente para não
+ * precisar de filtro no banco. Um documento cujo `governance_revision`
+ * já foi sobrescrito por uma execução MAIS RECENTE (Mission 193
+ * Closure B) simplesmente não aparece aqui — `governance.executionId`
+ * não bate mais com o `executionId` pedido, o mesmo critério de "mais
+ * recente vence" já usado em toda a Mission 193.
+ */
+export async function listDocumentGovernanceByExecution(
+  companyId: string,
+  executionId: string
+): Promise<
+  readonly {
+    readonly documentId: string;
+    readonly source: string;
+    readonly outcome: string;
+    readonly reason: string;
+  }[]
+> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, nome_original, metadata")
+    .eq("company_id", companyId)
+    .is("deleted_at", null);
+
+  if (error) throw error;
+
+  return (data ?? [])
+    .map((row) => {
+      const governance = (row.metadata as { governance?: DocumentGovernanceSnapshot } | null)
+        ?.governance;
+      if (!governance || governance.executionId !== executionId) {
+        return undefined;
+      }
+      return {
+        documentId: row.id,
+        source: row.nome_original,
+        outcome: governance.outcome,
+        reason: governance.reason,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -39,7 +39,9 @@ export function SignupForm() {
     formData.append("email", values.email);
     formData.append("password", values.password);
     formData.append("confirmPassword", values.confirmPassword);
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   }
 
   if (state.status === "success") {

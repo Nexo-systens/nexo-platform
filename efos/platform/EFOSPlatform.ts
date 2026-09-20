@@ -98,4 +98,23 @@ export class EFOSPlatform {
 
     return this.facade.analyzeCompanyWithExecutiveContext(request, documents, conflicts);
   }
+
+  /**
+   * Mission 199B Closure — Persisted Analysis Hydration. Espelha o
+   * mesmo padrão de repasse direto já usado pelos dois métodos acima
+   * (nenhuma lógica própria) para o método ADITIVO e somente-leitura
+   * já existente na `EFOSFacade` desde esta missão — nunca uma segunda
+   * pipeline, nunca uma nova composição: apenas repassa `companyId`
+   * para `EFOSFacade.getLatestExecutiveAnalysis()`.
+   */
+  async getLatestExecutiveAnalysis(
+    companyId: string
+  ): Promise<
+    ApplicationResult<
+      | { readonly report: ExecutiveReport; readonly executiveContext?: ExecutiveFinancialContext }
+      | undefined
+    >
+  > {
+    return this.facade.getLatestExecutiveAnalysis(companyId);
+  }
 }

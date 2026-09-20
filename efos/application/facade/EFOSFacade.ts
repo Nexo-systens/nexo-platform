@@ -74,4 +74,34 @@ export interface EFOSFacade {
       readonly statementArithmeticIssues: readonly StatementArithmeticIssue[];
     }>
   >;
+
+  /**
+   * Mission 199B Closure — Persisted Analysis Hydration. Método
+   * ADITIVO, somente leitura — nunca chama `AnalysisService`/o
+   * pipeline, nunca persiste nada (assinatura deliberadamente sem
+   * `documents`/`conflicts`: estruturalmente incapaz de rodar uma nova
+   * análise). Reconstrói `{report, executiveContext}` da ÚLTIMA
+   * execução já persistida de uma empresa (mesma autoridade canônica
+   * que `GET /api/efos/history/{companyId}` já lê via
+   * `HistoricalExecutionService.getHistory()`), para uso por qualquer
+   * consumidor que precise HIDRATAR uma tela a partir do que já existe
+   * — nunca uma segunda fonte de verdade, nunca um recálculo: mesma
+   * composição pura (`buildExecutiveFinancialContext()`) já usada por
+   * `analyzeCompanyWithExecutiveContext()` logo após persistir,
+   * reaplicada aqui sobre um snapshot lido de volta em vez de um
+   * snapshot recém-produzido.
+   *
+   * `value: undefined` (nunca um erro) significa "esta empresa ainda
+   * não tem nenhuma execução persistida" — mesmo princípio de ausência
+   * já usado por `executiveContext?`/`HistoryResponse.currentExecution?`.
+   */
+  getLatestExecutiveAnalysis(companyId: string): Promise<
+    ApplicationResult<
+      | {
+          readonly report: ExecutiveReport;
+          readonly executiveContext?: ExecutiveFinancialContext;
+        }
+      | undefined
+    >
+  >;
 }
