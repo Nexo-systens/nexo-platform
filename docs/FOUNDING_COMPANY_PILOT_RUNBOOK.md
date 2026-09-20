@@ -36,16 +36,16 @@ Confirmar:
 - build gera exatamente as rotas esperadas (16, a partir da Mission 197 — ver `npm run build`, seção "Route (app)");
 - nenhum erro de type-check/lint.
 
-**Identidade do projeto Supabase (CODE-VERIFIED, não-secreto).** `supabase/.temp/linked-project.json` (se presente localmente) mostra o projeto ligado por último: `name: "nexo-platform"`. **Achado importante da Mission 199**: este projeto é usado, ao longo de TODA a história registrada em `docs/ENGINEERING_LOG.md` (Missions 067-199), como "o projeto Supabase real" — não existe, em nenhum lugar da documentação, evidência de um segundo projeto Supabase dedicado a dev/staging. Ele já contém resíduo de sessões anteriores (ver Seção 8). **Antes do piloto real, um humano precisa decidir explicitamente**: usar este mesmo projeto (limpando o resíduo primeiro) ou provisionar um projeto Supabase novo e dedicado ao Founding Company. Nenhuma das duas opções foi decidida ainda.
+**Identidade do projeto Supabase — ATUALIZADO (Mission 199P/Closure A).** O usuário criou um projeto Supabase novo e dedicado, **"NEXO Pillot"** (região `ca-central-1`, `ACTIVE_HEALTHY`), resolvendo a ambiguidade original da Mission 199. O repositório está linkado a ele (`supabase/.temp/linked-project.json`, local, gitignored) via `npx supabase link --project-ref <ref>` — sessão de CLI já autenticada com um token em cache, nenhuma senha vista/digitada por nenhum agente. O projeto histórico (`nexo-platform`) permanece `INACTIVE`/desvinculado, nunca mutado por nenhuma missão. `npx supabase projects list` é o comando LIVE-PROVEN para reconfirmar isso a qualquer momento.
 
 ## 2. Verificação de migrations
 
-**NOT PROVEN BY AGENT (nesta sessão)** — `supabase`/`docker` não estão disponíveis neste ambiente (confirmado, Mission 199: `command -v supabase`/`docker` vazios). Não há como consultar o estado real de migrations aplicadas sem esse acesso.
+**LIVE_PROVEN (Mission 199P Closure A) — completo para o NEXO Pillot.** `npx supabase migration list --linked` (sem instalação global — `npx` baixa sob demanda) confirmou as 15 migrations locais == remotas, em ordem, sem divergência. `npx supabase db push --linked` aplicou a cadeia inteira com sucesso — incluindo a correção da Migration 005 (D-124: `financial_metrics`, classificada LEGACY_DEAD, nunca criada por nenhuma migration, tratada condicionalmente desde esta Closure). Verificação estrutural remota (somente leitura, `supabase db query --linked`): 13 tabelas exatas, RLS habilitada em todas, contagem de policies correta por tabela, bucket `documents` com 3 policies de Storage (select/insert/delete), RPC `acquire_processing_attempt_revision()` com `SECURITY DEFINER` e grants corretos.
 
-Quando um humano tiver acesso (Supabase CLI local ou dashboard):
+Para reverificar a qualquer momento:
 
 ```bash
-supabase migration list --linked
+npx supabase migration list --linked
 ```
 
 Cadeia esperada (15 migrations, ordem exata — `supabase/migrations/`):

@@ -9698,3 +9698,27 @@ Diferenças deliberadas em relação à proposta original da Mission 170: `origi
 **Recomendação para a próxima tentativa (não implementada, requer decisão humana).** Corrigir `20260721141609_security_advisor_cleanup.sql` para guardar os 5 statements dependentes de `financial_metrics` atrás de uma checagem `information_schema.tables` (comportamento preservado no projeto histórico; no-op seguro em qualquer projeto novo) — só então repetir `supabase db push --linked` contra o NEXO Pillot, já linkado e pronto.
 
 **Origem.** Mission 199P — Provision NEXO Pilot from Canonical Repository.
+
+## Mission 199P Closure A — Fresh-Database Migration Chain Reconstruction
+
+**Status.** IMPLEMENTAÇÃO + PROVISIONAMENTO AO VIVO — sucesso completo. Classificação: **PILOT_ENV_READY**. Decisão arquitetural nova: **D-124**.
+
+**Provenance de `financial_metrics` (Seção 5 da missão).** Investigada por múltiplas fontes independentes antes de qualquer edição: `docs/ARCHITECTURE_AUDIT.md` (auditoria pré-Engine) já documentava a tabela como placeholder para a futura persistência de `Indicator`, "nenhum código hoje escreve nela". A arquitetura real (Mission 027-036, D-017/D-027/D-028) escolheu `public.executions.execution` (jsonb, `PipelineExecution` inteiro incluindo `IndicatorsAggregate`) como a persistência real de Financial Truth — `financial_metrics` nunca foi integrada a essa decisão. Grep exaustivo em todo o código-fonte atual: zero referências. `docs/HANDOFF.md` ("Riscos") já alertava sobre o histórico de drift manual desta tabela. `docs/03_DATABASE.md` (fonte citada pela própria migration) não existe mais.
+
+**Classificação (Seção 9).** **B — LEGACY_DEAD**, confirmada por auditoria sistemática completa da cadeia (Seção 7/8): cross-check entre todo `CREATE TABLE public.*` e toda referência por `ALTER TABLE`/`CREATE POLICY ON`/`CREATE TRIGGER ON` nas 15 migrations confirmou que `financial_metrics` é a ÚNICA tabela desta natureza em toda a cadeia — nenhuma outra dependência manual/externa oculta (funções, extensões, sequence, bucket de Storage — todos corretamente ordenados).
+
+**Correção implementada (D-124).** Os 5 statements de `financial_metrics` na Migration 005 (`20260721141609_security_advisor_cleanup.sql`) passam a rodar dentro de um bloco `do $$ ... if exists (information_schema.tables) then ... end if; end $$;` — texto idêntico ao original, apenas condicional. Nenhuma tabela nova criada; nenhum comportamento de runtime alterado (zero código de aplicação depende dela).
+
+**Regressão permanente (Seção 12).** Novo `tests/production-surface/migration-chain-dependency-graph.test.ts` (3 testes) — reconstrói o grafo de dependências entre as 15 migrations e detectaria permanentemente esta mesma classe de defeito. STATIC DEPENDENCY-GRAPH PROOF (não "apenas grep" — reconstrução determinística e ordenada do que cada migration cria vs. referencia), nunca Postgres real em CI (Docker ausente neste ambiente).
+
+**Provisionamento ao vivo, ponta a ponta (Seções 16-18).** `npx supabase db push --linked` contra NEXO Pillot: as 11 migrations restantes (005-015) aplicadas com sucesso, sem erro. Verificação remota (`supabase db query --linked`, somente leitura): exatamente as 13 tabelas esperadas (nunca `financial_metrics`, nunca `empresas`); RLS habilitada em todas as 13; contagem de policies por tabela bate exatamente com cada migration (`companies`/`documents` = 3, demais = 2); bucket `documents` (`public: false`, `file_size_limit: 20971520` = 20MB) com 3 policies de Storage (select/insert/delete — a delete é a Migration 015, D-123); `acquire_processing_attempt_revision()` existe com `SECURITY DEFINER`/`search_path` fixo/grant apenas a `authenticated` (nunca `anon`/`public`). `to_regclass('public.financial_metrics')` confirmado `null` — a tabela genuinamente não existe no banco novo.
+
+**Proteção do projeto histórico (Seção 19).** `npx supabase projects list` reconfirmado ao final: `nexo-platform` permanece `linked: false`, status inalterado (`INACTIVE`) — nenhuma query/mutação foi dirigida a ele durante toda a operação.
+
+**Regressão local.** Type-check/lint/build limpos, 16 rotas (inalterado) · `test:financial-ingestion` 65/65 · `test:executive-report` 24/24 · `test:activation` 36/36 · `test:production-surface` **11/11** (8 anteriores + 3 novas) · `test:release-candidate` 5/5 — 141 testes no total.
+
+**Achado honesto sobre o próprio processo de auditoria (Seção 12, auto-revisão).** A primeira versão do novo teste de grafo de dependências FALHOU ao rodar contra a própria correção — o parser textual não distinguia DDL dentro de um `EXECUTE '...'` condicional de DDL incondicional, e continuava sinalizando `financial_metrics` mesmo já corrigida. Corrigido antes de qualquer commit: o parser agora exclui o conteúdo de blocos `do $$ ... end $$` guardados da varredura de dependência incondicional, mantendo uma segunda asserção dedicada que confirma que o guard em si existe e é genuíno.
+
+**Recomendação para a próxima missão.** Nenhuma ação técnica pendente relacionada a provisionamento — o NEXO Pillot está `PILOT_ENV_READY`. Próximo passo natural (fora do escopo desta missão, por instrução explícita: "Do not create User A/User B. Do not upload financial documents. Do not execute the Founding Company journey."): uma missão futura que exercite a jornada real contra este ambiente, com autenticação/upload genuínos — algo que só um humano pode iniciar.
+
+**Origem.** Mission 199P Closure A — Fresh-Database Migration Chain Reconstruction.
