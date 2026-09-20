@@ -11,7 +11,8 @@
     "test:financial-ingestion": "tsx --test \"tests/financial-ingestion/**/*.test.ts\"",
     "test:executive-report": "tsx --test \"tests/executive-report/**/*.test.ts\"",
     "test:activation": "tsx --test \"tests/activation/**/*.test.ts\"",
-    "test:production-surface": "tsx --test \"tests/production-surface/**/*.test.ts\""
+    "test:production-surface": "tsx --test \"tests/production-surface/**/*.test.ts\"",
+    "test:release-candidate": "tsx --test \"tests/release-candidate/**/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

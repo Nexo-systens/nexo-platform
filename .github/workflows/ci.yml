@@ -72,6 +72,9 @@ jobs:
       - name: Production surface regression suite
         run: npm run test:production-surface
 
+      - name: Release candidate regression suite
+        run: npm run test:release-candidate
+
       - name: Build
         run: npm run build
         env:
