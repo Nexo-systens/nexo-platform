@@ -1,0 +1,60 @@
+name: CI
+
+# Mission 195 — Founding Company Production Onboarding & First
+# Executive Value, Seção 55. Mission 194 identificou a ausência de CI
+# como dívida técnica: as suítes committed (`tests/financial-ingestion/`,
+# `tests/executive-report/`, `tests/activation/`) protegem semântica
+# financeira/de apresentação/de ativação crítica para produção, mas
+# nunca haviam sido conectadas a um pipeline — rodavam apenas quando
+# alguém lembrava de executá-las manualmente. Workflow mínimo,
+# consistente com o repositório: instala, type-checka, linta, roda as
+# três suítes e builda — nenhuma automação de deploy, nenhum ambiente
+# novo, nenhum secret além dos já necessários para `next build`
+# (nenhuma chamada real a Supabase/IA acontece em nenhum passo).
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Financial ingestion regression suite
+        run: npm run test:financial-ingestion
+
+      - name: Executive report regression suite
+        run: npm run test:executive-report
+
+      - name: Activation regression suite
+        run: npm run test:activation
+
+      - name: Build
+        run: npm run build
+        env:
+          # `next build` só precisa das variáveis PÚBLICAS existirem
+          # para compilar (nenhuma chamada de rede real acontece durante
+          # o build; nenhum segredo de Service Role é necessário aqui).
+          # Fallback para um valor placeholder quando os secrets do
+          # repositório ainda não foram configurados — nunca falha o CI
+          # por um secret ausente que esta missão não tem como
+          # configurar; se os secrets reais existirem, prevalecem.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}

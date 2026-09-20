@@ -1,23 +1,8 @@
-export default function Home() {
-  return (
-    <main
-      style={{
-        background: "#09090B",
-        color: "white",
-        height: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <h1>NEXO Platform</h1>
+import { redirect } from "next/navigation";
 
-        <p>Sistema iniciado com sucesso.</p>
+import { getCurrentUser } from "@/modules/auth/services/auth.service";
 
-        <p>Versão 0.2</p>
-      </div>
-    </main>
-  );
+export default async function HomePage() {
+  const user = await getCurrentUser();
+  redirect(user ? "/dashboard" : "/login");
 }

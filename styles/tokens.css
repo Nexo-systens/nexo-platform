@@ -1,0 +1,74 @@
+/**
+ * Tokens de Design System da NEXO (docs/04_DESIGN_SYSTEM.md, Capitulos 3, 6 e 7).
+ * Cores em oklch, seguindo a paleta neutra (baseColor "neutral" em components.json)
+ * mais um accent tecnico/sobrio para Primary. Cores semanticas (Success/Warning/
+ * Error/Info) nunca sao usadas fora do seu significado funcional.
+ */
+
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --primary: oklch(0.32 0.08 265);
+  --primary-foreground: oklch(0.985 0 0);
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --success: oklch(0.6 0.15 145);
+  --success-foreground: oklch(0.985 0 0);
+
+  --warning: oklch(0.75 0.15 80);
+  --warning-foreground: oklch(0.205 0 0);
+
+  --info: oklch(0.6 0.13 250);
+  --info-foreground: oklch(0.985 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  --primary: oklch(0.7 0.1 265);
+  --primary-foreground: oklch(0.145 0 0);
+
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --success: oklch(0.7 0.15 145);
+  --success-foreground: oklch(0.145 0 0);
+
+  --warning: oklch(0.8 0.15 80);
+  --warning-foreground: oklch(0.145 0 0);
+
+  --info: oklch(0.7 0.13 250);
+  --info-foreground: oklch(0.145 0 0);
+}
