@@ -9668,3 +9668,33 @@ Diferenças deliberadas em relação à proposta original da Mission 170: `origi
 **Recomendação para Mission 200.** Nenhuma — esta missão não recomenda uma próxima missão técnica. O próximo passo é humano (ver acima), não código.
 
 **Origem.** Mission 199 — Founding Company Pilot Environment & Controlled Launch Gate.
+
+## Mission 199P — Provision NEXO Pilot from Canonical Repository
+
+**Status.** BLOQUEADA — defeito real de migration encontrado ao aplicar a cadeia canônica contra um projeto Supabase genuinamente novo pela primeira vez. Classificação: **PILOT_ENV_NOT_READY**. Nenhuma decisão arquitetural nova. Nenhuma mudança de código de produção. Nenhum arquivo versionado alterado (o link do Supabase CLI vive em `supabase/.temp/`, já gitignored).
+
+**Contexto.** O usuário criou manualmente um projeto Supabase novo e dedicado ("NEXO Pillot", ref confirmado, região `ca-central-1`, criado 2026-09-20, `ACTIVE_HEALTHY`) — resolvendo em definitivo a ambiguidade de ambiente registrada pela Mission 199 (o projeto histórico `nexo-platform`, ref confirmado, região `sa-east-1`, aparece agora com status `INACTIVE`/pausado, nunca tocado por esta missão).
+
+**Autenticação.** Sessão do Supabase CLI (`npx supabase`, sem instalação global — mesmo padrão já usado em sessão anterior) já estava autenticada (token em cache de uma sessão passada) — nenhuma senha/token foi solicitada, digitada ou vista por este agente. `npx supabase projects list` confirmou os dois projetos, sem ambiguidade, sem nenhum segredo no retorno.
+
+**Link.** `npx supabase link --project-ref <ref-do-NEXO-Pillot>` — sucesso, sem prompt de senha de banco. `supabase/.temp/linked-project.json` confirmado apontando para "NEXO Pillot"; `nexo-platform` (histórico) confirmado desvinculado, nunca mutado.
+
+**Estado remoto pré-migration.** `npx supabase migration list --linked` — as 15 migrations locais, todas com `remote: ""` (nenhuma aplicada) — classificação **EMPTY_EXPECTED**, exatamente como o usuário descreveu.
+
+**Auditoria de segurança de migration (Seção 9 da missão).** As duas únicas operações "destrutivas" encontradas em toda a cadeia (`delete from public.companies` e `drop table if exists public.empresas`, ambas na Migration 005) são limpeza histórica do projeto ORIGINAL com guards seguros — em um projeto vazio, ambas são no-ops. Nenhum bloqueio identificado nesta auditoria estática.
+
+**Defeito real encontrado durante a aplicação (nunca detectável por auditoria estática — só uma aplicação real contra um projeto genuinamente vazio revela isso).** `npx supabase db push --linked` aplicou as Migrations 001-004 com sucesso (`initial_schema`, `users_profile`, `companies_core`, `documents_core`) e falhou na Migration 005 (`security_advisor_cleanup.sql`): `ERROR: relation "public.financial_metrics" does not exist (SQLSTATE 42P01)`. A migration inteira (`alter table ... enable row level security` + 3 `create policy` + 1 `create trigger`, linhas 33-84) assume que `public.financial_metrics` já existe — o próprio comentário do arquivo admite: "Já existia com uma FK real e válida para public.companies(id), mas criada FORA de qualquer migration... mesmo padrão de drift já visto na Missão 4." Ou seja: esta tabela nunca foi criada por NENHUMA migration em nenhum momento da história do projeto — ela só existe no projeto histórico porque foi criada manualmente, fora de controle de versão, antes da Migration 005 ter sido escrita para apenas fechá-la com RLS. `docs/03_DATABASE.md` (a documentação de origem citada pelo comentário da migration) não existe mais no repositório atual (pasta `docs/` já reestruturada múltiplas vezes) — não há fonte confiável remanescente do schema real dessa tabela para reconstruir com segurança.
+
+**Confirmado, por grep em todo o código-fonte**: `financial_metrics` nunca é referenciada por nenhum código de aplicação (`app/`, `modules/`, `efos/`) nem existe em `types/database.ts` — é infraestrutura vestigial do projeto original, nunca consumida pelo produto atual.
+
+**Decisão desta missão: NÃO corrigida.** Por instrução explícita da missão ("Do not patch history casually... STOP before remote mutation and report the defect"), nenhuma edição foi feita em `20260721141609_security_advisor_cleanup.sql`. Um patch mínimo e seguro é POSSÍVEL (guardar cada statement dependente de `financial_metrics` atrás de uma checagem de existência da tabela — comportamento idêntico preservado no projeto histórico, no-op seguro em qualquer projeto novo) mas não foi aplicado sem revisão/aprovação explícita, dado o tamanho da mudança (5 statements DDL, não uma linha) e a natureza de "reescrever uma migration já aplicada em produção" — mesmo sendo comportamentalmente preservado, esta é uma decisão que a missão pediu explicitamente para não ser tomada de forma unilateral.
+
+**Estado final do projeto NEXO Pillot.** Migrations 001-004 aplicadas com sucesso, idênticas ao repositório — estado limpo, coerente, sem divergência (nunca uma tentativa de `migration repair`). Migrations 005-015 não aplicadas. Projeto permanece utilizável para uma futura tentativa, assim que a Migration 005 for corrigida e revisada.
+
+**Migrations 006-015 permanecem genuinamente não testadas contra um projeto novo** — esta missão só alcançou o primeiro bloqueio; pode haver mais assunções de estado pré-existente adiante, ainda não descobertas.
+
+**Regressão local.** Nenhuma mudança de código — type-check/lint/build/138 testes permanecem no mesmo estado da Mission 199 (não re-executados, pois nada no repositório mudou).
+
+**Recomendação para a próxima tentativa (não implementada, requer decisão humana).** Corrigir `20260721141609_security_advisor_cleanup.sql` para guardar os 5 statements dependentes de `financial_metrics` atrás de uma checagem `information_schema.tables` (comportamento preservado no projeto histórico; no-op seguro em qualquer projeto novo) — só então repetir `supabase db push --linked` contra o NEXO Pillot, já linkado e pronto.
+
+**Origem.** Mission 199P — Provision NEXO Pilot from Canonical Repository.
