@@ -9763,3 +9763,39 @@ Diferenças deliberadas em relação à proposta original da Mission 170: `origi
 **Pendente (gate externo).** Matriz cross-tenant USER_B → COMPANY_A (exige um segundo usuário real, criado por humano); estado de DNS não verificável; closure final do piloto após isolamento provado.
 
 **Origem.** Mission 199B Closure — Documentation, Cross-Platform Regression & Pilot State Reconciliation.
+
+## Mission 199B External Gate — Live Cross-Tenant Isolation Validation
+
+**Status.** `CROSS_TENANT_GATE_FAILED` — interrompida pela regra de parada ao encontrar um vazamento cross-tenant real (baixa severidade). Nenhum arquivo alterado, nenhum commit naquela execução; registrada aqui pela Security Closure abaixo.
+
+**Ambiente.** NEXO Pilot, confirmado sem credencial privilegiada: as 13 tabelas do repositório respondem ao PostgREST com a anon key e `financial_metrics`/`empresas` respondem `PGRST205` (inexistentes) — a assinatura de D-124.
+
+**Provado ao vivo.** Papel anônimo: 0 linhas nas 13 tabelas, listagem vazia no bucket `documents`, RPC `acquire_processing_attempt_revision` negada (`42501`). USER_B (DEV_USER) — usuário real autenticado do Pilot pelo humano no painel de navegador, identidade conferida sem registrar o e-mail — não tem nenhuma empresa e não enxerga nenhuma pela UI (precondição válida: nenhum vínculo com COMPANY_A). O menu do usuário abriu sem erro (correção de logout da 199B confirmada ao vivo).
+
+**Provado estruturalmente.** A aplicação não tem cliente privilegiado (só anon key + cookie do usuário; nenhum `service_role`); toda policy exige `companies.user_id = auth.uid()`; páginas, rotas e Server Actions de decisão/knowledge verificam `getCompanyById()` antes de ler; `GET /api/efos/history/[companyId]` e `resolveScenarioBaseline()` dependem só de RLS e respondem a uma empresa alheia exatamente como a uma inexistente.
+
+**Não provado.** Consulta direta ao banco como USER_B — a tentativa de usar o token da própria sessão para chamar o PostgREST foi bloqueada pelo sistema de permissões do agente e não foi contornada. IDOR com IDs reais de COMPANY_A — o humano não tem acesso a USER_A e os IDs não foram obtidos.
+
+**Vazamento encontrado.** Unicidade global de `companies.cnpj` (Migration 001, `companies_document_key`) + mensagem "Já existe uma empresa cadastrada com este CNPJ." em `createCompanyAction()`/`updateCompanyAction()`: um usuário descobre que um CNPJ existe em outro tenant. Não corrigido naquela execução.
+
+**Origem.** Mission 199B External Gate — Live Cross-Tenant Isolation Validation.
+
+## Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration
+
+**Status.** IMPLEMENTADA — correção commitada, **Migration 016 NOT_APPLIED no NEXO Pilot**. Classificação: `SECURITY_CLOSURE_READY_FOR_PILOT_MIGRATION`. Decisão nova: **D-126**.
+
+**Root cause.** `document text not null unique` (Migration 001) virou `cnpj` na Migration 003, com a constraint mantendo o nome `companies_document_key` e o escopo global. No INSERT e no UPDATE de `companies`, a linha do próprio usuário passa no WITH CHECK e só o índice único — que enxerga todas as linhas, sem RLS — falha com 23505; o código mapeava todo 23505 para "Já existe uma empresa cadastrada com este CNPJ.".
+
+**Auditoria de constraints (schema inteiro).** Só o CNPJ é material, por ser público e de baixa entropia. `documents.storage_path`, `executions.execution_id` e as PKs só colidem para quem já conhece um UUID do outro tenant; FKs de tabelas filhas para linhas alheias falham no WITH CHECK (42501) antes da FK, sem distinguir existência. Registrados sem correção: `financial_observations` não verifica na policy que as execuções referenciadas são da mesma empresa (exige conhecer o UUID, não dá leitura); o signup responde "Já existe uma conta com este e-mail." quando o Supabase Auth devolve `user_already_exists` (enumeração de conta — canal separado, reportado).
+
+**Tenancy e semântica (D-126).** Autoridade única: `companies.user_id` (D-066, `docs/CONTEXT.md`), dono único, sem membership. O CNPJ não é identidade global em nenhum documento; é atributo tenant-scoped. Com a decisão humana de nunca revelar CNPJ de outro tenant, dois donos independentes precisam poder registrar o mesmo CNPJ.
+
+**Correção.** `supabase/migrations/20260926000000_companies_cnpj_tenant_scoped_unique.sql` (Migration 016): remove pelo catálogo toda unicidade de coluna única em `cnpj` (qualquer nome — robusto ao drift histórico) e adiciona `companies_user_id_cnpj_key unique (user_id, cnpj)`; não altera dado, não toca RLS, funciona em banco vazio. `modules/companies/utils/cnpj-uniqueness.ts`: a mensagem "Você já tem uma empresa cadastrada com este CNPJ." só aparece quando a constraint violada é `companies_user_id_cnpj_key`; qualquer outro 23505 cai na mensagem genérica. `company.actions.ts` usa esse mapeamento no create e no update.
+
+**Regressão permanente.** `tests/production-surface/cnpj-tenant-scoped-uniqueness.test.ts` (11 testes): a correção é a última migration e a 001 continua intacta; a chave de unicidade final extraída da cadeia é `(user_id, cnpj)`; a migration remove só a chave exata em `cnpj` e nunca apaga dado; INSERT e UPDATE (mesmo tenant rejeita, tenant diferente permite) sobre um modelo explícito de índice único; o modelo detecta o defeito original com a chave global; o mapeamento de erro nunca produz a mensagem de CNPJ duplicado para a constraint global antiga nem para outros erros; create e update usam o mesmo mapeamento. STATIC MIGRATION-CHAIN PROOF + prova de código — nunca Postgres real (sem Postgres embutível/Docker).
+
+**Regressão.** Type-check/lint/build limpos, 16 rotas · `test:financial-ingestion` 65/65 · `test:executive-report` 27/27 · `test:activation` 36/36 · `test:production-surface` 22/22 (11 anteriores + 11 novos) · `test:release-candidate` 5/5 — **155 testes**.
+
+**Pendente.** Aplicar a Migration 016 no NEXO Pilot (autorização humana explícita); repetir a matriz cross-tenant ao vivo, de preferência com os IDs reais de COMPANY_A.
+
+**Origem.** Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration.

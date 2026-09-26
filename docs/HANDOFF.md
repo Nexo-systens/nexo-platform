@@ -42,7 +42,15 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 199B Closure — Documentation, Cross-Platform Regression & Pilot State Reconciliation** (fecha a **Mission 199B — Live Authenticated Pilot Gate**, commit `ccfb0e7`). Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: CLOSED_WITH_EXTERNAL_GATE.** Decisão nova: **D-125** (complemento de D-122: `GET` somente leitura no endpoint canônico de análise). Regressão: 144 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 11 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
+**Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration.** Ver `docs/ENGINEERING_LOG.md` para o registro completo (inclui a entrada do gate externo que a originou). **Status: SECURITY_CLOSURE_READY_FOR_PILOT_MIGRATION.** Decisão nova: **D-126**. Regressão: 155 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 22 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
+
+- **Gate externo da 199B (matriz cross-tenant, USER_B real autenticado no Pilot): `CROSS_TENANT_GATE_FAILED`.** USER_B não enxergou nada de COMPANY_A e o papel anônimo foi provado isolado ao vivo, mas a unicidade GLOBAL de `companies.cnpj` revelava, pelo erro "Já existe uma empresa cadastrada com este CNPJ.", que um CNPJ existia em outro tenant.
+- **Correção (D-126):** Migration 016 (`20260926000000_companies_cnpj_tenant_scoped_unique.sql`) troca a unicidade por `unique (user_id, cnpj)`; a mensagem de CNPJ duplicado só aparece para a constraint do próprio dono (`modules/companies/utils/cnpj-uniqueness.ts`). Regressão em `tests/production-surface/cnpj-tenant-scoped-uniqueness.test.ts`.
+- **Migration 016: NOT_APPLIED no NEXO Pilot.** Até ser aplicada, o Pilot mantém a unicidade global (a aplicação já não afirma "já existe", mas a falha ainda distingue).
+- **Reportado, não corrigido:** o signup responde "Já existe uma conta com este e-mail." quando o Supabase Auth devolve `user_already_exists` (enumeração de conta); `financial_observations` não verifica na policy que as execuções referenciadas são da mesma empresa (não material).
+- **Não provado no gate:** consulta direta ao banco como USER_B (bloqueada pelo sistema de permissões do agente) e IDOR com IDs reais de COMPANY_A (humano sem acesso a USER_A).
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 199B Closure — Documentation, Cross-Platform Regression & Pilot State Reconciliation** (fecha a **Mission 199B — Live Authenticated Pilot Gate**, commit `ccfb0e7`). Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: CLOSED_WITH_EXTERNAL_GATE.** Decisão nova: **D-125** (complemento de D-122: `GET` somente leitura no endpoint canônico de análise). Regressão: 144 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 11 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
 
 **Concluído (199B + Closure).**
 - Usuário real autenticado no NEXO Pilot (USER_A/COMPANY_A na 199B, HUMAN-DRIVEN LIVE) com análise real persistida em `public.executions`.
@@ -310,7 +318,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo gate (após a Mission 199B Closure): matriz cross-tenant USER_B → COMPANY_A no NEXO Pilot.** Pré-requisito humano: criar e confirmar um USER_B dedicado (o SMTP já funciona — HUMAN-VERIFIED). Depois, provar ao vivo que USER_B não lê nem altera empresa, documentos, execuções, histórico e a análise hidratada (`GET /api/efos/analyze/[companyId]/executive`) de COMPANY_A. Só então fechar o piloto. Nenhuma Mission 200 deve começar antes disso.
+**Próximo gate (após a Mission 199B Security Closure):** (1) autorização humana explícita para aplicar a Migration 016 no NEXO Pilot (`npx supabase db push --linked`, exige o Supabase CLI autenticado e linkado nesta máquina) e verificar que `companies_user_id_cnpj_key` existe e nenhuma unicidade de coluna única em `cnpj` sobrou; (2) repetir a matriz cross-tenant com USER_B, idealmente com os IDs reais de COMPANY_A obtidos pelo humano no Table Editor do Supabase Dashboard. Só com `CROSS_TENANT_GATE_PASSED` a Mission 199B fecha e o piloto pode ser concluído. Nenhuma Mission 200 antes disso.
+
+Histórico (Mission 199B Closure): **Próximo gate (após a Mission 199B Closure): matriz cross-tenant USER_B → COMPANY_A no NEXO Pilot.** Pré-requisito humano: criar e confirmar um USER_B dedicado (o SMTP já funciona — HUMAN-VERIFIED). Depois, provar ao vivo que USER_B não lê nem altera empresa, documentos, execuções, histórico e a análise hidratada (`GET /api/efos/analyze/[companyId]/executive`) de COMPANY_A. Só então fechar o piloto. Nenhuma Mission 200 deve começar antes disso.
 
 Histórico (Mission 199P Closure A): **NEXO Pillot está `PILOT_ENV_READY` — nenhuma ação técnica de provisionamento pendente.** Por instrução explícita da Mission 199P Closure A ("Do not create User A/User B. Do not upload financial documents. Do not execute the Founding Company journey."), nenhuma jornada real foi exercitada contra este ambiente. O próximo passo natural — exercitar a jornada real (login → empresa → upload → análise) contra o NEXO Pillot já provisionado — só pode ser iniciado por decisão humana explícita, dado que envolve autenticação real (proibida para este agente, sem exceção).
 

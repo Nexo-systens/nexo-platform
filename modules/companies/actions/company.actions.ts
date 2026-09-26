@@ -13,6 +13,10 @@ import {
 } from "@/modules/companies/services/company.service";
 import type { CompanyActionState } from "@/modules/companies/types";
 import {
+  isTenantScopedCnpjViolation,
+  OWN_DUPLICATE_CNPJ_MESSAGE,
+} from "@/modules/companies/utils/cnpj-uniqueness";
+import {
   companyFormSchema,
   type CompanyFormInput,
 } from "@/modules/companies/validators/company.schemas";
@@ -29,15 +33,6 @@ function toMutationInput(data: CompanyFormInput): CompanyMutationInput {
     dataAbertura: data.dataAbertura || null,
     observacoes: data.observacoes || null,
   };
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
 }
 
 export async function createCompanyAction(
@@ -66,8 +61,8 @@ export async function createCompanyAction(
   } catch (error) {
     return {
       status: "error",
-      message: isUniqueViolation(error)
-        ? "Já existe uma empresa cadastrada com este CNPJ."
+      message: isTenantScopedCnpjViolation(error)
+        ? OWN_DUPLICATE_CNPJ_MESSAGE
         : "Não foi possível criar a empresa. Tente novamente.",
     };
   }
@@ -95,8 +90,8 @@ export async function updateCompanyAction(
   } catch (error) {
     return {
       status: "error",
-      message: isUniqueViolation(error)
-        ? "Já existe uma empresa cadastrada com este CNPJ."
+      message: isTenantScopedCnpjViolation(error)
+        ? OWN_DUPLICATE_CNPJ_MESSAGE
         : "Não foi possível salvar as alterações.",
     };
   }

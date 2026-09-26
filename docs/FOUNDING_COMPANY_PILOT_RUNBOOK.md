@@ -48,7 +48,7 @@ Para reverificar a qualquer momento:
 npx supabase migration list --linked
 ```
 
-Cadeia esperada (15 migrations, ordem exata — `supabase/migrations/`):
+Cadeia esperada (16 migrations no repositório, ordem exata — `supabase/migrations/`; **a 16ª ainda NOT_APPLIED no NEXO Pilot**, ver abaixo):
 
 ```
 20260715151336_initial_schema
@@ -66,7 +66,10 @@ Cadeia esperada (15 migrations, ordem exata — `supabase/migrations/`):
 20260918120000_document_processing_authority
 20260919120000_documents_bucket_size_limit
 20260920000000_documents_storage_delete_policy
+20260926000000_companies_cnpj_tenant_scoped_unique
 ```
+
+**Migration 016 — ATUALIZADO (Mission 199B Security Closure, D-126).** `companies_cnpj_tenant_scoped_unique` troca a unicidade global de `companies.cnpj` por `unique (user_id, cnpj)`, fechando o oráculo cross-tenant de CNPJ encontrado pela matriz da Mission 199B. Commitada, **NOT_APPLIED no NEXO Pilot** até autorização humana explícita. Estado esperado até lá: `migration list --linked` mostra as 15 primeiras aplicadas e a 016 só local — isso é `MIGRATION_BEHIND` conhecido e intencional, não divergência. Aplicar com `npx supabase db push --linked` somente depois da autorização; confirmar em seguida que `companies_user_id_cnpj_key` existe e que nenhuma constraint UNIQUE de coluna única em `cnpj` sobrou.
 
 Se a lista real divergir desta (uma a mais, uma a menos, ordem diferente): **não tentar corrigir manualmente**. Classificar `MIGRATION_BEHIND`/`MIGRATION_AHEAD`/`MIGRATION_DIVERGED` e tratar como bloqueio até entendido — nunca reparar histórico de migration à mão (`docs/PROJECT_RULES.md`, mesma disciplina de nunca reescrever decisão já registrada).
 
@@ -167,7 +170,7 @@ Uma empresa madura (`executionsCount`/`diagnosesCount` > 0) nunca regride, mesmo
 Este é o plano de rollback estreito, específico do primeiro piloto — não um DR enterprise.
 
 - **Aplicação**: rollback é sempre `git revert`/deploy da versão anterior de `develop` (ou do commit conhecido-bom). Nunca há necessidade de reverter dado.
-- **Migrations**: todas as 15 migrations são aditivas (nenhuma `DROP`/reescrita destrutiva — confirmado por leitura de cada uma, Mission 197/199). **Nunca reverter uma migration já aplicada** — se um deploy futuro precisar desfazer uma mudança de schema, isso deve ser uma NOVA migration aditiva, nunca a exclusão física da anterior.
+- **Migrations**: todas as 16 migrations preservam dado (a 016 só relaxa a unicidade global de `cnpj` para `(user_id, cnpj)`, nunca apaga linha); as 15 primeiras são aditivas (nenhuma `DROP`/reescrita destrutiva — confirmado por leitura de cada uma, Mission 197/199). **Nunca reverter uma migration já aplicada** — se um deploy futuro precisar desfazer uma mudança de schema, isso deve ser uma NOVA migration aditiva, nunca a exclusão física da anterior.
 - **Documentos/Storage**: exclusão é sempre lógica (`deleted_at`) para documentos aceitos — fisicamente imutável (Migration 015, D-123). Nenhuma ação de rollback pode ou deve apagar bytes de documento aceito.
 - **Execuções/Diagnósticos**: imutáveis por design (D-017, `executive_diagnoses` sem policy de UPDATE/DELETE). Rollback de aplicação nunca precisa (nem pode) alterar histórico já persistido.
 - **Se algo corromper a Financial Truth de uma execução específica**: a correção é uma REANÁLISE (Seção 12), nunca uma edição manual de linha. Se isso não for suficiente, escalar para revisão humana antes de qualquer UPDATE manual em `public.executions`/`public.documents`.
@@ -202,3 +205,5 @@ Esta missão não removeu nem alterou nenhum dado nesse projeto — nenhuma muta
 **Resolvido (Mission 199P):** a opção 1 foi escolhida — o piloto usa o projeto dedicado NEXO Pilot; o resíduo acima fica no projeto histórico, fora do piloto.
 
 **Matriz de isolamento cross-tenant — PENDENTE (gate externo da Mission 199B).** Requer um USER_B dedicado, criado e confirmado por humano no NEXO Pilot (SMTP já funcional). Provar ao vivo que USER_B, autenticado, NÃO consegue ler nem alterar de COMPANY_A: a empresa (`/companies/[id]`), documentos (lista, download, upload, exclusão), `POST`/`GET /api/efos/analyze/[companyId]/executive` (esperado `404`/`unauthorized`) e `GET /api/efos/history/[companyId]` (esperado histórico vazio). Até lá, o isolamento é apenas CODE-VERIFIED (RLS + `getCompanyById()`), nunca LIVE-PROVEN. O piloto só fecha depois desta prova.
+
+**Primeira execução (Mission 199B, gate externo) — `CROSS_TENANT_GATE_FAILED`.** USER_B (usuário real autenticado do Pilot, sem nenhuma empresa) não enxergou nada de COMPANY_A, e o papel anônimo foi provado isolado ao vivo nas 13 tabelas, no Storage e na RPC. Mas a auditoria encontrou um oráculo de enumeração: a unicidade GLOBAL de `companies.cnpj` revelava, pelo erro "Já existe uma empresa cadastrada com este CNPJ.", que um CNPJ existia em outro tenant. Correção commitada pela Mission 199B Security Closure (D-126, Migration 016, NOT_APPLIED no Pilot). Para repetir a matriz: aplicar a 016 (com autorização), obter os IDs reais de COMPANY_A pelo Table Editor do Supabase Dashboard (leitura humana) e rodar de novo com USER_B.
