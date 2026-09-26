@@ -17,6 +17,15 @@ import {
   updatePassword as updatePasswordService,
 } from "@/modules/auth/services/auth.service";
 import type { AuthActionState } from "@/modules/auth/types";
+import {
+  classifyPasswordResetError,
+  classifySignupError,
+  logSuppressedAuthOutcome,
+  PASSWORD_RESET_NEUTRAL_MESSAGE,
+  PUBLIC_AUTH_MIN_DURATION_MS,
+  SIGNUP_NEUTRAL_MESSAGE,
+  withMinimumDuration,
+} from "@/modules/auth/lib/public-auth-responses";
 
 async function getOrigin() {
   const headerList = await headers();
@@ -67,27 +76,21 @@ export async function signup(
 
   const origin = await getOrigin();
 
-  const { error } = await signUpWithPassword(
-    parsed.data,
-    `${origin}/auth/confirm?next=/dashboard`
+  // Mission 200 (D-127): a resposta nunca depende de o e-mail já ter
+  // conta — nem pela mensagem, nem pelo status, nem (dentro do piso)
+  // pelo tempo de resposta.
+  const { error } = await withMinimumDuration(PUBLIC_AUTH_MIN_DURATION_MS, () =>
+    signUpWithPassword(parsed.data, `${origin}/auth/confirm?next=/dashboard`)
   );
 
-  if (error) {
-    const alreadyExists =
-      error.code === "user_already_exists" || error.status === 422;
-
-    return {
-      status: "error",
-      message: alreadyExists
-        ? "Já existe uma conta com este e-mail."
-        : "Não foi possível criar a conta. Tente novamente.",
-    };
+  const outcome = classifySignupError(error);
+  if (outcome.kind === "actionable") {
+    return { status: "error", message: outcome.message };
   }
 
-  return {
-    status: "success",
-    message: "Conta criada. Verifique seu e-mail para confirmar o acesso.",
-  };
+  if (error) logSuppressedAuthOutcome("signup", error);
+
+  return { status: "success", message: SIGNUP_NEUTRAL_MESSAGE };
 }
 
 export async function logout(): Promise<never> {
@@ -109,17 +112,21 @@ export async function forgotPassword(
 
   const origin = await getOrigin();
 
-  await requestPasswordReset(
-    parsed.data.email,
-    `${origin}/auth/confirm?next=/reset-password`
+  // Mission 200 (D-127): mesma resposta com ou sem conta; só erros que
+  // independem da existência (formato, limite por IP, serviço
+  // inalcançável) são exibidos — o resto é registrado no servidor.
+  const { error } = await withMinimumDuration(PUBLIC_AUTH_MIN_DURATION_MS, () =>
+    requestPasswordReset(parsed.data.email, `${origin}/auth/confirm?next=/reset-password`)
   );
 
-  // Resposta sempre neutra: nunca revelar se o e-mail existe na base.
-  return {
-    status: "success",
-    message:
-      "Se este e-mail estiver cadastrado, você receberá um link de recuperação em instantes.",
-  };
+  const outcome = classifyPasswordResetError(error);
+  if (outcome.kind === "actionable") {
+    return { status: "error", message: outcome.message };
+  }
+
+  if (error) logSuppressedAuthOutcome("password_reset", error);
+
+  return { status: "success", message: PASSWORD_RESET_NEUTRAL_MESSAGE };
 }
 
 export async function resetPassword(

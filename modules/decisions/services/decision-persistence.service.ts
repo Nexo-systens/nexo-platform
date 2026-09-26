@@ -1,3 +1,4 @@
+import { allUuids } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 import type { Decision } from "@/efos/domain";
 import type { Database } from "@/types/database";
@@ -31,6 +32,11 @@ export interface DecisionAuthorizationError {
   readonly message: string;
 }
 
+const REVIEW_NOT_FOUND: DecisionAuthorizationError = {
+  code: "REVIEW_NOT_FOUND_IN_COMPANY",
+  message: "A revisão informada não existe ou não pertence a esta empresa.",
+};
+
 /**
  * Repositório canônico de `Decision` humana persistida (Mission 126,
  * D-066). Tabela única (`public.decisions`) capaz de representar tanto
@@ -51,6 +57,12 @@ export async function verifyReviewBelongsToCompany(
   reviewId: string,
   companyId: string
 ): Promise<DecisionAuthorizationError | undefined> {
+  // Mission 200 (D-128): id malformado nunca vai ao Postgres — mesmo
+  // desfecho de um id inexistente ou de outra empresa.
+  if (!allUuids(reviewId, companyId)) {
+    return REVIEW_NOT_FOUND;
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -63,10 +75,7 @@ export async function verifyReviewBelongsToCompany(
   if (error) throw error;
 
   if (!data) {
-    return {
-      code: "REVIEW_NOT_FOUND_IN_COMPANY",
-      message: "A revisão informada não existe ou não pertence a esta empresa.",
-    };
+    return REVIEW_NOT_FOUND;
   }
   return undefined;
 }

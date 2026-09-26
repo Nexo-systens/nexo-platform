@@ -1951,6 +1951,36 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 **Origem.** Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration.
 
+## D-127 — Respostas públicas de autenticação são NÃO-ENUMERANTES: signup e recuperação de senha devolvem a mesma resposta observável com ou sem conta existente; só erros que independem da existência da conta são exibidos
+
+**Ameaça.** `signup()` respondia "Já existe uma conta com este e-mail." para `user_already_exists` ou qualquer HTTP 422 — um oráculo de existência de conta numa página pública (e, de quebra, rotulava errado senha fraca/e-mail inválido, que o Supabase também devolve como 422). A recuperação de senha já era neutra na mensagem, mas descartava todo erro, inclusive falhas reais e acionáveis.
+
+**Contrato.** Para os fluxos públicos (signup, recuperação de senha), um erro do Supabase Auth só é exibido se depender apenas do que o próprio usuário enviou ou de algo global/por IP: `weak_password`, `email_address_invalid`, `signup_disabled` (só signup), `over_request_rate_limit` (limite por IP) e serviço inalcançável (`AuthRetryableFetchError`). Todo outro desfecho — `user_already_exists`/`email_exists`/`identity_already_exists`, mas também `over_email_send_rate_limit` (cooldown por usuário na recuperação) e falhas de envio (só acontecem quando um e-mail é de fato enviado, o que difere entre conta nova e existente) — recebe a mesma resposta neutra do caminho feliz, e o código do erro vai para o log do servidor (nunca e-mail, senha ou token). As mensagens neutras nunca afirmam que a conta foi criada ou que um e-mail foi enviado: dizem o que acontece SE o endereço puder ser usado e o que fazer se nada chegar — uma falha operacional suprimida nunca vira uma falsa confirmação. Ambas as actions respondem com um piso de 1,5 s (`withMinimumDuration()`), absorvendo a diferença de latência entre "envia e-mail" e "não envia".
+
+**Fluxos auditados.** Login já era genérico ("E-mail ou senha incorretos." para qualquer falha) e continua. Redefinição de senha exige sessão — fora da superfície pública. `/auth/confirm` devolve o mesmo redirecionamento de erro para qualquer token inválido. Não existe fluxo de reenvio de confirmação. A confirmação de e-mail do Supabase continua obrigatória e intocada; nenhum `service_role`, nenhum bypass do Supabase Auth.
+
+**Achado adjacente corrigido na mesma fronteira.** `/auth/confirm` concatenava `origin + next`; um `next` como `@evil.example` ou `.evil.example` resolvia para outro host (open redirect depois de uma verificação de token bem-sucedida — um atacante pode usar o token da própria conta). `safeInternalRedirectPath()` só aceita caminhos absolutos do próprio site.
+
+**Limitações conhecidas.** (1) O piso de duração não elimina um canal de tempo estatístico quando o envio de e-mail passa de 1,5 s, nem a diferença de verificação de senha (bcrypt) do Supabase no login — ambos no lado do Supabase, não normalizáveis com segurança na aplicação. (2) A resposta neutra do signup é necessariamente a mesma para quem já tem conta: essa pessoa é orientada a entrar ou recuperar a senha, nunca informada de que a conta existe.
+
+**Origem.** Mission 200 — Authentication Security & Error Boundary Closure.
+
+## D-128 — Identificador externo canônico: todo id de recurso vindo do cliente é validado como UUID textual (`isUuid()`, `lib/identifiers.ts`) antes de qualquer consulta; malformado nunca produz 500 e nunca chega ao banco nem ao pipeline
+
+**Ameaça/defeito.** Todas as colunas de identificador são `uuid`. Um valor não-UUID faz o Postgres rejeitar a consulta inteira (22P02); o service lançava e, em `GET/POST /api/efos/analyze/[companyId]/executive`, `getCompanyById()` rodava fora do `try` — HTTP 500 sem corpo. O mesmo defeito era sistêmico: `GET /api/efos/history/[companyId]` devolvia 500 com a mensagem do Postgres no corpo; qualquer Server Action com `documentId`/`decisionId`/`diagnosisId`/`reviewId` malformado lançava.
+
+**Forma canônica.** 8-4-4-4-12 hexadecimal, sem restrição de versão/variante — não `z.uuid()`, porque IDs determinísticos da NEXO (`deriveKnowledgeId()`) são UUIDs válidos para o Postgres sem versão RFC 4122.
+
+**Contrato.**
+- Rotas HTTP (`app/api/efos/**`): identificador malformado → `400 {code: "invalid_identifier"}` (`invalidIdentifierResponse()`), antes de qualquer I/O. Well-formed inexistente e well-formed não autorizado continuam idênticos entre si (`404 unauthorized` na análise, histórico vazio no histórico — D-122/D-125).
+- Fronteira de dados: funções que recebem id do cliente devolvem, para um id malformado, exatamente o desfecho de um id inexistente, sem consultar — `getCompanyById()` → `null` (e por isso toda página e Server Action guardada por ela); `verifyDecisionBelongsToCompany()`/`verifyDiagnosisBelongsToCompany()`/`verifyReviewBelongsToCompany()` → o mesmo erro de "não pertence a esta empresa"; `getDocumentsByIds()` descarta malformados; `softDeleteDocument()`/`setCompanyStatus()`/`softDeleteCompany()` → no-op; `updateCompany()` → a mesma falha de "não encontrada".
+
+**Por que não é um oráculo.** Malformação é decidível pelo próprio chamador a partir do texto que enviou — separá-la (400) de "inexistente/não autorizado" (404) não diz nada sobre a existência de nenhum recurso. Nenhuma resposta distingue um UUID bem formado de outra empresa de um UUID bem formado inexistente.
+
+**Impacto.** `tests/production-surface/external-identifier-validation.test.ts` (12 testes) chama os handlers de rota e os services reais; fora de uma requisição do Next, abrir o cliente Supabase lança — então um retorno sem exceção prova que nada foi consultado, e testes de controle provam que um UUID válido passa da validação.
+
+**Origem.** Mission 200 — Authentication Security & Error Boundary Closure.
+
 ---
 
 ## Próximas decisões

@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 import type {
   CompanySize,
@@ -87,7 +88,11 @@ export async function listCompanies(
   };
 }
 
+// Mission 200 (D-128): um id malformado nunca chega ao Postgres — mesmo
+// resultado de um id inexistente/não autorizado (`null`), sem oráculo.
 export async function getCompanyById(id: string): Promise<Company | null> {
+  if (!isUuid(id)) return null;
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -132,6 +137,9 @@ export async function updateCompany(
   id: string,
   input: CompanyMutationInput
 ): Promise<Company> {
+  // Mesmo desfecho de um id inexistente (`.single()` sem linha lança).
+  if (!isUuid(id)) throw new Error("Empresa não encontrada.");
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -159,6 +167,9 @@ export async function setCompanyStatus(
   id: string,
   status: CompanyStatus
 ): Promise<void> {
+  // Mesmo desfecho de um id inexistente: nenhuma linha afetada.
+  if (!isUuid(id)) return;
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("companies")
@@ -169,6 +180,8 @@ export async function setCompanyStatus(
 }
 
 export async function softDeleteCompany(id: string): Promise<void> {
+  if (!isUuid(id)) return;
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("companies")

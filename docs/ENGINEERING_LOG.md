@@ -9861,3 +9861,29 @@ Nenhuma resposta permite inferir que COMPANY_A, o documento ou a execução exis
 **Regressão final.** Type-check/lint/build limpos, 16 rotas · 155/155.
 
 **Origem.** Mission 199B Final External Gate — Cross-Tenant Revalidation.
+
+## Mission 200 — Authentication Security & Error Boundary Closure
+
+**Status.** `MISSION_200_PASSED_WITH_LIMITATIONS`. Os dois achados conhecidos foram fechados: **(1) enumeração de conta no signup — FECHADO**; **(2) UUID malformado → HTTP 500 — FECHADO (sistemicamente)**. Decisões novas: **D-127** (respostas públicas de auth não-enumerantes) e **D-128** (identificador externo canônico). Nenhuma migration, nenhum Engine, nenhuma mudança de tenancy.
+
+**Baseline.** `HEAD == origin/develop == 0a9ce6e`, limpo, migrations 16/16 no Pilot, 155/155, build 16 rotas.
+
+**Achado 1 — causa raiz.** `signup()` mapeava `error.code === "user_already_exists" || error.status === 422` para "Já existe uma conta com este e-mail." — oráculo de existência de conta, e rótulo errado para outros 422 (senha fraca, e-mail inválido). A recuperação de senha já era neutra na mensagem, mas descartava todo erro. Login já genérico; redefinição exige sessão; `/auth/confirm` com erro genérico; não existe reenvio de confirmação.
+
+**Achado 1 — correção.** `modules/auth/lib/public-auth-responses.ts`: `classifySignupError()`/`classifyPasswordResetError()` só tornam acionáveis erros que independem da existência da conta (`weak_password`, `email_address_invalid`, `signup_disabled`, `over_request_rate_limit`, serviço inalcançável); todo outro desfecho (incluindo cooldown por usuário e falha de envio de e-mail) recebe a mesma resposta neutra do caminho feliz e é registrado no servidor só com código/status. Mensagens neutras nunca afirmam conta criada ou e-mail enviado. Piso de 1,5 s nas duas actions. `ForgotPasswordForm` passou a exibir erros acionáveis (antes não renderizava nenhum).
+
+**Achado novo, corrigido na mesma fronteira.** Open redirect em `/auth/confirm`: `origin + next` com `next=@evil.example`/`.evil.example` resolvia para outro host depois de um `verifyOtp` bem-sucedido. `safeInternalRedirectPath()` só aceita caminhos internos.
+
+**Achado 2 — causa raiz.** Colunas de id são `uuid`; um valor não-UUID faz o Postgres rejeitar a consulta (22P02), o service lança, e na rota de análise `getCompanyById()` rodava fora do `try` → 500 sem corpo. Sistêmico: history devolvia 500 com a mensagem do Postgres; Server Actions com `documentId`/`decisionId`/`diagnosisId`/`reviewId` malformados lançavam.
+
+**Achado 2 — correção.** `lib/identifiers.ts` (`isUuid()`/`allUuids()`, 8-4-4-4-12 hex sem restrição de versão — compatível com `deriveKnowledgeId()`); `app/api/efos/_shared/invalidIdentifier.ts` (`400 invalid_identifier`) aplicado a `GET`/`POST` de análise e ao history (inclusive `previousExecutionId`); guardas na fronteira de dados: `getCompanyById()`, `updateCompany()`/`setCompanyStatus()`/`softDeleteCompany()`, `softDeleteDocument()`/`getDocumentsByIds()`, `verifyDecisionBelongsToCompany()`/`verifyDiagnosisBelongsToCompany()`/`verifyReviewBelongsToCompany()` — malformado recebe exatamente o desfecho de inexistente, sem consultar.
+
+**Regressão permanente.** `tests/production-surface/public-auth-non-enumeration.test.ts` (15) e `tests/production-surface/external-identifier-validation.test.ts` (12).
+
+**Prova no NEXO Pilot (servidor local, sessão real de USER_B).** Malformado: `GET`/`POST /api/efos/analyze/not-a-uuid/executive`, `GET /api/efos/history/not-a-uuid` e `previousExecutionId=nope` → `400 invalid_identifier`; `/companies/not-a-uuid` e `/documents?companyId=not-a-uuid` → não encontrada, sem stack trace nem texto de erro do Postgres. Well-formed inexistente: análise `404 unauthorized`, history vazio — inalterado. Well-formed não autorizado: caminho inalterado, provado idêntico ao inexistente pelo gate final da Mission 199B. Auth: sondagem ao vivo **não executada** — a action de recuperação só é invocável pela rota `/forgot-password`, que redireciona usuários logados, e encerrar a sessão do USER_B não é ação do agente; a sondagem de signup exigiria enviar senha ao Supabase num pedido de criação de conta.
+
+**Auditoria complementar (registrado, não corrigido).** Os `catch` de 500 das rotas de análise/history devolvem `error.message` ao cliente — com a validação de identificador, erros causados por input não chegam mais lá, mas uma falha interna real ainda expõe o texto do erro (baixa severidade). `proxy.ts` só redireciona para rotas fixas.
+
+**Regressão.** Type-check/lint/build limpos, 16 rotas · financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 49 · release-candidate 5 — **182 testes**.
+
+**Origem.** Mission 200 — Authentication Security & Error Boundary Closure.

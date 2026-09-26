@@ -42,7 +42,14 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 199B Final External Gate — Cross-Tenant Revalidation.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `CROSS_TENANT_GATE_PASSED` — Mission 199B CLOSED.** Nenhuma decisão nova. Regressão: 155/155, type-check/lint/build limpos, 16 rotas.
+**Mission 200 — Authentication Security & Error Boundary Closure.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `MISSION_200_PASSED_WITH_LIMITATIONS`.** Decisões novas: **D-127** (respostas públicas de auth não-enumerantes) e **D-128** (identificador externo canônico). Regressão: 182 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 49 · release-candidate 5), type-check/lint/build limpos, 16 rotas. Nenhuma migration.
+
+- **Fechado — enumeração de conta no signup:** a mensagem "Já existe uma conta com este e-mail." e o mapeamento de todo 422 foram removidos; signup e recuperação devolvem a mesma resposta neutra com ou sem conta, com piso de 1,5 s; só erros independentes da existência da conta são exibidos (`modules/auth/lib/public-auth-responses.ts`).
+- **Fechado — UUID malformado → 500:** `isUuid()` (`lib/identifiers.ts`) nas rotas (`400 invalid_identifier`) e na fronteira de dados (malformado = desfecho de inexistente, sem consulta). Provado ao vivo no Pilot como USER_B.
+- **Corrigido, achado novo:** open redirect em `/auth/confirm` (`next=@evil.example`).
+- **Limitações:** sondagem de auth ao vivo não executada (a action de recuperação só roda em `/forgot-password`, que redireciona usuários logados; signup exigiria enviar senha num pedido de criação de conta) — coberta por 15 testes e prova de código; canal de tempo residual do Supabase (envio > 1,5 s, bcrypt no login); `catch` de 500 das rotas ainda devolve `error.message` de falhas internas (baixa severidade, não corrigido).
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 199B Final External Gate — Cross-Tenant Revalidation.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `CROSS_TENANT_GATE_PASSED` — Mission 199B CLOSED.** Nenhuma decisão nova. Regressão: 155/155, type-check/lint/build limpos, 16 rotas.
 
 - **LIVE_PROVEN (USER_B real autenticado no NEXO Pilot, IDs reais de COMPANY_A comparados com UUID inexistente):** página da empresa, `/documents?companyId=`, `GET`/`POST` de análise executiva (`404` idêntico, `POST` rejeitado antes de qualquer efeito), histórico (inclusive com executionId real), rastreabilidade por documentId (`[]`), chat executivo e simulação de cenário (`stage: "access"`). Nenhuma resposta funciona como oráculo de existência. Listagens de USER_B vazias; papel anônimo isolado. Nenhuma alteração em COMPANY_A.
 - **LIVE_SCHEMA_PROVEN + REGRESSION_TESTED:** correção do CNPJ (D-126, `(user_id, cnpj)` no banco real).
@@ -326,7 +333,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Mission 199B está CLOSED.** A próxima missão é decisão humana — nenhuma foi iniciada. Candidatos já registrados, sem prioridade decidida: (a) enumeração de conta no signup ("Já existe uma conta com este e-mail."), canal reportado pela 199B Security Closure; (b) `500` sem corpo para UUID malformado em `/api/efos/analyze/[companyId]/executive`; (c) conduzir o primeiro Founding Company real pelo runbook.
+**Próximo gate (após a Mission 200): gate final de go-live do primeiro Founding Company**, por decisão humana explícita — nenhuma missão foi iniciada. Pré-requisitos sugeridos: (1) o humano roda a sondagem de auth no Pilot, deslogado, só com contas de teste: signup com o e-mail de uma conta de teste já confirmada e recuperação de senha para essa conta e para um endereço inexistente — as três telas devem mostrar exatamente a resposta neutra de D-127; (2) decidir se o `error.message` exposto nos `catch` de 500 das rotas deve ser generalizado antes do go-live.
+
+Histórico (Mission 199B Final External Gate, candidatos (a) e (b) fechados pela Mission 200): **Mission 199B está CLOSED.** A próxima missão é decisão humana — nenhuma foi iniciada. Candidatos já registrados, sem prioridade decidida: (a) enumeração de conta no signup ("Já existe uma conta com este e-mail."), canal reportado pela 199B Security Closure; (b) `500` sem corpo para UUID malformado em `/api/efos/analyze/[companyId]/executive`; (c) conduzir o primeiro Founding Company real pelo runbook.
 
 Histórico (Pilot Migration Gate, já cumprido): **Próximo gate (após o Pilot Migration Gate):** repetir a matriz cross-tenant com USER_B contra o NEXO Pilot já migrado — idealmente com os IDs reais de COMPANY_A copiados pelo humano no Table Editor do Supabase Dashboard, e com decisão explícita sobre a prova de consulta direta ao banco como USER_B. Só com `CROSS_TENANT_GATE_PASSED` a Mission 199B fecha. Nenhuma Mission 200 antes disso.
 

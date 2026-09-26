@@ -57,6 +57,12 @@ export function ForgotPasswordForm() {
       onSubmit={form.handleSubmit(onSubmit)}
       className="flex flex-col gap-4"
     >
+      {state.status === "error" && state.message && (
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">E-mail</Label>
         <Input

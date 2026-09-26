@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 import { ANALYZABLE_FILE_EXTENSIONS, STORAGE_BUCKET } from "@/modules/documents/constants";
 import type {
@@ -82,6 +83,10 @@ export async function insertDocumentRecord(
 }
 
 export async function softDeleteDocument(id: string): Promise<void> {
+  // Mission 200 (D-128): id malformado = nenhuma linha afetada, como um
+  // id inexistente — nunca uma consulta que o Postgres rejeita.
+  if (!isUuid(id)) return;
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("documents")
@@ -205,7 +210,11 @@ export async function downloadDocumentFile(storagePath: string): Promise<Blob> {
 export async function getDocumentsByIds(
   ids: readonly string[]
 ): Promise<Pick<DocumentRow, "id" | "nome_original" | "storage_path">[]> {
-  if (ids.length === 0) {
+  // Mission 200 (D-128): um id malformado nunca corresponderia a um
+  // documento — é descartado antes da consulta, em vez de fazer o
+  // Postgres rejeitar o lote inteiro.
+  const validIds = Array.isArray(ids) ? ids.filter(isUuid) : [];
+  if (validIds.length === 0) {
     return [];
   }
 
@@ -214,7 +223,7 @@ export async function getDocumentsByIds(
   const { data, error } = await supabase
     .from("documents")
     .select("id, nome_original, storage_path")
-    .in("id", ids)
+    .in("id", validIds)
     .is("deleted_at", null);
 
   if (error) throw error;

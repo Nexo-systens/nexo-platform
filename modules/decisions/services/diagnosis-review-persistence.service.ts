@@ -1,3 +1,4 @@
+import { allUuids } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 import type { DiagnosisReview } from "@/efos/application/diagnosis-review/DiagnosisReview";
 import type { Database } from "@/types/database";
@@ -48,10 +49,21 @@ export interface DiagnosisReviewAuthorizationError {
   readonly message: string;
 }
 
+const DIAGNOSIS_NOT_FOUND: DiagnosisReviewAuthorizationError = {
+  code: "DIAGNOSIS_NOT_FOUND_IN_COMPANY",
+  message: "O diagnóstico informado não existe ou não pertence a esta empresa.",
+};
+
 export async function verifyDiagnosisBelongsToCompany(
   diagnosisId: string,
   companyId: string
 ): Promise<DiagnosisReviewAuthorizationError | undefined> {
+  // Mission 200 (D-128): id malformado nunca vai ao Postgres — mesmo
+  // desfecho de um id inexistente ou de outra empresa.
+  if (!allUuids(diagnosisId, companyId)) {
+    return DIAGNOSIS_NOT_FOUND;
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -64,10 +76,7 @@ export async function verifyDiagnosisBelongsToCompany(
   if (error) throw error;
 
   if (!data) {
-    return {
-      code: "DIAGNOSIS_NOT_FOUND_IN_COMPANY",
-      message: "O diagnóstico informado não existe ou não pertence a esta empresa.",
-    };
+    return DIAGNOSIS_NOT_FOUND;
   }
   return undefined;
 }

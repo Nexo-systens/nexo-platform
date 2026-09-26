@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { safeInternalRedirectPath } from "@/modules/auth/lib/public-auth-responses";
 
 // Endpoint unico que trata o link enviado por e-mail pelo Supabase Auth
 // (confirmacao de cadastro e recuperacao de senha), evitando duplicar a
@@ -10,7 +11,8 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/dashboard";
+  // Mission 200: `next` só pode apontar para um caminho interno.
+  const next = safeInternalRedirectPath(searchParams.get("next"));
 
   if (tokenHash && type) {
     const supabase = await createClient();

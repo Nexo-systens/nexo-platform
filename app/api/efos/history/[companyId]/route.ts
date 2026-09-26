@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 import { DefaultHistoricalExecutionService } from "@/efos/application/history";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
+import { isUuid } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 
 import { buildHistoryResponse } from "../../_shared/HistoryResponse";
+import { invalidIdentifierResponse } from "../../_shared/invalidIdentifier";
 
 // Mission 087 — NEXO Historical & Comparative Intelligence Experience:
 // primeira rota somente leitura sobre o histórico já persistido de uma
@@ -39,6 +41,13 @@ export async function GET(
   const { companyId } = await params;
   const previousExecutionId =
     new URL(request.url).searchParams.get("previousExecutionId") ?? undefined;
+
+  // Mission 200 (D-128): identificadores malformados nunca chegam ao
+  // banco — antes, `companyId` inválido virava 500 com a mensagem do
+  // Postgres no corpo.
+  if (!isUuid(companyId) || (previousExecutionId !== undefined && !isUuid(previousExecutionId))) {
+    return invalidIdentifierResponse();
+  }
 
   try {
     const supabaseClient = await createClient();

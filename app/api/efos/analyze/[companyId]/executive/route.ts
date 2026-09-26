@@ -4,6 +4,7 @@ import type { RawFinancialDocument } from "@/efos/engines/data";
 import type { StatementConflict } from "@/efos/domain";
 import { createClient } from "@/lib/supabase/server";
 import { EFOSPlatform } from "@/efos/platform";
+import { isUuid } from "@/lib/identifiers";
 import { getCompanyById } from "@/modules/companies/services/company.service";
 import type { DocumentRow } from "@/modules/documents/services/document.service";
 import {
@@ -12,6 +13,7 @@ import {
   listDocumentGovernanceByExecution,
 } from "@/modules/documents/services/document.service";
 import type { DocumentGovernanceOutcome } from "../../../_shared/documentGovernance";
+import { invalidIdentifierResponse } from "../../../_shared/invalidIdentifier";
 
 import {
   applyDocumentGovernanceOutcomes,
@@ -96,6 +98,12 @@ export async function POST(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
+
+  // Mission 200 (D-128): identificador malformado nunca chega ao banco
+  // nem ao pipeline financeiro — 400 antes de qualquer I/O.
+  if (!isUuid(companyId)) {
+    return invalidIdentifierResponse();
+  }
 
   const company = await getCompanyById(companyId);
   if (!company) {
@@ -251,6 +259,12 @@ export async function GET(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
+
+  // Mission 200 (D-128): identificador malformado nunca chega ao banco
+  // nem ao pipeline financeiro — 400 antes de qualquer I/O.
+  if (!isUuid(companyId)) {
+    return invalidIdentifierResponse();
+  }
 
   const company = await getCompanyById(companyId);
   if (!company) {

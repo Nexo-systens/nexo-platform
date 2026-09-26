@@ -1,3 +1,4 @@
+import { allUuids } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 import type { DecisionExecutionEvent } from "@/efos/application/decision-execution/DecisionExecutionEvent";
 import type { Outcome } from "@/efos/domain";
@@ -58,10 +59,21 @@ export interface DecisionExecutionAuthorizationError {
   readonly message: string;
 }
 
+const DECISION_NOT_FOUND: DecisionExecutionAuthorizationError = {
+  code: "DECISION_NOT_FOUND_IN_COMPANY",
+  message: "A decisão informada não existe ou não pertence a esta empresa.",
+};
+
 export async function verifyDecisionBelongsToCompany(
   decisionId: string,
   companyId: string
 ): Promise<DecisionExecutionAuthorizationError | undefined> {
+  // Mission 200 (D-128): id malformado nunca vai ao Postgres — mesmo
+  // desfecho de um id inexistente ou de outra empresa.
+  if (!allUuids(decisionId, companyId)) {
+    return DECISION_NOT_FOUND;
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -74,10 +86,7 @@ export async function verifyDecisionBelongsToCompany(
   if (error) throw error;
 
   if (!data) {
-    return {
-      code: "DECISION_NOT_FOUND_IN_COMPANY",
-      message: "A decisão informada não existe ou não pertence a esta empresa.",
-    };
+    return DECISION_NOT_FOUND;
   }
   return undefined;
 }

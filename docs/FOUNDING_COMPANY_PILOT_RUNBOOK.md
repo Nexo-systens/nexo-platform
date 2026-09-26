@@ -102,6 +102,8 @@ Um humano deve executar isso manualmente. Nenhum agente desta série tem permiss
 
 Nenhuma credencial, e-mail real ou project ref deve ser registrado neste documento.
 
+**Respostas de autenticação — ATUALIZADO (Mission 200, D-127).** Signup e "esqueci minha senha" mostram a MESMA mensagem neutra com ou sem conta existente ("Se este e-mail puder ser usado..." / "Se este e-mail estiver cadastrado..."), sempre depois de pelo menos 1,5 s. É esperado: um fundador que já tem conta e tenta se cadastrar de novo não é informado disso — a mensagem orienta a entrar ou recuperar a senha. Só aparecem erros acionáveis que não revelam a conta: senha fraca, e-mail em formato inválido, cadastro desativado, muitas tentativas (limite por IP), serviço inalcançável. Falhas suprimidas (ex.: limite de envio de e-mail) ficam no log do servidor como `[auth:signup]`/`[auth:password_reset]`, só com código/status. Suporte: se o usuário diz que "nada chegou", verificar esse log e o painel de e-mail do Supabase Auth — nunca confirmar ao usuário se o endereço tem conta. O link de confirmação só redireciona para caminhos internos da NEXO.
+
 ## 5. Formatos de documento suportados
 
 **CODE-VERIFIED (Mission 195 Closure/196/197, inalterado).**
