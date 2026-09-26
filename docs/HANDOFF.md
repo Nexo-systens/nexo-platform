@@ -42,7 +42,15 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration + Pilot Migration Gate.** Ver `docs/ENGINEERING_LOG.md` para o registro completo (inclui a entrada do gate externo que a originou). **Status: `PILOT_MIGRATION_GATE_PASSED` — Migration 016 aplicada e verificada no NEXO Pilot; a Mission 199B ainda NÃO está fechada (falta repetir a matriz cross-tenant).** Decisão nova: **D-126**. Regressão: 155 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 22 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
+**Mission 199B Final External Gate — Cross-Tenant Revalidation.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `CROSS_TENANT_GATE_PASSED` — Mission 199B CLOSED.** Nenhuma decisão nova. Regressão: 155/155, type-check/lint/build limpos, 16 rotas.
+
+- **LIVE_PROVEN (USER_B real autenticado no NEXO Pilot, IDs reais de COMPANY_A comparados com UUID inexistente):** página da empresa, `/documents?companyId=`, `GET`/`POST` de análise executiva (`404` idêntico, `POST` rejeitado antes de qualquer efeito), histórico (inclusive com executionId real), rastreabilidade por documentId (`[]`), chat executivo e simulação de cenário (`stage: "access"`). Nenhuma resposta funciona como oráculo de existência. Listagens de USER_B vazias; papel anônimo isolado. Nenhuma alteração em COMPANY_A.
+- **LIVE_SCHEMA_PROVEN + REGRESSION_TESTED:** correção do CNPJ (D-126, `(user_id, cnpj)` no banco real).
+- **STRUCTURALLY_ISOLATED:** download do Storage (storage path deliberadamente não obtido); decisões/recomendações/knowledge por ID (COMPANY_A não tem registros); Server Actions de mutação (não executadas).
+- **NOT_PROVEN:** consulta direta ao banco como USER_B (exigiria extrair o token da sessão). Aceito pelo critério do gate.
+- **Reportado, ainda sem correção:** enumeração de conta no signup ("Já existe uma conta com este e-mail."); `500` sem corpo para UUID malformado na rota de análise.
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration + Pilot Migration Gate.** Ver `docs/ENGINEERING_LOG.md` para o registro completo (inclui a entrada do gate externo que a originou). **Status: `PILOT_MIGRATION_GATE_PASSED` — Migration 016 aplicada e verificada no NEXO Pilot; a Mission 199B ainda NÃO está fechada (falta repetir a matriz cross-tenant).** Decisão nova: **D-126**. Regressão: 155 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 22 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
 
 - **Gate externo da 199B (matriz cross-tenant, USER_B real autenticado no Pilot): `CROSS_TENANT_GATE_FAILED`.** USER_B não enxergou nada de COMPANY_A e o papel anônimo foi provado isolado ao vivo, mas a unicidade GLOBAL de `companies.cnpj` revelava, pelo erro "Já existe uma empresa cadastrada com este CNPJ.", que um CNPJ existia em outro tenant.
 - **Correção (D-126):** Migration 016 (`20260926000000_companies_cnpj_tenant_scoped_unique.sql`) troca a unicidade por `unique (user_id, cnpj)`; a mensagem de CNPJ duplicado só aparece para a constraint do próprio dono (`modules/companies/utils/cnpj-uniqueness.ts`). Regressão em `tests/production-surface/cnpj-tenant-scoped-uniqueness.test.ts`.
@@ -318,7 +326,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo gate (após o Pilot Migration Gate):** repetir a matriz cross-tenant com USER_B contra o NEXO Pilot já migrado — idealmente com os IDs reais de COMPANY_A copiados pelo humano no Table Editor do Supabase Dashboard, e com decisão explícita sobre a prova de consulta direta ao banco como USER_B. Só com `CROSS_TENANT_GATE_PASSED` a Mission 199B fecha. Nenhuma Mission 200 antes disso.
+**Mission 199B está CLOSED.** A próxima missão é decisão humana — nenhuma foi iniciada. Candidatos já registrados, sem prioridade decidida: (a) enumeração de conta no signup ("Já existe uma conta com este e-mail."), canal reportado pela 199B Security Closure; (b) `500` sem corpo para UUID malformado em `/api/efos/analyze/[companyId]/executive`; (c) conduzir o primeiro Founding Company real pelo runbook.
+
+Histórico (Pilot Migration Gate, já cumprido): **Próximo gate (após o Pilot Migration Gate):** repetir a matriz cross-tenant com USER_B contra o NEXO Pilot já migrado — idealmente com os IDs reais de COMPANY_A copiados pelo humano no Table Editor do Supabase Dashboard, e com decisão explícita sobre a prova de consulta direta ao banco como USER_B. Só com `CROSS_TENANT_GATE_PASSED` a Mission 199B fecha. Nenhuma Mission 200 antes disso.
 
 Histórico (Mission 199B Security Closure, item 1 já cumprido): (1) autorização humana explícita para aplicar a Migration 016 no NEXO Pilot (`npx supabase db push --linked`, exige o Supabase CLI autenticado e linkado nesta máquina) e verificar que `companies_user_id_cnpj_key` existe e nenhuma unicidade de coluna única em `cnpj` sobrou; (2) repetir a matriz cross-tenant com USER_B, idealmente com os IDs reais de COMPANY_A obtidos pelo humano no Table Editor do Supabase Dashboard. Só com `CROSS_TENANT_GATE_PASSED` a Mission 199B fecha e o piloto pode ser concluído. Nenhuma Mission 200 antes disso.
 

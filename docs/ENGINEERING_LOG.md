@@ -9821,3 +9821,43 @@ Diferenças deliberadas em relação à proposta original da Mission 170: `origi
 **Pendente.** Repetir a matriz cross-tenant com USER_B contra o Pilot já migrado. A Mission 199B só fecha com `CROSS_TENANT_GATE_PASSED`.
 
 **Origem.** Mission 199B Security Closure — Pilot Migration Gate.
+
+## Mission 199B Final External Gate — Cross-Tenant Revalidation
+
+**Status.** `CROSS_TENANT_GATE_PASSED` — **Mission 199B CLOSED.** Nenhuma mudança de código, nenhuma decisão arquitetural nova.
+
+**Baseline.** `HEAD == origin/develop == 7bc9bc3`, working tree limpo, Supabase CLI linkado ao NEXO Pilot, migrations 16/16, type-check/lint limpos, 155/155.
+
+**Precondição (leitura administrativa só de preparação, apenas booleanos/contagens).** COMPANY_A existe (única empresa do Pilot, dono próprio, 6 documentos, 6 execuções, 0 decisões/diagnósticos/knowledge). USER_B (DEV_USER) existe, está confirmado, tem 0 empresas e não é dono de COMPANY_A. A sessão usada nos testes foi conferida como USER_B no painel de navegador (login feito pelo humano, e-mail nunca registrado).
+
+**Identificadores.** Por autorização humana restrita, apenas três UUIDs técnicos (companyId de COMPANY_A, um documentId, um executionId), obtidos por consulta projetada só para eles — nunca nome, CNPJ, nome de arquivo, storage path ou dado financeiro. Usados só em memória durante a matriz; nenhum arquivo persistido, ausentes do working tree e do Git.
+
+**Matriz USER_B → COMPANY_A (LIVE_PROVEN, sessão normal de USER_B).** Cada prova foi executada com o ID real e com um UUID aleatório inexistente, e as respostas normalizadas foram comparadas:
+
+| Superfície | ID real | Igual ao inexistente |
+|---|---|---|
+| Página `/companies/[companyId]` | tela de não encontrada | sim |
+| `/documents?companyId=` | nenhuma empresa/documento | sim |
+| `GET /api/efos/analyze/[companyId]/executive` | `404` "Empresa não encontrada ou não autorizada." | sim |
+| `POST /api/efos/analyze/[companyId]/executive` | `404` idem, rejeitado por `getCompanyById()` antes de `beginProcessingAttempt()`/I/O | sim |
+| `GET /api/efos/history/[companyId]` | histórico vazio | sim |
+| history com `previousExecutionId` = executionId real | histórico vazio | sim |
+| Server Action `getDocumentTraceabilityInfoAction([documentId])` | `[]` | sim |
+| Server Action `askExecutiveChatQuestionAction` (companyId) | `stage: "access"`, antes de qualquer chamada de IA | sim |
+| Server Action `simulateScenarioAction` (companyId) | `stage: "access"`, antes de ler baseline | sim |
+
+Nenhuma resposta permite inferir que COMPANY_A, o documento ou a execução existem. Listagens de USER_B (`/dashboard`, `/companies` ativas/arquivadas, `/documents`, `/diagnostics`, `/reports`, `/settings`) só mostram estados vazios. Papel anônimo já provado isolado ao vivo no gate anterior (13 tabelas, Storage, RPC).
+
+**Sem mutação.** Depois da matriz, COMPANY_A continua com 6 documentos e 6 execuções; nenhuma linha de empresa/documento/execução tocada nas 2 horas anteriores; decisões/diagnósticos/knowledge seguem em 0.
+
+**Classificação das provas.**
+- **LIVE_PROVEN:** empresa, documentos por empresa e por documentId (rastreabilidade), análise executiva (GET/POST), histórico e executionId, chat executivo, simulação de cenário, listagens de USER_B, papel anônimo, ausência de oráculo de existência.
+- **LIVE_SCHEMA_PROVEN + REGRESSION_TESTED:** correção do CNPJ (D-126) — no banco real a única unicidade de `companies` é `companies_user_id_cnpj_key (user_id, cnpj)`; nenhuma colisão real foi provocada (exigiria criar empresa).
+- **STRUCTURALLY_ISOLATED:** download do Storage (exige storage path, deliberadamente não obtido — policy de SELECT exige dono da empresa do path); decisões, recomendações e knowledge por ID (COMPANY_A não tem nenhum registro; ações guardadas por `getCompanyById()`, o mesmo guarda provado ao vivo acima, e policies por `companies.user_id`); Server Actions de mutação (não executadas por segurança).
+- **NOT_PROVEN:** consulta direta ao banco como USER_B (exigiria extrair o token da sessão — não feito). Aceito pelo critério do gate: RLS verificado estruturalmente, aplicação/API testadas ao vivo, nenhuma superfície privilegiada.
+
+**Observação não bloqueante.** `GET /api/efos/analyze/not-a-uuid/executive` responde `500` sem corpo (UUID malformado) — robustez, não vazamento.
+
+**Regressão final.** Type-check/lint/build limpos, 16 rotas · 155/155.
+
+**Origem.** Mission 199B Final External Gate — Cross-Tenant Revalidation.
