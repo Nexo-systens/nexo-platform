@@ -9967,3 +9967,19 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Regressão.** Nenhum código alterado. Type-check/lint/build limpos, 16 rotas · 198/198 · migrations 16/16.
 
 **Origem.** Mission 201 Closure — Founding Company Operating Model & Go-Live Handoff.
+
+## Mission 201 Operational Closure Addendum — Real Backup Verification
+
+**Status.** Atualização operacional da Mission 201 (não é missão de produto). Nenhum código, migration ou ambiente alterado pelo agente; nenhum dump executado pelo agente.
+
+**Verificado pelo humano, na máquina do operador da NEXO (2026-09-26).** Docker Desktop instalado com o Engine em execução (`docker run --rm hello-world` com sucesso); pasta privada `C:\NEXO_BACKUPS\pilot` fora do Git; dump real do esquema e dump real dos dados do NEXO Pilot executados com sucesso pelo Supabase CLI, em arquivos separados (`2026-09-26-schema.sql`, `2026-09-26-data.sql`); ambos com tamanho maior que zero; SHA-256 calculado e conferido para os dois. Nenhum conteúdo nem hash dos dumps foi colocado no Git ou em chat — os hashes ficam só no registro privado do operador.
+
+**Runbook.** A seção "Checkpoint operacional" passa de "comando validado por dry-run, não executável sem Docker" para procedimento VERIFICADO em 9 passos: preservar originais fora do Git → Pilot saudável → paridade de migrations 16/16 → dump do esquema → dump dos dados → tamanho maior que zero → SHA-256 → registro local (data/hora, HEAD, arquivos, tamanhos, hashes) → só então o upload real. Checklist de go-live atualizado.
+
+**Limites preservados.** Os dumps podem conter dados sensíveis (o de dados conterá os dados financeiros reais): armazenamento privado, nunca em Git, chat ou e-mail. O dump lógico não contém os arquivos físicos do Supabase Storage — empresa e NEXO preservam os originais. Não é PITR nem disaster recovery completo. Restauração continua não testada (só num projeto novo, nunca sobrescrevendo o Pilot).
+
+**Reavaliação.** O P2 "dump dependente de Docker na máquina do operador" deixa de existir: o backup lógico está operacional. Continua P2: sem backup do próprio Supabase/PITR, restauração não testada.
+
+**Regressão.** Nenhum código alterado; 198/198, type-check/lint/build limpos, 16 rotas.
+
+**Origem.** Mission 201 Operational Closure Addendum — Real Backup Verification.

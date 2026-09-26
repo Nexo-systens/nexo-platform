@@ -26,7 +26,7 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 - **Acesso:** um único usuário por empresa (dono da conta); não existe compartilhamento com sócios/conselho. O operador acompanha as sessões.
 - **Exclusão:** o produto só faz exclusão LÓGICA de documentos; arquivos aceitos, execuções e diagnósticos são imutáveis e não podem ser apagados pelo produto.
 - **Retenção:** não existe política formal de retenção; os dados permanecem até uma decisão explícita.
-- **Backup:** nenhum backup restaurável no Supabase (`backups list` vazio, PITR desligado); mitigação = checkpoint operacional + originais preservados.
+- **Backup:** o Supabase não tem backup restaurável do Pilot (`backups list` vazio, PITR desligado). Mitigação VERIFICADA (2026-09-26): dump lógico de esquema e de dados executado de verdade na máquina do operador (Docker + Supabase CLI), com SHA-256 conferido — mais os originais preservados. Não é PITR nem disaster recovery completo; não inclui os arquivos do Storage; restauração nunca testada.
 - **Hospedagem:** não existe deploy público; o acesso é pela sessão acompanhada.
 
 ### Modelo de acesso (formal)
@@ -53,21 +53,47 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 - **Backup:** checkpoint operacional por sessão (abaixo) — não é PITR.
 - **A NEXO não é sistema contábil, ERP nem registro oficial.** A fonte oficial continua sendo a contabilidade da empresa; a NEXO produz inteligência a partir de cópias dos demonstrativos.
 
-### Checkpoint operacional (backup mínimo, antes de cada sessão com dado real)
+### Checkpoint operacional (backup lógico, antes de cada ciclo com dado real)
 
-1. **Originais:** confirmar que os arquivos recebidos estão na pasta privada; registrar o hash de cada um (`certutil -hashfile <arquivo> SHA256` no Windows, `sha256sum <arquivo>` no Linux/macOS).
-2. **Saúde do Pilot:** Seções 1–3 (git limpo, `HEAD == origin/develop`, CI verde) e `npx supabase migration list --linked` com 16/16.
-3. **Dump lógico do banco** (quando tecnicamente possível) — exige **Docker Desktop em execução** na máquina do operador (o Supabase CLI roda o `pg_dump` num contêiner). Esquema e dados, em arquivos separados, na pasta privada:
+**Estado: VERIFICADO (2026-09-26).** Na máquina do operador da NEXO: Docker Desktop instalado e com o Engine em execução (`docker run --rm hello-world` com sucesso); pasta privada `C:\NEXO_BACKUPS\pilot` criada fora do Git; dump real do esquema e dump real dos dados do NEXO Pilot executados com sucesso, em arquivos separados (`2026-09-26-schema.sql`, `2026-09-26-data.sql`), ambos com tamanho maior que zero e SHA-256 calculado e conferido. Nenhum conteúdo nem hash dos dumps foi para o Git ou para chats — os hashes ficam só no registro do operador. O Supabase CLI + `db dump` estão funcionais nessa máquina.
+
+Procedimento obrigatório, nesta ordem, antes de cada ciclo real:
+
+1. **Preservar os originais do cliente fora do Git**, na pasta privada da NEXO, com o hash de cada arquivo. A empresa também mantém os próprios originais.
+2. **Confirmar o Pilot saudável:** Seções 1–3 (git limpo, `HEAD == origin/develop`, CI verde).
+3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com 16/16.
+4. **Dump do esquema** (Docker Desktop precisa estar em execução — o Supabase CLI roda o `pg_dump` num contêiner):
    ```bash
-   npx supabase db dump --linked -f <pasta-privada>/nexo-pilot-<AAAAMMDD-HHMM>-schema.sql
+   npx supabase db dump --linked -f C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-schema.sql
    ```
+5. **Dump dos dados:**
    ```bash
-   npx supabase db dump --linked --data-only --use-copy -f <pasta-privada>/nexo-pilot-<AAAAMMDD-HHMM>-data.sql
+   npx supabase db dump --linked --data-only --use-copy -f C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-data.sql
    ```
-   Comprovado na Mission 201 Closure: comando disponível (Supabase CLI 2.118), sintaxe válida, `--dry-run` gera o script sem conectar nem exportar dados. **Não executado** (ainda não há dado real) e **não executável na máquina atual** (sem Docker). O arquivo de dados conterá dados financeiros reais: nunca commitar, nunca enviar por chat/e-mail.
-4. **Limites do dump (não é PITR):** é uma fotografia lógica do banco naquele instante; **não inclui os arquivos do Storage** (só os metadados) — por isso os originais preservados são obrigatórios. Uso previsto: recuperação manual num projeto NOVO e vazio (aplicar as migrations, depois o arquivo de dados com `psql` e a string de conexão digitada pelo próprio operador) — **nunca sobrescrever o NEXO Pilot**. A restauração nunca foi testada: tratar como melhor esforço. Alternativa: habilitar backups no plano do Supabase.
-5. **Registrar** no registro do operador: data/hora (UTC e BRT), HEAD, arquivos gerados, hashes.
-6. **Se o dump não for possível:** registrar a aceitação explícita do risco no registro do operador, com os originais preservados e com hash. Só então iniciar a sessão.
+6. **Verificar tamanho maior que zero** nos dois arquivos (PowerShell):
+   ```powershell
+   (Get-Item C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-schema.sql).Length
+   ```
+   ```powershell
+   (Get-Item C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-data.sql).Length
+   ```
+7. **Calcular o SHA-256** de cada arquivo:
+   ```powershell
+   Get-FileHash -Algorithm SHA256 C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-schema.sql
+   ```
+   ```powershell
+   Get-FileHash -Algorithm SHA256 C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-data.sql
+   ```
+8. **Registrar localmente**, só no registro privado do operador: data/hora (UTC e BRT), HEAD em uso, nomes dos arquivos, tamanhos e hashes (dos dumps e dos originais).
+9. **Só então iniciar o upload real.**
+
+Se um dump falhar: não iniciar o ciclo até resolver, ou registrar no registro do operador a aceitação explícita do risco (com os originais preservados e com hash).
+
+**Regras e limites (não enfraquecer):**
+- Os dumps podem conter dados sensíveis — o de dados conterá os dados financeiros reais da empresa. Manter só em armazenamento privado com acesso restrito; **nunca versionar em Git**, nunca enviar por chat ou e-mail, nunca copiar para pastas de ferramentas.
+- O dump lógico **não contém os arquivos físicos do Supabase Storage** (só os metadados). A empresa e a NEXO precisam preservar os documentos originais — são eles que permitem refazer os uploads.
+- **Não é PITR nem disaster recovery completo:** é uma fotografia lógica do banco no instante do dump. Mudanças posteriores só ficam protegidas pelo próximo checkpoint.
+- **A restauração continua não testada.** Uso previsto, se um dia necessário: recuperação manual num projeto NOVO e vazio (aplicar as migrations, depois o arquivo de dados com `psql` e a string de conexão digitada pelo próprio operador) — **nunca sobrescrever o NEXO Pilot**. Tratar como melhor esforço. Alternativa futura: backups do plano do Supabase.
 
 ### Registro do operador
 
@@ -82,7 +108,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - [ ] Originais preservados na pasta privada, com hashes
 - [ ] Pilot saudável (Seções 1–3)
 - [ ] Migrations 16/16
-- [ ] Checkpoint/dump feito, ou risco aceito explicitamente
+- [ ] Dumps de esquema e de dados feitos, tamanho maior que zero e SHA-256 registrados no registro do operador (ou risco aceito explicitamente)
 - [ ] Conta e empresa corretas (conta própria do fundador, identificada no registro)
 - [ ] Nenhuma conta de teste misturada com a empresa real
 - [ ] Operador disponível
