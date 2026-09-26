@@ -42,7 +42,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 200 — Authentication Security & Error Boundary Closure.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `MISSION_200_PASSED_WITH_LIMITATIONS`.** Decisões novas: **D-127** (respostas públicas de auth não-enumerantes) e **D-128** (identificador externo canônico). Regressão: 182 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 49 · release-candidate 5), type-check/lint/build limpos, 16 rotas. Nenhuma migration.
+**Mission 200 Closure — Live Auth Verification & Internal Error Redaction.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `MISSION_200_CLOSED`.** Decisão nova: **D-129** (Public Internal Error Boundary). Regressão: 190 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 57 · release-candidate 5), type-check/lint/build limpos, 16 rotas. Nenhuma migration.
+
+- **Auth anti-enumeração ao vivo: `LIVE_NON_ENUMERATION_PROVEN`.** No NEXO Pilot, deslogado: signup com conta de teste existente (executado pelo humano), recuperação para conta existente e para endereço sem conta — mesma mensagem neutra, mesmo status 200, mesmo estado visual, todas no piso de ~1,5 s (diferença entre as duas recuperações ~13 ms).
+- **Redação de 500: fechada (D-129).** Os 4 `catch` que devolviam `error.message` e as 2 chamadas fora de `try` na rota de análise usam `internalErrorResponse()`; 400/404/erros de domínio inalterados; malformado continua `400` ao vivo.
+- **Limitações restantes (não bloqueantes):** canal de tempo do lado do Supabase quando o envio passa do piso e no bcrypt do login; chegada do e-mail de recuperação não verificada pelo agente.
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 200 — Authentication Security & Error Boundary Closure.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `MISSION_200_PASSED_WITH_LIMITATIONS`.** Decisões novas: **D-127** (respostas públicas de auth não-enumerantes) e **D-128** (identificador externo canônico). Regressão: 182 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 49 · release-candidate 5), type-check/lint/build limpos, 16 rotas. Nenhuma migration.
 
 - **Fechado — enumeração de conta no signup:** a mensagem "Já existe uma conta com este e-mail." e o mapeamento de todo 422 foram removidos; signup e recuperação devolvem a mesma resposta neutra com ou sem conta, com piso de 1,5 s; só erros independentes da existência da conta são exibidos (`modules/auth/lib/public-auth-responses.ts`).
 - **Fechado — UUID malformado → 500:** `isUuid()` (`lib/identifiers.ts`) nas rotas (`400 invalid_identifier`) e na fronteira de dados (malformado = desfecho de inexistente, sem consulta). Provado ao vivo no Pilot como USER_B.
@@ -333,7 +339,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo gate (após a Mission 200): gate final de go-live do primeiro Founding Company**, por decisão humana explícita — nenhuma missão foi iniciada. Pré-requisitos sugeridos: (1) o humano roda a sondagem de auth no Pilot, deslogado, só com contas de teste: signup com o e-mail de uma conta de teste já confirmada e recuperação de senha para essa conta e para um endereço inexistente — as três telas devem mostrar exatamente a resposta neutra de D-127; (2) decidir se o `error.message` exposto nos `catch` de 500 das rotas deve ser generalizado antes do go-live.
+**Próximo gate (após a Mission 200 Closure): Mission 201 — gate final de go-live do primeiro Founding Company**, somente por decisão humana explícita. Os dois pré-requisitos abaixo (sondagem de auth ao vivo e redação de 500) foram cumpridos pela Mission 200 Closure.
+
+Histórico (Mission 200): **Próximo gate (após a Mission 200): gate final de go-live do primeiro Founding Company**, por decisão humana explícita — nenhuma missão foi iniciada. Pré-requisitos sugeridos: (1) o humano roda a sondagem de auth no Pilot, deslogado, só com contas de teste: signup com o e-mail de uma conta de teste já confirmada e recuperação de senha para essa conta e para um endereço inexistente — as três telas devem mostrar exatamente a resposta neutra de D-127; (2) decidir se o `error.message` exposto nos `catch` de 500 das rotas deve ser generalizado antes do go-live.
 
 Histórico (Mission 199B Final External Gate, candidatos (a) e (b) fechados pela Mission 200): **Mission 199B está CLOSED.** A próxima missão é decisão humana — nenhuma foi iniciada. Candidatos já registrados, sem prioridade decidida: (a) enumeração de conta no signup ("Já existe uma conta com este e-mail."), canal reportado pela 199B Security Closure; (b) `500` sem corpo para UUID malformado em `/api/efos/analyze/[companyId]/executive`; (c) conduzir o primeiro Founding Company real pelo runbook.
 

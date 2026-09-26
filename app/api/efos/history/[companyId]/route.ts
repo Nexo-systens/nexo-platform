@@ -7,6 +7,7 @@ import { isUuid } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 
 import { buildHistoryResponse } from "../../_shared/HistoryResponse";
+import { internalErrorResponse } from "../../_shared/internalError";
 import { invalidIdentifierResponse } from "../../_shared/invalidIdentifier";
 
 // Mission 087 — NEXO Historical & Comparative Intelligence Experience:
@@ -62,18 +63,6 @@ export async function GET(
 
     return NextResponse.json({ success: true, value: response });
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "unexpected",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Erro inesperado ao carregar o histórico.",
-        },
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse("history.read", "Erro inesperado ao carregar o histórico.", error);
   }
 }

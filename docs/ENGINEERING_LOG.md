@@ -9887,3 +9887,31 @@ Nenhuma resposta permite inferir que COMPANY_A, o documento ou a execução exis
 **Regressão.** Type-check/lint/build limpos, 16 rotas · financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 49 · release-candidate 5 — **182 testes**.
 
 **Origem.** Mission 200 — Authentication Security & Error Boundary Closure.
+
+## Mission 200 Closure — Live Auth Verification & Internal Error Redaction
+
+**Status.** `MISSION_200_CLOSED`. As duas limitações da Mission 200 foram removidas. Decisão nova: **D-129** (Public Internal Error Boundary). Nenhuma migration, nenhuma mudança de Engine, tenancy, auth ou identificadores.
+
+**Baseline.** `HEAD == origin/develop == 01cbfd2`, limpo, migrations 16/16 no Pilot, 182/182, build 16 rotas.
+
+**Limitação 1 — prova ao vivo de D-127: `LIVE_NON_ENUMERATION_PROVEN`.** No NEXO Pilot, pelo servidor local, deslogado (logout feito pelo humano). Nenhum e-mail, senha ou token registrado.
+
+| Caso | Quem executou | Status da action | Mensagem visível | Estado visual | Tempo aprox. |
+|---|---|---|---|---|---|
+| B1 — signup com conta de teste existente | humano (exige senha) | 200 | neutra de signup ("Se este e-mail puder ser usado...") | formulário substituído por alerta não destrutivo | ~1,6 s |
+| B2 — recuperação, conta existente | agente (autorizado) | 200 | neutra de recuperação ("Se este e-mail estiver cadastrado...") | alerta não destrutivo + "Voltar para o login" | ~1,56 s |
+| B3 — recuperação, endereço sem conta (`@example.com`, reservado) | agente | 200 | idêntica à B2 | idêntico à B2 | ~1,55 s |
+
+B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a diferença de tempo (~13 ms) está dentro do ruído de rede, com as duas respostas no piso de 1,5 s. B1 não contém nenhuma indicação de conta existente. A comparação signup-conta-nova × signup-conta-existente ao vivo não foi feita (exigiria criar uma conta); a equivalência é travada pelos testes de D-127.
+
+**Limitação 2 — redação de 500 (D-129).** Auditadas as 3 Route Handlers (`analyze/[companyId]/executive`, `history/[companyId]`, `auth/confirm`). Vazavam `error.message`: 3 `catch` da análise (preparação, execução, leitura persistida) e 1 do histórico. Além disso, `getCompanyById()` (GET e POST) e `beginProcessingAttempt()` (POST) rodavam fora de `try`. `auth/confirm` só redireciona (sem corpo de erro). Confirmado que erros de domínio não passam por esses `catch` (o pipeline devolve `ApplicationResult` com `success: false`; o Facade não captura exceções). Correção: `app/api/efos/_shared/internalError.ts` (`internalErrorResponse()`) nos seis pontos — 500 genérico e estável por operação, mesmas mensagens públicas de antes; log server-side com operação, nome, código e mensagem truncada, nunca stack nem `details`.
+
+**Regressão permanente.** `tests/production-surface/public-internal-error-boundary.test.ts` (8): handlers reais com falha interna real → 500 genérico sem "cookies"/stack/código de banco, exatamente um log por falha; helper com erro no formato PostgREST (código, mensagem, `details` com dado de linha) e com `Error` com stack; `400 invalid_identifier` intacto; varredura de todas as `route.ts`. O controle de `external-identifier-validation.test.ts` passou a esperar o 500 canônico em vez de exceção.
+
+**Reteste ao vivo (sessão de USER_B, antes do logout).** Malformado → `400 invalid_identifier` (análise GET/POST, histórico); bem formado inexistente → `404 unauthorized` na análise, histórico vazio — inalterados. Nenhuma falha foi provocada no Pilot para gerar 500; a prova do 500 é determinística pelos testes.
+
+**Regressão.** Type-check/lint/build limpos, 16 rotas · financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 57 · release-candidate 5 — **190 testes**.
+
+**Limitações restantes (não bloqueantes).** Canal de tempo do lado do Supabase quando o envio de e-mail passa do piso de 1,5 s e na verificação de senha do login; a chegada do e-mail de B2 não foi verificada pelo agente (o humano pode confirmar na caixa de entrada).
+
+**Origem.** Mission 200 Closure — Live Auth Verification & Internal Error Redaction.

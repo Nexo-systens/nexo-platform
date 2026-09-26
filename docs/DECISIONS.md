@@ -1981,6 +1981,16 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 **Origem.** Mission 200 — Authentication Security & Error Boundary Closure.
 
+## D-129 — Public Internal Error Boundary: falhas internas inesperadas são redigidas na fronteira HTTP (500 com corpo genérico e estável); o detalhe fica exclusivamente no servidor; erros esperados de domínio mantêm suas respostas específicas
+
+**Defeito.** Os quatro `catch` de 500 das rotas `app/api/efos/**` (análise: preparação, execução e leitura persistida; histórico) devolviam `error.message` ao cliente — texto de Postgres/Supabase/Storage/provider. Na rota de análise, `getCompanyById()` (GET e POST) e `beginProcessingAttempt()` (POST) nem estavam dentro de um `try`: uma falha de banco escapava como exceção não tratada, fora de qualquer contrato.
+
+**Contrato.** `internalErrorResponse(operation, publicMessage, error)` (`app/api/efos/_shared/internalError.ts`) é a única forma de uma rota responder a uma exceção inesperada: HTTP 500, `{success: false, error: {code: "unexpected", message: <mensagem pública fixa da operação>}}` — sem mensagem original, stack, código de banco/provider ou identificador. O servidor registra `[api:<operação>]` com nome, código e mensagem truncada do erro — nunca stack, nunca `details` (pode conter dados de linha), nunca segredo. Continuam específicos e fora deste caminho: identificador malformado (`400 invalid_identifier`, D-128), empresa inexistente/não autorizada (`404 unauthorized`, D-122) e falhas de domínio do pipeline (`ApplicationResult` com `success: false`, HTTP 200 — o Facade não captura exceções, então nenhuma exceção interna chega ao cliente por esse caminho).
+
+**Impacto.** Os quatro `catch` e as duas chamadas antes desprotegidas usam o helper; as mensagens públicas por operação são as mesmas de antes (fallbacks que já existiam), então a UI (`ExecutiveAnalysisPanel`) não muda. `tests/production-surface/public-internal-error-boundary.test.ts` (8 testes) exercita os handlers reais com uma falha interna real (fora de uma requisição, abrir o cliente Supabase lança com uma mensagem que cita "cookies"/"request scope") e trava por varredura que nenhuma `route.ts` monte um 500 à mão ou devolva `error.message`.
+
+**Origem.** Mission 200 Closure — Live Auth Verification & Internal Error Redaction.
+
 ---
 
 ## Próximas decisões

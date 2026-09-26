@@ -84,8 +84,10 @@ describe("Mission 200 — rotas HTTP: malformado → 400, antes de qualquer I/O"
     assert.equal(response.status, 400);
   });
 
-  test("controle: com um UUID válido a rota passa da validação e tenta consultar (lança fora de uma requisição)", async () => {
-    await assert.rejects(analyzeGET(new Request("http://t/x"), params(VALID)));
+  test("controle: com um UUID válido a rota passa da validação e tenta consultar (fora de uma requisição, a falha vira o 500 genérico de D-129 — nunca 400)", async () => {
+    const response = await analyzeGET(new Request("http://t/x"), params(VALID));
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).error.code, "unexpected");
   });
 });
 

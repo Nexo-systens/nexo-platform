@@ -13,6 +13,7 @@ import {
   listDocumentGovernanceByExecution,
 } from "@/modules/documents/services/document.service";
 import type { DocumentGovernanceOutcome } from "../../../_shared/documentGovernance";
+import { internalErrorResponse } from "../../../_shared/internalError";
 import { invalidIdentifierResponse } from "../../../_shared/invalidIdentifier";
 
 import {
@@ -105,7 +106,18 @@ export async function POST(
     return invalidIdentifierResponse();
   }
 
-  const company = await getCompanyById(companyId);
+  // Mission 200 Closure (D-129): uma falha do banco ao verificar a
+  // autoridade nunca escapa como exceção não tratada.
+  let company: Awaited<ReturnType<typeof getCompanyById>>;
+  try {
+    company = await getCompanyById(companyId);
+  } catch (error) {
+    return internalErrorResponse(
+      "analyze.executive.authority",
+      "Erro inesperado ao verificar o acesso à empresa.",
+      error
+    );
+  }
   if (!company) {
     return NextResponse.json(
       {
@@ -119,7 +131,16 @@ export async function POST(
     );
   }
 
-  const attempt = await beginProcessingAttempt();
+  let attempt: Awaited<ReturnType<typeof beginProcessingAttempt>>;
+  try {
+    attempt = await beginProcessingAttempt();
+  } catch (error) {
+    return internalErrorResponse(
+      "analyze.executive.attempt",
+      "Erro inesperado ao iniciar a análise.",
+      error
+    );
+  }
 
   let storedDocuments: readonly DocumentRow[] = [];
   let preparedDocuments: readonly RawFinancialDocument[] = [];
@@ -169,18 +190,10 @@ export async function POST(
       // Melhor esforço — nunca mascara o erro original da preparação.
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "unexpected",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Erro inesperado ao preparar os documentos para análise.",
-        },
-      },
-      { status: 500 }
+    return internalErrorResponse(
+      "analyze.executive.prepare",
+      "Erro inesperado ao preparar os documentos para análise.",
+      error
     );
   }
 
@@ -225,18 +238,10 @@ export async function POST(
     // preparação (acima); uma falha financeira/de persistência/de
     // relatório nunca pode retroativamente marcar um documento
     // tecnicamente saudável como `failed`.
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "unexpected",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Erro inesperado ao executar a análise executiva.",
-        },
-      },
-      { status: 500 }
+    return internalErrorResponse(
+      "analyze.executive.run",
+      "Erro inesperado ao executar a análise executiva.",
+      error
     );
   }
 }
@@ -266,7 +271,18 @@ export async function GET(
     return invalidIdentifierResponse();
   }
 
-  const company = await getCompanyById(companyId);
+  // Mission 200 Closure (D-129): uma falha do banco ao verificar a
+  // autoridade nunca escapa como exceção não tratada.
+  let company: Awaited<ReturnType<typeof getCompanyById>>;
+  try {
+    company = await getCompanyById(companyId);
+  } catch (error) {
+    return internalErrorResponse(
+      "analyze.executive.authority",
+      "Erro inesperado ao verificar o acesso à empresa.",
+      error
+    );
+  }
   if (!company) {
     return NextResponse.json(
       {
@@ -306,18 +322,10 @@ export async function GET(
 
     return NextResponse.json({ ...result, documentGovernance });
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "unexpected",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Erro inesperado ao carregar a análise executiva já persistida.",
-        },
-      },
-      { status: 500 }
+    return internalErrorResponse(
+      "analyze.executive.read",
+      "Erro inesperado ao carregar a análise executiva já persistida.",
+      error
     );
   }
 }
