@@ -9915,3 +9915,35 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Limitações restantes (não bloqueantes).** Canal de tempo do lado do Supabase quando o envio de e-mail passa do piso de 1,5 s e na verificação de senha do login; a chegada do e-mail de B2 não foi verificada pelo agente (o humano pode confirmar na caixa de entrada).
 
 **Origem.** Mission 200 Closure — Live Auth Verification & Internal Error Redaction.
+
+## Mission 201 — Founding Company Final Go-Live Gate
+
+**Classificação.** `NOT_GO_LIVE_READY` — **nenhum P0, nenhum P1 técnico aberto**; o único P1 aberto é operacional/humano (acordo de piloto e tratamento de dados ausentes). Quando resolvido e registrado, o gate passa a `GO_LIVE_READY_WITH_LIMITATIONS` sem mudança de código. Nenhuma decisão arquitetural nova, nenhuma migration.
+
+**Baseline.** `HEAD == origin/develop == 8454e89`, limpo, Pilot linkado, migrations 16/16, 190/190, build 16 rotas, CI verde.
+
+**Segurança (re-auditoria, sem testes invasivos repetidos).** Pilot, somente leitura: RLS 13/13, 28 policies, 0 policies `using (true)`, bucket `documents` privado com 3 policies de Storage, 0 objetos órfãos, 0 documentos presos em `processing`. Nenhum cliente privilegiado/`service_role` na aplicação. Fronteiras da Mission 200 (D-127/D-128/D-129) e de tenancy (D-126, gate cross-tenant da 199B) sem regressão.
+
+**Ingestão e Financial Truth.** Invariantes cobertos por provas permanentes nominais (financial-ingestion, release-candidate, activation): agregado ≠ transação, ausente ≠ zero, conflito ≠ zero, ordem de upload ≠ autoridade, data de execução ≠ período, conflito do mesmo período falha fechado (invariante à ordem), documento inválido não contamina os demais, duplicata não conta duas vezes, tentativa mais nova sempre vence (D-117).
+
+**Smoke test do caminho real (LIVE_PROVEN).** Servidor local → NEXO Pilot, USER_B autenticado, sem bypass: empresa sintética "SMOKE M201" criada pela UI → CSV de DRE (Julho/2026, mesmas linhas da fixture `buildRealisticDre`) enviado pela UI → Storage + validação de bytes + `public.documents` → `POST` de análise 200 → Margem Bruta 54,21%, Margem Líquida 22,16%, Lucro Líquido R$ 242.000,00 (conferidos contra o documento), liquidez indisponível sem Balanço (nunca zero) → reload hidrata a análise → Histórico com 1 execução "Atual" → ativação "análise disponível". IA não chamada.
+
+**Defeitos encontrados no smoke test e corrigidos.**
+1. **Criação de empresa falhava em silêncio** sem "Regime tributário"/"Porte" (selects opcionais): `CompanyFormSheet` envia "", o schema aceita só ausência, a action devolvia `fieldErrors` que o formulário não exibe — o passo 1 do onboarding não fazia nada. Presente desde antes da Mission 195. Correção na borda da Server Action (`modules/companies/utils/company-form-data.ts`, create e update), sem mudar o tipo do formulário. Confirmado ao vivo. Regressão: `tests/activation/company-form-optional-selects.test.ts` (5).
+2. **Período financeiro exibido um dia antes** ("30/06/2026 – 31/07/2026" para uma DRE de 01/07 a 31/07): limites de período são codificados em UTC pelo classificador e eram formatados no fuso local (BRT). `formatCalendarDate()` (UTC) em `formatPeriod()` e nos dois períodos de `DecisionExecutionCard`; timestamps reais continuam locais. Confirmado ao vivo ("01/07/2026 – 31/07/2026"). Regressão: `tests/executive-report/calendar-period-format.test.ts` (3).
+
+**IA/provider.** Diagnóstico só é gravado depois de sucesso do provider; falha → `stage: "provider"`, nada gravado, análise determinística intacta; chat nunca persiste; nenhuma Recommendation/Decision automática. O contexto financeiro (sem razão social/CNPJ) é enviado à Anthropic quando diagnóstico/chat são usados.
+
+**Backup/rollback.** Código: git revert/commit conhecido-bom. Migrations: nunca revertidas, só novas aditivas. Dados: `supabase backups list` → nenhum backup, PITR desligado — não existe restauração hoje (P2, mitigação no runbook).
+
+**Acesso.** Não existe deploy hospedado; o único modo comprovado é sessão acompanhada com `npm run dev` na máquina do operador. `getOrigin()` usa `https` quando `NODE_ENV=production`, o que quebraria os links de e-mail num `next start` local (P2).
+
+**Privacidade/operação.** Nenhum documento de acordo de piloto, privacidade, retenção, exclusão, uso de IA ou incidente existe no repositório. Dados no Supabase `ca-central-1` (Canadá); contexto financeiro enviado à Anthropic; exclusão só lógica. Classificado P1 operacional — o que resolver está no runbook ("Antes do primeiro upload real").
+
+**Dados sintéticos.** `PRESERVE_SYNTHETIC_EVIDENCE` (4 usuários, 2 empresas de donos distintos, 7 documentos, 7 execuções; isolados por RLS; apagar exigiria ação manual proibida).
+
+**Observações P3.** Aviso de hydration mismatch conhecido (`Button`/`SheetTrigger`); dashboard legado com contadores "Em breve"; select de categoria exibe o valor bruto (`dre`); um erro transitório não reproduzível do `DashboardPage` durante trocas de sessão; mensagem técnica do provider repassada à UI em `stage: "provider"`; tenancy de dono único (sem compartilhamento com sócios); canal de tempo residual do Supabase.
+
+**Regressão.** Type-check/lint/build limpos, 16 rotas · financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 57 · release-candidate 5 — **198 testes**.
+
+**Origem.** Mission 201 — Founding Company Final Go-Live Gate.

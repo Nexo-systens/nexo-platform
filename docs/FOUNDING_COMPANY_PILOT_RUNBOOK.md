@@ -6,6 +6,79 @@
 
 ---
 
+## GO-LIVE — Modelo operacional da primeira Founding Company (Mission 201)
+
+**Estado do gate (Mission 201): `NOT_GO_LIVE_READY` — só por pendências HUMANAS/operacionais, nenhuma de código.** A plataforma passou no smoke test do caminho real (seção "Smoke test" abaixo). Quando os itens de "Antes do primeiro upload real" estiverem resolvidos e registrados, o gate passa a `GO_LIVE_READY_WITH_LIMITATIONS` sem nenhuma mudança de código.
+
+### Antes do primeiro upload real (bloqueante, responsabilidade humana)
+
+1. **Acordo de piloto por escrito com a Founding Company**, revisado por quem tiver competência para isso (este runbook não é aconselhamento jurídico e não substitui essa revisão). Precisa deixar explícito, com base no que o produto FAZ hoje:
+   - **onde os dados ficam:** banco e arquivos no Supabase, projeto NEXO Pilot, região `ca-central-1` (Canadá);
+   - **uso de IA:** ao gerar Diagnóstico Executivo ou usar o Executive Chat, o contexto financeiro da empresa (indicadores, valores, evidências — sem razão social/CNPJ) é enviado à API da Anthropic; a análise financeira determinística NÃO usa IA;
+   - **quem acessa:** o dono da conta da empresa (um único usuário — não existe compartilhamento com sócios/conselho), e o operador da NEXO quando acompanha a sessão;
+   - **exclusão:** hoje o produto só faz exclusão LÓGICA de documentos (`deleted_at`); arquivos aceitos, execuções e diagnósticos são imutáveis por design e não podem ser apagados pelo produto. Decidir e escrever qual compromisso de exclusão/retenção o piloto assume ao fim — cumpri-lo exigiria uma ação manual privilegiada, hoje proibida pela Seção 15, que precisaria ser autorizada explicitamente para esse caso;
+   - **natureza do piloto:** análise para apoio à decisão, revisada por humano; nenhuma decisão financeira automática;
+   - **contato para suporte e incidentes.**
+2. **Decidir o modo de acesso** (ver "Acesso" abaixo). Sem deploy hospedado, o piloto só pode ser uma sessão acompanhada na máquina do operador.
+3. **Backup:** o NEXO Pilot hoje não tem backup restaurável (`supabase backups list`: nenhum backup; PITR desligado). Escolher UMA mitigação antes do primeiro upload: habilitar backups no plano do Supabase, ou fazer um dump manual (`npx supabase db dump --linked`) antes e depois de cada sessão, guardado de forma segura (o dump contém dados financeiros reais). Guardar também os arquivos originais enviados pela empresa — a análise é reproduzível a partir deles.
+
+### Acesso (estado real)
+
+- **Não existe deploy hospedado.** Toda prova ao vivo (Missions 199B–201) foi feita pelo servidor local (`npm run dev`) apontando para o NEXO Pilot.
+- **Modo suportado hoje: sessão acompanhada na máquina do operador**, com `npm run dev`. A Founding Company não usa a NEXO sozinha fora dessas sessões.
+- Links de e-mail de autenticação (confirmação, recuperação) apontam para a origem do servidor que os gerou (`http://localhost:3000` em dev) — por isso signup/recuperação precisam ser concluídos na máquina do operador.
+- **Não rodar o piloto com `next start` local:** em modo produção a origem vira `https://localhost:3000` (não há TLS local) e os links de e-mail quebram. Um deploy hospedado com HTTPS resolve; decidir antes de qualquer uso independente pela empresa.
+
+### Limites explícitos do piloto
+
+- 1 Founding Company, com 1 conta de usuário própria (nunca uma conta sintética/de teste).
+- Documentos: só PDF e CSV entram na análise; DRE, Balanço/Balancete e extrato com transações. Outros formatos ficam armazenados como "Não analisável".
+- Primeira análise sempre acompanhada e revisada por um humano antes de qualquer conclusão ser compartilhada.
+- Diagnóstico/Chat (IA): só depois do acordo de piloto cobrir o uso de IA.
+- Nenhuma decisão financeira automática; Decision Center, Scenario Lab, aprendizado e conhecimento só registram o que um humano decidir registrar.
+- Não prometer: acesso multiusuário, integrações, automação de coleta de documentos, exclusão física pelo produto.
+
+### Roteiro da sessão acompanhada
+
+1. Seções 1–3 (git, build, CI, migrations 16/16 no Pilot).
+2. `npm run dev`; o fundador cria a própria conta em `/signup` (a mensagem é sempre neutra — D-127), confirma pelo e-mail e entra.
+3. `/companies` → Nova empresa. Regime tributário e Porte são opcionais (corrigido na Mission 201 — antes a criação falhava em silêncio sem eles).
+4. Enviar documento (categoria + PDF/CSV) → status "Disponível".
+5. Executar análise → conferir os números-chave contra o documento de origem (ex.: Receita Líquida, Lucro Líquido, período) antes de discutir qualquer conclusão.
+6. Recarregar a página → a análise continua lá (hidratação, D-125); Histórico mostra a execução "Atual".
+7. Opcional, se coberto pelo acordo: Gerar diagnóstico executivo.
+8. Registrar o feedback do fundador (fora do produto — não existe módulo de feedback) e fazer o dump/backup da mitigação escolhida.
+
+### Parada / rollback
+
+- Parar a sessão a qualquer sinal de dado financeiro errado, vazamento entre empresas ou erro inesperado repetido. Não "consertar" no banco (Seção 15).
+- Código: voltar para o último commit conhecido-bom de `develop` (Seção 14). Migrations nunca são revertidas.
+- Documento errado: excluir (lógico) e reenviar; reanalisar. A execução antiga continua no histórico, imutável.
+
+### Observabilidade (manual, suficiente para 1 empresa acompanhada)
+
+| Evento | Onde aparece |
+|---|---|
+| Análise que falhou | UI (mensagem do painel de análise) + terminal do servidor `[api:analyze.executive.*]` (D-129) |
+| Upload rejeitado | UI (mensagem do envio) |
+| Conflito/duplicata financeira | UI (alerta de governança por documento) |
+| Falha do provider de IA | UI (`stage: "provider"`), análise determinística intacta |
+| Falha de envio de e-mail de auth | terminal `[auth:signup]`/`[auth:password_reset]` (a UI mostra sempre a resposta neutra) |
+| Erro 500 | UI (mensagem genérica) + terminal `[api:*]` |
+| Processamento preso | só por consulta de leitura: `documents.status = 'processing'`; resolvido por uma nova análise (a tentativa mais nova sempre vence — D-117) |
+
+Não existe alerta automático. O operador acompanha o terminal durante a sessão.
+
+### Dados sintéticos no Pilot — decisão: `PRESERVE_SYNTHETIC_EVIDENCE`
+
+Inventário (Mission 201, só contagens): 4 usuários de auth; 2 empresas, cada uma de um dono diferente — COMPANY_A (evidência das Missions 199B) e "SMOKE M201 — Empresa Sintética LTDA" (smoke test da Mission 201); 7 documentos; 7 execuções; 0 diagnósticos/decisões. Preservar: o isolamento é por RLS (provado ao vivo), a CNPJ é única por dono (D-126), e apagar exigiria SQL manual/`service_role`, proibidos pela Seção 15. A Founding Company usa uma conta nova e nunca vê esses dados. Se um dia a limpeza for decidida, fazer inventário por `user_id` das contas de teste e remover somente essas linhas, com autorização explícita — nunca DELETE amplo.
+
+### Smoke test do caminho real (Mission 201) — LIVE_PROVEN
+
+Servidor local → NEXO Pilot, usuário de teste real (USER_B), sem nenhum bypass: criar empresa sintética pela UI → enviar CSV de DRE (Julho/2026) pela UI → Storage + validação de bytes + `public.documents` ("Disponível") → `POST /api/efos/analyze/[companyId]/executive` (200) → Margem Bruta 54,21%, Margem Líquida 22,16%, Lucro Líquido R$ 242.000,00 (conferidos contra o documento), liquidez "não pôde ser calculada" (sem Balanço — nunca zero) → reload: análise hidratada → Histórico: 1 execução "Atual" → estado de ativação "análise disponível". IA não foi chamada.
+
+---
+
 ## 0. Como ler este documento
 
 Toda etapa abaixo é marcada com o nível de prova por trás dela:

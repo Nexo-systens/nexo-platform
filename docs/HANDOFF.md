@@ -42,7 +42,15 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 200 Closure — Live Auth Verification & Internal Error Redaction.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `MISSION_200_CLOSED`.** Decisão nova: **D-129** (Public Internal Error Boundary). Regressão: 190 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 57 · release-candidate 5), type-check/lint/build limpos, 16 rotas. Nenhuma migration.
+**Mission 201 — Founding Company Final Go-Live Gate.** Ver `docs/ENGINEERING_LOG.md` e a seção "GO-LIVE" no topo de `docs/FOUNDING_COMPANY_PILOT_RUNBOOK.md`. **Status: `NOT_GO_LIVE_READY` — nenhum P0, nenhum P1 técnico; um P1 operacional/humano aberto.** Nenhuma decisão nova, nenhuma migration. Regressão: 198 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 57 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
+
+- **Smoke test do caminho real: LIVE_PROVEN** (USER_B no NEXO Pilot: empresa sintética → CSV de DRE → análise → números conferidos → reload/hidratação → histórico).
+- **Corrigidos no smoke test:** criação de empresa falhava em silêncio sem Regime/Porte (passo 1 do onboarding); período financeiro exibido um dia antes (fuso). Ambos confirmados ao vivo, com regressão.
+- **P1 aberto (humano):** acordo de piloto por escrito cobrindo região dos dados (Supabase `ca-central-1`), envio do contexto financeiro à Anthropic, acesso de usuário único, exclusão só lógica, natureza do piloto e contato de incidentes.
+- **P2 com mitigação:** sem deploy hospedado (só sessão acompanhada com `npm run dev`); sem backup restaurável (PITR off, nenhum backup); observabilidade manual (terminal + UI).
+- **Dados sintéticos:** `PRESERVE_SYNTHETIC_EVIDENCE`.
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 200 Closure — Live Auth Verification & Internal Error Redaction.** Ver `docs/ENGINEERING_LOG.md` para o registro completo. **Status: `MISSION_200_CLOSED`.** Decisão nova: **D-129** (Public Internal Error Boundary). Regressão: 190 testes (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 57 · release-candidate 5), type-check/lint/build limpos, 16 rotas. Nenhuma migration.
 
 - **Auth anti-enumeração ao vivo: `LIVE_NON_ENUMERATION_PROVEN`.** No NEXO Pilot, deslogado: signup com conta de teste existente (executado pelo humano), recuperação para conta existente e para endereço sem conta — mesma mensagem neutra, mesmo status 200, mesmo estado visual, todas no piso de ~1,5 s (diferença entre as duas recuperações ~13 ms).
 - **Redação de 500: fechada (D-129).** Os 4 `catch` que devolviam `error.message` e as 2 chamadas fora de `try` na rota de análise usam `internalErrorResponse()`; 400/404/erros de domínio inalterados; malformado continua `400` ao vivo.
@@ -339,7 +347,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo gate (após a Mission 200 Closure): Mission 201 — gate final de go-live do primeiro Founding Company**, somente por decisão humana explícita. Os dois pré-requisitos abaixo (sondagem de auth ao vivo e redação de 500) foram cumpridos pela Mission 200 Closure.
+**Próximo passo (após a Mission 201): operacional, humano, sem código.** (1) Formalizar o acordo de piloto com a Founding Company, revisado por quem tiver competência para isso, cobrindo os pontos listados em "Antes do primeiro upload real" no runbook; (2) escolher a mitigação de backup (plano com backups ou dump manual por sessão) e o modo de acesso (sessão acompanhada local, ou decidir um deploy hospedado com HTTPS); (3) registrar essas decisões. Com isso, o gate passa a `GO_LIVE_READY_WITH_LIMITATIONS` e a primeira sessão acompanhada pode seguir o roteiro do runbook. Aguarda revisão arquitetural externa.
+
+Histórico (Mission 200 Closure): **Próximo gate (após a Mission 200 Closure): Mission 201 — gate final de go-live do primeiro Founding Company**, somente por decisão humana explícita. Os dois pré-requisitos abaixo (sondagem de auth ao vivo e redação de 500) foram cumpridos pela Mission 200 Closure.
 
 Histórico (Mission 200): **Próximo gate (após a Mission 200): gate final de go-live do primeiro Founding Company**, por decisão humana explícita — nenhuma missão foi iniciada. Pré-requisitos sugeridos: (1) o humano roda a sondagem de auth no Pilot, deslogado, só com contas de teste: signup com o e-mail de uma conta de teste já confirmada e recuperação de senha para essa conta e para um endereço inexistente — as três telas devem mostrar exatamente a resposta neutra de D-127; (2) decidir se o `error.message` exposto nos `catch` de 500 das rotas deve ser generalizado antes do go-live.
 

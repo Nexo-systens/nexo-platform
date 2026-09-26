@@ -16,6 +16,7 @@ import {
   isTenantScopedCnpjViolation,
   OWN_DUPLICATE_CNPJ_MESSAGE,
 } from "@/modules/companies/utils/cnpj-uniqueness";
+import { companyFormDataToInput } from "@/modules/companies/utils/company-form-data";
 import {
   companyFormSchema,
   type CompanyFormInput,
@@ -39,7 +40,7 @@ export async function createCompanyAction(
   _prevState: CompanyActionState,
   formData: FormData
 ): Promise<CompanyActionState> {
-  const parsed = companyFormSchema.safeParse(Object.fromEntries(formData));
+  const parsed = companyFormSchema.safeParse(companyFormDataToInput(formData));
 
   if (!parsed.success) {
     return {
@@ -76,7 +77,7 @@ export async function updateCompanyAction(
   _prevState: CompanyActionState,
   formData: FormData
 ): Promise<CompanyActionState> {
-  const parsed = companyFormSchema.safeParse(Object.fromEntries(formData));
+  const parsed = companyFormSchema.safeParse(companyFormDataToInput(formData));
 
   if (!parsed.success) {
     return {

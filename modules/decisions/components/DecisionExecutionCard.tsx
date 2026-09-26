@@ -29,6 +29,7 @@ import {
   type ExpectedActualLearningContext,
 } from "@/efos/application/expected-actual-learning";
 import { formatIndicatorValue } from "@/lib/format-indicator";
+import { formatCalendarDate } from "@/modules/analysis/lib/executive-language";
 import { cn } from "@/lib/utils";
 import {
   recordDecisionExecutionEventAction,
@@ -137,8 +138,8 @@ function ExpectedActualBlock({ title, comparison }: { title: string; comparison:
         <>
           <p className="text-xs text-muted-foreground">
             Verdade financeira observada em{" "}
-            {new Date(comparison.observedPeriod.startDate).toLocaleDateString("pt-BR")} a{" "}
-            {new Date(comparison.observedPeriod.endDate).toLocaleDateString("pt-BR")}.
+            {formatCalendarDate(comparison.observedPeriod.startDate)} a{" "}
+            {formatCalendarDate(comparison.observedPeriod.endDate)}.
           </p>
 
           <div className="mt-1 flex flex-col gap-2">
@@ -472,8 +473,8 @@ export function DecisionExecutionCard({
               </div>
               <p className="text-sm text-foreground">{describeScenarioAssumption(scenarioContext.assumption)}</p>
               <p className="text-xs text-muted-foreground">
-                Avaliado contra o período de {new Date(scenarioContext.period.startDate).toLocaleDateString("pt-BR")} a{" "}
-                {new Date(scenarioContext.period.endDate).toLocaleDateString("pt-BR")}.
+                Avaliado contra o período de {formatCalendarDate(scenarioContext.period.startDate)} a{" "}
+                {formatCalendarDate(scenarioContext.period.endDate)}.
               </p>
               {scenarioContext.alternative && (
                 <p className="text-xs text-muted-foreground">

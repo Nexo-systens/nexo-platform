@@ -80,13 +80,24 @@ export function translateMetricKey(metricKey: string): string {
   );
 }
 
+/**
+ * Formata uma data de CALENDÁRIO de um período financeiro. Os limites de
+ * `Period` são codificados em UTC pelo classificador (início = meia-noite
+ * UTC do primeiro dia, fim = 23:59:59 UTC do último dia) — formatá-los no
+ * fuso local exibia o início um dia antes (01/07 virava 30/06 em BRT).
+ * Mission 201: sempre em UTC. Não usar para timestamps reais
+ * (`created_at`, `executedAt`), que devem continuar no fuso local.
+ */
+export function formatCalendarDate(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** Formata um `Period` (D-045) para exibição — mesma convenção pt-BR já usada por `formatExecutedAt()`. */
 export function formatPeriod(period: Period): string {
-  const format = (isoDate: string) =>
-    new Date(isoDate).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  return `${format(period.startDate)} – ${format(period.endDate)}`;
+  return `${formatCalendarDate(period.startDate)} – ${formatCalendarDate(period.endDate)}`;
 }
