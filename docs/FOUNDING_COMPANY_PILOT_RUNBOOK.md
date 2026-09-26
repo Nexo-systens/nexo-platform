@@ -91,6 +91,14 @@ Todo push a `develop` desde a Mission 197 deve mostrar `completed success`. Se o
 
 Um humano deve executar isso manualmente. Nenhum agente desta série tem permissão para fazer login/signup, mesmo com credenciais de teste fornecidas por outra pessoa.
 
+**Estado comprovado no NEXO Pilot — ATUALIZADO (Mission 199B / 199B Closure).**
+- **HUMAN-DRIVEN LIVE (Mission 199B, `ccfb0e7`)**: USER_A autenticado, COMPANY_A operada, análise real persistida. O teste ao vivo expôs e corrigiu dois defeitos deste fluxo: logout pela UI quebrado (`UserMenu.tsx`) e estado de envio dos formulários `/signup`/esqueci/redefinir senha (`startTransition`).
+- **HUMAN-VERIFIED (posterior à 199B)**: SMTP próprio configurado no Supabase Auth do Pilot; um novo usuário de teste foi criado e autenticado com sucesso. O envio de e-mail de autenticação **não é mais bloqueio**.
+- **NOT PROVEN**: estado final da delegação DNS do domínio — nenhuma evidência verificável registrada.
+- **PENDENTE**: USER_B dedicado para a matriz de isolamento (ver Anexo).
+
+Nenhuma credencial, e-mail real ou project ref deve ser registrado neste documento.
+
 ## 5. Formatos de documento suportados
 
 **CODE-VERIFIED (Mission 195 Closure/196/197, inalterado).**
@@ -114,6 +122,8 @@ Fonte única de verdade: `modules/documents/constants.ts` (`ANALYZABLE_FILE_EXTE
 ## 7. Análise
 
 **NOT PROVEN BY AGENT via browser** — **DETERMINISTICALLY PROVEN via o mesmo orquestrador de produção (Mission 198)**. `POST /api/efos/analyze/[companyId]/executive` (único endpoint canônico desde a Mission 197, D-122) — `getCompanyById()` primeiro, depois os 10 Engines do `EFOS_PIPELINE`. Checkpoints determinísticos exatos (reproduzíveis via `npm run test:release-candidate`): DRE sozinha → Margem Bruta disponível, Liquidez indisponível; +Balanço → Liquidez/ROA passam a disponíveis: valores exatos em `tests/release-candidate/full-pipeline-integration.test.ts`.
+
+**Reload / retorno à página — ATUALIZADO (Mission 199B, D-125).** Ao abrir uma empresa, `ExecutiveAnalysisPanel` lê a última análise já persistida via `GET /api/efos/analyze/[companyId]/executive` — estritamente somente leitura (não aceita documentos, não roda pipeline, não cria Execution; `getCompanyById()` primeiro). Esperado: depois de uma análise, recarregar a página continua mostrando o mesmo relatório; empresa sem análise mostra o estado inicial. Antes da 199B, o painel voltava a "Nenhuma análise executada ainda" a cada reload (P1 encontrado ao vivo). CODE-VERIFIED + regressão `tests/executive-report/latest-executive-analysis-hydration.test.ts`.
 
 ## 8. Estados de ativação esperados
 
@@ -188,3 +198,7 @@ Não existe hoje uma taxonomia de tenancy dedicada a "piloto" vs. "sintético" v
 2. Limpar o resíduo acima (remover a conta não confirmada, decidir o destino de "Nexo EFOS teste") e usar o mesmo projeto para o piloto.
 
 Esta missão não removeu nem alterou nenhum dado nesse projeto — nenhuma mutação foi tentada (ver relatório da Mission 199).
+
+**Resolvido (Mission 199P):** a opção 1 foi escolhida — o piloto usa o projeto dedicado NEXO Pilot; o resíduo acima fica no projeto histórico, fora do piloto.
+
+**Matriz de isolamento cross-tenant — PENDENTE (gate externo da Mission 199B).** Requer um USER_B dedicado, criado e confirmado por humano no NEXO Pilot (SMTP já funcional). Provar ao vivo que USER_B, autenticado, NÃO consegue ler nem alterar de COMPANY_A: a empresa (`/companies/[id]`), documentos (lista, download, upload, exclusão), `POST`/`GET /api/efos/analyze/[companyId]/executive` (esperado `404`/`unauthorized`) e `GET /api/efos/history/[companyId]` (esperado histórico vazio). Até lá, o isolamento é apenas CODE-VERIFIED (RLS + `getCompanyById()`), nunca LIVE-PROVEN. O piloto só fecha depois desta prova.

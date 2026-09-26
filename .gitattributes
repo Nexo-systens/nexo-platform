@@ -1,0 +1,24 @@
+# Mission 199B Closure — Cross-Platform Line Endings.
+#
+# LF é o único fim de linha canônico do repositório, em qualquer SO
+# (mesma política já declarada em `.editorconfig`: `end_of_line = lf`).
+# Sem este arquivo, um clone Windows com `core.autocrlf=true` fazia o
+# checkout de todo arquivo texto com CRLF — o índice sempre foi 100% LF,
+# mas os testes que leem arquivos do disco (ex.:
+# `tests/production-surface/storage-delete-policy.test.ts`, que compara
+# um trecho literal com `\n` de uma migration) falhavam só no Windows.
+#
+# `text=auto` deixa o Git detectar binários por conteúdo; `eol=lf` força
+# LF no checkout independentemente de `core.autocrlf`. Binários conhecidos
+# ficam declarados explicitamente para nunca sofrer conversão.
+* text=auto eol=lf
+
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

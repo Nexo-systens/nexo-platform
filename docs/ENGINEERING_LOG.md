@@ -9722,3 +9722,44 @@ Diferenças deliberadas em relação à proposta original da Mission 170: `origi
 **Recomendação para a próxima missão.** Nenhuma ação técnica pendente relacionada a provisionamento — o NEXO Pillot está `PILOT_ENV_READY`. Próximo passo natural (fora do escopo desta missão, por instrução explícita: "Do not create User A/User B. Do not upload financial documents. Do not execute the Founding Company journey."): uma missão futura que exercite a jornada real contra este ambiente, com autenticação/upload genuínos — algo que só um humano pode iniciar.
 
 **Origem.** Mission 199P Closure A — Fresh-Database Migration Chain Reconstruction.
+
+## Mission 199B — Live Authenticated Pilot Gate (NEXO Pilot)
+
+**Status.** IMPLEMENTADA E COMMITADA em `ccfb0e7` ("mission 199b: validate live authenticated pilot"), mas sem nenhuma atualização de `docs/` naquele commit — registrada retroativamente pela Mission 199B Closure (abaixo). Classificação no momento do commit: gate autenticado ao vivo **parcial** — jornada de USER_A/COMPANY_A exercitada, matriz cross-tenant (USER_B) bloqueada. Esta entrada é reconstruída a partir do commit, do seu diff, do teste adicionado e do contexto humano fornecido na Closure; o relatório final original da missão nunca foi versionado no repositório.
+
+**Objetivo.** Primeira validação autenticada ao vivo contra o projeto Supabase dedicado "NEXO Pillot" (provisionado e `PILOT_ENV_READY` desde a Mission 199P Closure A, D-124): login real, empresa, upload, análise, persistência e UI — e, em seguida, a matriz de isolamento cross-tenant (USER_B tentando alcançar COMPANY_A).
+
+**Prova de ambiente (HUMAN-DRIVEN LIVE, registrada na mensagem do commit).** Um usuário real (USER_A) autenticou-se no NEXO Pilot, operou uma empresa (COMPANY_A) e produziu uma execução canônica persistida em `public.executions` — é justamente a existência dessa execução que expôs o Bug 3 abaixo. Nenhuma credencial, e-mail real ou project ref foi registrado em arquivo.
+
+**Bugs reais encontrados ao vivo e corrigidos.**
+1. **Logout impossível pela UI** — `modules/workspace/components/UserMenu.tsx` usava `DropdownMenuLabel` fora de um `DropdownMenuGroup`; o Base UI lança erro de `MenuGroupContext` ao abrir o menu, bloqueando todo logout pela interface. Corrigido envolvendo o label no grupo exigido.
+2. **Estado de envio quebrado nos formulários de auth** — `SignupForm`/`ForgotPasswordForm`/`ResetPasswordForm` chamavam o `formAction()` de `useActionState` fora de `startTransition`, então `isPending` nunca refletia o envio real. Corrigido chamando dentro de `startTransition`.
+3. **P1 — análise "esquecida" a cada reload** — `ExecutiveAnalysisPanel` iniciava em `"idle"` e nunca lia a última execução já persistida; a cada reload/retorno à página exibia "Nenhuma análise executada ainda" apesar de uma execução canônica existir. Corrigido (D-125) com:
+   - `EFOSFacade.getLatestExecutiveAnalysis(companyId)` (aditivo, somente leitura) em `DefaultEFOSFacade` — `historicalExecutionService.getHistory()` (mesma leitura de `GET /api/efos/history/:companyId`), última entrada, e o MESMO `buildExecutiveContext()` privado já usado logo após uma análise; repassado por `EFOSPlatform.getLatestExecutiveAnalysis()`;
+   - `GET /api/efos/analyze/[companyId]/executive` — companheiro somente leitura do `POST` canônico, com `getCompanyById()` antes de qualquer I/O de execução;
+   - `listDocumentGovernanceByExecution()` em `modules/documents/services/document.service.ts` — reconstrói o desfecho de governança por documento lendo `documents.metadata->governance` já gravado para aquela execução (nunca reclassifica);
+   - `ExecutiveAnalysisPanel` passa a iniciar em `"loading"` e hidrata via `GET` ao montar/trocar de empresa; falha de leitura volta para `"idle"`, nunca bloqueia a tela.
+
+**Regressão permanente.** `tests/executive-report/latest-executive-analysis-hydration.test.ts` (3 testes, sobre o `EFOSFacade` real com apenas o `ExecutionRepository` em memória): (1) sem execução → `value: undefined`, nunca erro; (2) após uma análise real, a leitura devolve o mesmo `executionId` e o mesmo `summary` já persistidos, com `save()` chamado exatamente uma vez (a leitura nunca persiste nem roda pipeline); (3) após duas análises de períodos diferentes, devolve sempre a mais recente. `test:executive-report` passou de 24 para 27.
+
+**Limitações no momento do commit.** A matriz cross-tenant USER_B → COMPANY_A não foi executada: o Supabase Auth do NEXO Pilot não tinha SMTP próprio (e a delegação DNS do domínio estava em transição), impedindo confirmar um segundo usuário — bloqueio de infraestrutura, não defeito de código. A re-verificação ao vivo das três correções após o commit não está registrada no repositório.
+
+**Origem.** Mission 199B — Live Authenticated Pilot Gate.
+
+## Mission 199B Closure — Documentation, Cross-Platform Regression & Pilot State Reconciliation
+
+**Status.** CLOSURE documental + regressão cross-platform. Nenhuma mudança de comportamento financeiro, de Engine ou de produto. Nenhuma migration, nenhuma mutação de Supabase/SMTP/DNS, nenhum usuário criado. Decisão nova: **D-125** (complemento de D-122).
+
+**Contexto humano autoritativo (posterior ao `ccfb0e7`).** Novo computador configurado; `.env.local` reconstruído apontando para o NEXO Pilot; aplicação abre localmente; **SMTP configurado pelo humano**; o humano criou um NOVO usuário de teste e autenticou-se com sucesso. SMTP/autenticação deixam de ser bloqueio atual. O antigo usuário de desenvolvimento não foi recuperado e não é necessário. USER_B dedicado ainda não validado. DNS: nenhuma evidência verificável de conclusão — permanece NOT PROVEN.
+
+**Defeito cross-platform encontrado e corrigido.** Em um clone Windows com `core.autocrlf=true` (padrão do Git for Windows, definido no `gitconfig` do sistema) e sem `.gitattributes`, todo arquivo texto era extraído com CRLF — o índice sempre foi 100% LF (745 arquivos `i/lf`). `tests/production-surface/storage-delete-policy.test.ts:58` compara um trecho literal com `\n` + indentação da Migration 004 e falhava só no Windows (CI Ubuntu sempre verde). Prova de causa única: cada uma das 15 migrations, com `\r` removido, tem SHA-1 idêntico ao blob de `HEAD`; a mesma suíte, rodada sobre uma exportação LF de `HEAD`, passa 11/11. Auditoria dos demais testes: só três leem arquivos do disco (todos em `tests/production-surface/`); os demais padrões (`\n}` em regex, `^` com flag `m`) já toleram CRLF — nenhuma segunda ocorrência.
+
+**Política adotada.** `.gitattributes` na raiz: `* text=auto eol=lf` + binários conhecidos explícitos (`*.ico`, imagens, `*.pdf`, fontes). Alinha o Git com o `.editorconfig` já existente (`end_of_line = lf`). `git add --renormalize .` produziu **zero** mudança no índice — nenhuma normalização massiva, o único arquivo novo é o próprio `.gitattributes`. Clones novos em qualquer SO passam a extrair LF.
+
+**Documentação reconciliada.** Entrada da Mission 199B acima; `docs/HANDOFF.md` promovido para 199B Closure; `docs/FOUNDING_COMPANY_PILOT_RUNBOOK.md` atualizado com o estado de autenticação realmente comprovado; D-125 em `docs/DECISIONS.md`.
+
+**Regressão.** Type-check limpo · lint limpo · build limpo, 16 rotas (inalterado — o `GET` vive no mesmo `route.ts` do `POST`) · `test:financial-ingestion` 65/65 · `test:executive-report` 27/27 · `test:activation` 36/36 · `test:production-surface` 11/11 (agora também no Windows) · `test:release-candidate` 5/5 — **144 testes**.
+
+**Pendente (gate externo).** Matriz cross-tenant USER_B → COMPANY_A (exige um segundo usuário real, criado por humano); estado de DNS não verificável; closure final do piloto após isolamento provado.
+
+**Origem.** Mission 199B Closure — Documentation, Cross-Platform Regression & Pilot State Reconciliation.

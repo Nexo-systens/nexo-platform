@@ -1901,6 +1901,30 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 **Origem.** Mission 199P Closure A — Fresh-Database Migration Chain Reconstruction.
 
+## D-125 — Supplementa D-122: `POST /api/efos/analyze/[companyId]/executive` continua a ÚNICA autoridade de EXECUÇÃO de análise financeira; o mesmo recurso ganha um `GET` estritamente SOMENTE LEITURA que devolve a última análise executiva já persistida da empresa, exclusivamente para hidratar a UI
+
+**Descrição.** Mission 199B (validação autenticada ao vivo no NEXO Pilot, commit `ccfb0e7`) encontrou um P1 real: `ExecutiveAnalysisPanel` iniciava em `"idle"` e nunca lia a execução já persistida — cada reload/retorno à página mostrava "Nenhuma análise executada ainda" mesmo com uma execução canônica em `public.executions`. A correção adicionou, no mesmo arquivo de rota do `POST` canônico (D-122), um `GET` que repassa para `EFOSPlatform.getLatestExecutiveAnalysis()` → `EFOSFacade.getLatestExecutiveAnalysis(companyId)` (método aditivo). O commit não registrou decisão; esta entrada formaliza o contrato, confirmado por leitura do código atual (Mission 199B Closure).
+
+**Contrato do `GET` (confirmado no código).**
+- Não aceita corpo nem documentos — a assinatura `getLatestExecutiveAnalysis(companyId)` não tem `documents`/`conflicts`, estruturalmente incapaz de iniciar uma análise.
+- Não chama `beginProcessingAttempt()`, Storage, parsers, `AnalysisService`/`ReportService` nem nenhum Engine; não chama `ExecutionRepository.save()` — nunca cria uma Execution.
+- Devolve a execução MAIS RECENTE: `historicalExecutionService.getHistory(companyId)` (a mesma leitura de `GET /api/efos/history/[companyId]`, ordenada por `executedAt` ascendente) → última entrada → o `report` persistido como está, mais `executiveContext` produzido pelo MESMO `buildExecutiveContext()` privado que o `POST` usa logo após persistir (composição pura sobre o snapshot lido de volta).
+- `documentGovernance` é reconstruído por `listDocumentGovernanceByExecution()`, lendo `documents.metadata->governance` já gravado para aquele `executionId` (Mission 193) — nunca reclassificado.
+- Empresa sem execução → `success: true, value: undefined` (nunca erro, nunca execução fabricada).
+- Autorização server-side idêntica ao `POST`: `getCompanyById(companyId)` (RLS-scoped) antes de qualquer leitura de execução; `null` → `404`/`unauthorized`.
+
+**Por que não cria uma segunda fonte de verdade.** A única autoridade de Financial Truth continua sendo o `ExecutionSnapshot` persistido pelo `POST` (D-017/D-027/D-028). O `GET` não armazena nada, não mantém cache, não recalcula indicadores/evidências/recomendações: o `report` sai do snapshot byte a byte, e o `executiveContext` é uma função pura de `(snapshot persistido, histórico persistido)` — a mesma função, sobre os mesmos insumos, que o `POST` aplica. Se o `GET` for removido, nenhum dado se perde; se o `POST` rodar de novo, o `GET` passa a refletir a nova execução automaticamente.
+
+**Relação com D-122.** Complemento, não revisão: D-122 continua integralmente válida — "único endpoint HTTP canônico de análise" passa a ser lido como "único endpoint que EXECUTA análise"; nenhum endpoint legado foi reintroduzido; a autoridade de empresa deliberada na fronteira HTTP (a exigência central de D-122) é aplicada também ao `GET`. `tests/production-surface/api-route-manifest.test.ts` (manifesto por arquivo `route.ts`) permanece inalterado porque nenhum arquivo de rota novo foi criado; build continua com 16 rotas.
+
+**Justificativa.** Hidratação é uma necessidade de leitura, não de execução: reexecutar o pipeline a cada reload seria caro, criaria Executions espúrias e violaria a imutabilidade do histórico. Colocar a leitura no mesmo recurso (par REST: `POST` executa, `GET` lê o último resultado) evita uma rota paralela e reaproveita a mesma fronteira de autorização.
+
+**Impacto.** `tests/executive-report/latest-executive-analysis-hydration.test.ts` (3 testes): sem execução → `undefined`; leitura devolve exatamente a execução persistida (mesmo `executionId`/`summary`) sem nova chamada a `save()`; com duas execuções, devolve a mais recente.
+
+**Limitação conhecida.** Nenhum teste HTTP da rota em si (o repositório não tem harness de Route Handler); a prova cobre a Facade real e a rota é um repasse fino. Isolamento cross-tenant do `GET` ao vivo depende da mesma matriz USER_B → COMPANY_A ainda pendente (a proteção é CODE-VERIFIED: `getCompanyById()` + RLS).
+
+**Origem.** Mission 199B (implementação, `ccfb0e7`) / Mission 199B Closure (formalização).
+
 ---
 
 ## Próximas decisões
