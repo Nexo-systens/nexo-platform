@@ -42,7 +42,14 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 201 — Founding Company Final Go-Live Gate.** Ver `docs/ENGINEERING_LOG.md` e a seção "GO-LIVE" no topo de `docs/FOUNDING_COMPANY_PILOT_RUNBOOK.md`. **Status: `NOT_GO_LIVE_READY` — nenhum P0, nenhum P1 técnico; um P1 operacional/humano aberto.** Nenhuma decisão nova, nenhuma migration. Regressão: 198 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 57 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
+**Mission 201 Closure — Founding Company Operating Model & Go-Live Handoff.** Ver `docs/ENGINEERING_LOG.md`, o bloco "GO-LIVE" no topo de `docs/FOUNDING_COMPANY_PILOT_RUNBOOK.md` e `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`. **Status: `MISSION_201_CLOSED_AWAITING_HUMAN_REVIEW` · `TECHNICALLY_READY_FOR_FIRST_FOUNDING_COMPANY`.** Só documentação e procedimento; nenhum código, nenhuma migration, nenhuma decisão nova. Regressão inalterada: 198/198, 16 rotas, migrations 16/16.
+
+- **Documento para o cliente:** `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`, curto e sem detalhes técnicos, marcado `DRAFT — REQUIRES APPROPRIATE REVIEW BEFORE USE`. Nenhuma revisão feita nem declarada; campos `[A DEFINIR]` pendentes.
+- **Runbook interno:** fatos completos (região `ca-central-1`, Anthropic, usuário único, exclusão só lógica, sem retenção formal, sem backup, sem deploy), modelo de acesso acompanhado, data handling, checkpoint operacional, registro do operador fora do repositório, checklist e separação sintético × real.
+- **Checkpoint:** `supabase db dump` validado por `--dry-run`; execução real exige Docker na máquina do operador (ausente nesta máquina); não é PITR e não inclui os arquivos do Storage.
+- **Pré-condições humanas antes do primeiro upload real:** revisão apropriada e preenchimento do documento do cliente, aceite registrado, checkpoint executado.
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 201 — Founding Company Final Go-Live Gate.** Ver `docs/ENGINEERING_LOG.md` e a seção "GO-LIVE" no topo de `docs/FOUNDING_COMPANY_PILOT_RUNBOOK.md`. **Status: `NOT_GO_LIVE_READY` — nenhum P0, nenhum P1 técnico; um P1 operacional/humano aberto.** Nenhuma decisão nova, nenhuma migration. Regressão: 198 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 57 · release-candidate 5), type-check/lint/build limpos, 16 rotas.
 
 - **Smoke test do caminho real: LIVE_PROVEN** (USER_B no NEXO Pilot: empresa sintética → CSV de DRE → análise → números conferidos → reload/hidratação → histórico).
 - **Corrigidos no smoke test:** criação de empresa falhava em silêncio sem Regime/Porte (passo 1 do onboarding); período financeiro exibido um dia antes (fuso). Ambos confirmados ao vivo, com regressão.
@@ -347,7 +354,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 201): operacional, humano, sem código.** (1) Formalizar o acordo de piloto com a Founding Company, revisado por quem tiver competência para isso, cobrindo os pontos listados em "Antes do primeiro upload real" no runbook; (2) escolher a mitigação de backup (plano com backups ou dump manual por sessão) e o modo de acesso (sessão acompanhada local, ou decidir um deploy hospedado com HTTPS); (3) registrar essas decisões. Com isso, o gate passa a `GO_LIVE_READY_WITH_LIMITATIONS` e a primeira sessão acompanhada pode seguir o roteiro do runbook. Aguarda revisão arquitetural externa.
+**Próximo passo (após a Mission 201 Closure): humano, sem código.** (1) Revisão apropriada de `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md` e preenchimento dos campos `[A DEFINIR]`; (2) aceite da Founding Company registrado no registro do operador (fora do repositório); (3) checkpoint operacional do runbook (originais preservados com hash; dump com Docker, ou risco aceito explicitamente); (4) primeira sessão acompanhada seguindo o checklist do runbook. Nenhuma Mission 202 foi iniciada. Aguarda revisão arquitetural externa.
+
+Histórico (Mission 201): **Próximo passo (após a Mission 201): operacional, humano, sem código.** (1) Formalizar o acordo de piloto com a Founding Company, revisado por quem tiver competência para isso, cobrindo os pontos listados em "Antes do primeiro upload real" no runbook; (2) escolher a mitigação de backup (plano com backups ou dump manual por sessão) e o modo de acesso (sessão acompanhada local, ou decidir um deploy hospedado com HTTPS); (3) registrar essas decisões. Com isso, o gate passa a `GO_LIVE_READY_WITH_LIMITATIONS` e a primeira sessão acompanhada pode seguir o roteiro do runbook. Aguarda revisão arquitetural externa.
 
 Histórico (Mission 200 Closure): **Próximo gate (após a Mission 200 Closure): Mission 201 — gate final de go-live do primeiro Founding Company**, somente por decisão humana explícita. Os dois pré-requisitos abaixo (sondagem de auth ao vivo e redação de 500) foram cumpridos pela Mission 200 Closure.
 

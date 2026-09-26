@@ -9947,3 +9947,23 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Regressão.** Type-check/lint/build limpos, 16 rotas · financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 57 · release-candidate 5 — **198 testes**.
 
 **Origem.** Mission 201 — Founding Company Final Go-Live Gate.
+
+## Mission 201 Closure — Founding Company Operating Model & Go-Live Handoff
+
+**Status.** `MISSION_201_CLOSED_AWAITING_HUMAN_REVIEW` · `TECHNICALLY_READY_FOR_FIRST_FOUNDING_COMPANY`. Somente documentação e procedimento operacional — nenhuma mudança de produto, nenhuma migration, nenhuma decisão arquitetural nova.
+
+**Baseline.** `HEAD == origin/develop == 6536aee`, limpo, Pilot linkado, migrations 16/16, 198/198, build 16 rotas.
+
+**Decisões humanas registradas.** NEXO Founding Company Program; primeira fase com 1 empresa em operação acompanhada pela NEXO; PDF/CSV; primeira análise revisada por humano; nenhuma decisão automática; IA só nas funcionalidades previstas; feedback registrado; duas camadas de documentação (cliente × interna).
+
+**Documento para o cliente (novo).** `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md` — ~550 palavras, marcado `DRAFT — REQUIRES APPROPRIATE REVIEW BEFORE USE`, sem detalhes técnicos: objetivo, uso dos documentos, fase acompanhada, confidencialidade/acesso, fornecedores tecnológicos e IA (com processamento possível fora do Brasil), decisões permanecem da empresa, o que nunca enviar, autorização para fornecer documentos, encerramento. Campos `[A DEFINIR]` para contatos, destino dos dados no encerramento, vigência, forma de autorizar/recusar IA e aceite. Nenhuma revisão foi feita nem é declarada.
+
+**Runbook interno.** Bloco GO-LIVE reestruturado: pré-condições humanas; fatos internos que o documento do cliente resume (região `ca-central-1`, Anthropic, usuário único, exclusão só lógica, sem retenção formal, sem backup, sem deploy); modelo de acesso formal (acompanhado; `npm run dev` como ferramenta interna do operador); "First Real Founding Company — Data Handling"; checkpoint operacional; registro do operador (fora do repositório); checklist antes/durante/depois; separação sintético × real com identificação positiva.
+
+**Checkpoint/backup — auditoria do comando.** `npx supabase db dump --linked` (esquema) e `--data-only --use-copy` (dados), com `-f` para a pasta privada do operador: comando disponível (CLI 2.118), `--dry-run` com saída 0 gerando o script `pg_dump` sem conectar nem criar arquivo. Execução real exige Docker (o CLI roda o `pg_dump` em contêiner) — **Docker e `pg_dump` ausentes nesta máquina**, então o dump não é executável aqui hoje. Nenhum dump executado (não há dado real). Limites documentados: não é PITR, não inclui arquivos do Storage (originais preservados são obrigatórios), restauração só num projeto novo e nunca testada.
+
+**Reavaliação de bloqueadores.** P0: nenhum. P1 técnico: nenhum. Pré-condições humanas: revisão apropriada e preenchimento do documento do cliente, aceite registrado, checkpoint executado. P2: sem deploy hospedado (mitigado pelo modelo acompanhado), sem backup restaurável/PITR (mitigado por checkpoint + originais), observabilidade manual, sem política formal de retenção, dump dependente de Docker na máquina do operador. P3: itens da Mission 201 (hydration mismatch, dashboard legado, rótulo bruto do select, erro transitório não reproduzível, texto técnico do provider, tenancy de dono único, canal de tempo residual).
+
+**Regressão.** Nenhum código alterado. Type-check/lint/build limpos, 16 rotas · 198/198 · migrations 16/16.
+
+**Origem.** Mission 201 Closure — Founding Company Operating Model & Go-Live Handoff.
