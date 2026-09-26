@@ -23,18 +23,26 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 
 - **Infraestrutura:** banco e arquivos no Supabase, projeto NEXO Pilot, região `ca-central-1` (Canadá) — fora do Brasil.
 - **IA:** ao gerar Diagnóstico Executivo ou usar o Executive Chat, o contexto financeiro da empresa (indicadores, valores, evidências — sem razão social/CNPJ) é enviado à API da Anthropic (EUA). A análise financeira determinística não usa IA.
-- **Acesso:** um único usuário por empresa (dono da conta); não existe compartilhamento com sócios/conselho. O operador acompanha as sessões.
+- **Acesso:** um único usuário por empresa (dono da conta); não existe compartilhamento com sócios/conselho. Enquanto não houver deploy público, o operador opera as sessões (suporte operacional, nunca revisão da análise).
 - **Exclusão:** o produto só faz exclusão LÓGICA de documentos; arquivos aceitos, execuções e diagnósticos são imutáveis e não podem ser apagados pelo produto.
 - **Retenção:** não existe política formal de retenção; os dados permanecem até uma decisão explícita.
 - **Backup:** o Supabase não tem backup restaurável do Pilot (`backups list` vazio, PITR desligado). Mitigação VERIFICADA (2026-09-26): dump lógico de esquema e de dados executado de verdade na máquina do operador (Docker + Supabase CLI), com SHA-256 conferido — mais os originais preservados. Não é PITR nem disaster recovery completo; não inclui os arquivos do Storage; restauração nunca testada.
-- **Hospedagem:** não existe deploy público; o acesso é pela sessão acompanhada.
+- **Hospedagem:** não existe deploy público; o acesso é por sessões operadas pelo operador NEXO (suporte operacional).
 
 ### Modelo de acesso (formal)
 
-- A primeira Founding Company é operada em **modelo acompanhado**: o operador NEXO conduz cada sessão.
-- Enquanto não existir deploy público aprovado, a sessão roda na máquina do operador com `npm run dev` apontando para o NEXO Pilot. Isso é **ferramenta interna do operador**, não infraestrutura apresentada ao cliente.
-- Não prometer acesso autônomo contínuo. O documento do cliente descreve isso apenas como "fase acompanhada".
-- Links de e-mail de autenticação apontam para a origem que os gerou (`http://localhost:3000`): signup e recuperação de senha do fundador acontecem na sessão acompanhada. Nunca usar `next start` local (a origem vira `https://localhost:3000` e os links quebram).
+- Enquanto não existir deploy público aprovado, a primeira Founding Company usa a NEXO em **sessões operadas pelo operador NEXO**: é o operador quem roda o servidor e dá suporte ao uso da plataforma. Isso é suporte operacional ao uso e ao funcionamento do serviço — **não** revisão da análise financeira (ver regra canônica abaixo).
+- A sessão roda na máquina do operador com `npm run dev` apontando para o NEXO Pilot. Isso é **ferramenta interna do operador**, não infraestrutura apresentada ao cliente.
+- Não prometer acesso autônomo contínuo. O documento do cliente não descreve infraestrutura: fala apenas que a NEXO pode prestar suporte ao uso da plataforma, ao envio dos documentos e ao funcionamento do serviço.
+- Links de e-mail de autenticação apontam para a origem que os gerou (`http://localhost:3000`): signup e recuperação de senha do fundador acontecem na sessão operada. Nunca usar `next start` local (a origem vira `https://localhost:3000` e os links quebram).
+
+### Regra canônica: suporte operacional × validação técnica × análise financeira
+
+Alinhada ao `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`:
+
+- **Análise financeira é da plataforma.** A NEXO **não** tem revisão humana obrigatória de análises, diagnósticos, evidências, hipóteses, cenários ou recomendações. Nenhuma pessoa da NEXO valida, aprova ou corrige a análise antes de a empresa vê-la, e isso nunca é condição de entrega. As decisões finais são da empresa.
+- **Suporte operacional (permitido):** ajudar no uso da plataforma, no recebimento e envio dos documentos, em problemas técnicos e no funcionamento do serviço. Não é consultoria financeira manual: o operador não interpreta, reescreve nem complementa a análise.
+- **Validação técnica do sistema (temporária, só nos primeiros ciclos reais):** o operador verifica se o PRODUTO funcionou — upload aceito, status de governança dos documentos, e se os números-chave foram extraídos corretamente do documento de origem (período, receita, lucro, ativos). É teste de funcionamento do sistema, não revisão da análise: não bloqueia a empresa, não altera nada do que a plataforma produziu, e uma divergência é tratada como **incidente técnico** (corrigido no produto, nunca à mão). Deixa de existir quando os ciclos reais estiverem estáveis — não é dependência permanente de intervenção humana.
 
 ### First Real Founding Company — Data Handling
 
@@ -43,9 +51,9 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 - **Tipos aceitos para análise:** PDF e CSV (DRE, Balanço/Balancete, extrato com transações). Outros formatos ficam armazenados como "Não analisável" — não enviar sem motivo.
 - **Proibido receber ou enviar:** credenciais bancárias, senhas, tokens, certificados digitais, dados de cartão. Se chegarem por engano: não usar, não enviar à NEXO, apagar a cópia recebida, avisar a empresa e registrar o ocorrido (sem copiar o conteúdo).
 - **Checkpoint antes do upload:** obrigatório (procedimento abaixo).
-- **Upload:** feito na sessão acompanhada, na conta do próprio fundador, com a categoria correta.
-- **Análise:** executar pelo botão da empresa; conferir o status de governança de cada documento (aceito, duplicata, conflito, requer revisão).
-- **Revisão humana:** conferir os números-chave (período, receita, lucro, ativos) contra o documento de origem antes de apresentar qualquer conclusão. Dado ausente aparece como indisponível — nunca completar "de cabeça".
+- **Upload:** feito na sessão operada, na conta do próprio fundador, com a categoria correta.
+- **Análise:** produzida pela plataforma ao executar pelo botão da empresa. A empresa vê a análise como a plataforma a produziu.
+- **Validação técnica temporária (primeiros ciclos reais):** verificar o status de governança de cada documento (aceito, duplicata, conflito, requer revisão) e se os números-chave foram extraídos corretamente do documento de origem — ver a regra canônica acima. Não é revisão financeira nem condição de entrega. O operador nunca completa, estima nem corrige números manualmente; dado ausente aparece como indisponível, e divergência é incidente técnico.
 - **IA:** opcional; só nas funcionalidades previstas (Diagnóstico Executivo, Executive Chat) e só se a versão revisada do documento do cliente cobrir esse uso. Falha do provider não afeta a análise já feita.
 - **Incidente:** qualquer um de — dado de outra empresa visível, acesso indevido, perda de dado, credencial recebida, número financeiro claramente errado, erro inesperado repetido. Ação: seguir "Parada / rollback"; registrar horário, o que foi observado e o HEAD em uso (sem copiar dados financeiros); avisar a empresa pelo canal acordado, conforme a versão revisada do documento; abrir uma missão de correção. Nunca "consertar" no banco (Seção 15).
 - **Encerramento:** a empresa pode encerrar a participação a qualquer momento; a NEXO para de receber documentos. O destino dos dados segue o compromisso definido na revisão do documento do cliente. Como o produto só faz exclusão lógica, qualquer remoção física exige autorização explícita por escrito e uma ação privilegiada documentada — uma exceção formal à Seção 15, nunca improvisada.
@@ -116,10 +124,10 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 
 **Durante a primeira análise**
 - [ ] Upload controlado, categoria correta
-- [ ] Status de governança de cada documento revisado
-- [ ] Financial Truth conferida contra os originais
-- [ ] Conflitos e dados ausentes verificados
-- [ ] Primeira análise executiva revisada por humano antes de qualquer conclusão
+- [ ] Validação técnica (temporária): status de governança de cada documento verificado (aceito, duplicata, conflito, requer revisão)
+- [ ] Validação técnica (temporária): números-chave extraídos conferem com os originais; divergência registrada como incidente técnico
+- [ ] Validação técnica (temporária): dados ausentes aparecem como indisponíveis e conflitos aparecem como alerta — nunca como zero
+- [ ] Análise entregue exatamente como a plataforma a produziu — sem revisão financeira manual como condição de entrega, sem números corrigidos à mão
 - [ ] IA só se coberta pela versão revisada (opcional)
 - [ ] Nenhuma decisão automática
 
@@ -138,13 +146,13 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - **Contas de teste** (USER_A, USER_B/DEV_USER e as demais criadas em missões) ficam listadas no registro do operador. **A empresa real** é criada pela conta nova do fundador, registrada com data de criação. Nunca criar dado sintético na conta do fundador; nunca usar conta de teste para dado real.
 - **Identificação positiva antes de qualquer operação destrutiva:** conferir, contra o registro do operador, a conta dona (por `user_id`), a razão social E a data de criação; obter autorização explícita por escrito; remover somente as linhas daquela conta de teste. Nunca DELETE amplo; nunca com base em memória. Operação destrutiva continua proibida na operação normal (Seção 15).
 
-### Roteiro da sessão acompanhada
+### Roteiro da sessão operada
 
 1. Checklist "Antes do primeiro upload real" completo.
 2. `npm run dev`; o fundador cria a própria conta em `/signup` (a mensagem é sempre neutra — D-127), confirma pelo e-mail e entra.
 3. `/companies` → Nova empresa. Regime tributário e Porte são opcionais (corrigido na Mission 201 — antes a criação falhava em silêncio sem eles).
 4. Enviar documento (categoria + PDF/CSV) → status "Disponível".
-5. Executar análise → conferir os números-chave contra o documento de origem (ex.: Receita Líquida, Lucro Líquido, período) antes de discutir qualquer conclusão.
+5. Executar análise → a empresa vê a análise produzida pela plataforma. Em paralelo, nos primeiros ciclos reais, fazer a validação técnica: conferir se os números-chave extraídos (ex.: Receita Líquida, Lucro Líquido, período) batem com o documento de origem. Divergência = incidente técnico, nunca correção manual.
 6. Recarregar a página → a análise continua lá (hidratação, D-125); Histórico mostra a execução "Atual".
 7. Opcional, se coberto pela versão revisada do documento do cliente: Gerar diagnóstico executivo.
 8. Checklist "Depois da primeira análise"; registrar o feedback no registro do operador (não existe módulo de feedback no produto).
@@ -155,7 +163,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - Código: voltar para o último commit conhecido-bom de `develop` (Seção 14). Migrations nunca são revertidas.
 - Documento errado: excluir (lógico) e reenviar; reanalisar. A execução antiga continua no histórico, imutável.
 
-### Observabilidade (manual, suficiente para 1 empresa acompanhada)
+### Observabilidade (manual, suficiente para 1 empresa em sessões operadas)
 
 | Evento | Onde aparece |
 |---|---|
@@ -346,7 +354,7 @@ Este é o plano de rollback estreito, específico do primeiro piloto — não um
 - **Migrations**: todas as 16 migrations preservam dado (a 016 só relaxa a unicidade global de `cnpj` para `(user_id, cnpj)`, nunca apaga linha); as 15 primeiras são aditivas (nenhuma `DROP`/reescrita destrutiva — confirmado por leitura de cada uma, Mission 197/199). **Nunca reverter uma migration já aplicada** — se um deploy futuro precisar desfazer uma mudança de schema, isso deve ser uma NOVA migration aditiva, nunca a exclusão física da anterior.
 - **Documentos/Storage**: exclusão é sempre lógica (`deleted_at`) para documentos aceitos — fisicamente imutável (Migration 015, D-123). Nenhuma ação de rollback pode ou deve apagar bytes de documento aceito.
 - **Execuções/Diagnósticos**: imutáveis por design (D-017, `executive_diagnoses` sem policy de UPDATE/DELETE). Rollback de aplicação nunca precisa (nem pode) alterar histórico já persistido.
-- **Se algo corromper a Financial Truth de uma execução específica**: a correção é uma REANÁLISE (Seção 12), nunca uma edição manual de linha. Se isso não for suficiente, escalar para revisão humana antes de qualquer UPDATE manual em `public.executions`/`public.documents`.
+- **Se algo corromper a Financial Truth de uma execução específica**: a correção é uma REANÁLISE (Seção 12), nunca uma edição manual de linha. Se isso não for suficiente, escalar para revisão técnica de engenharia (defeito de produto) antes de qualquer UPDATE manual em `public.executions`/`public.documents` — nunca uma revisão financeira da análise.
 
 ## 15. Ações manuais proibidas
 
