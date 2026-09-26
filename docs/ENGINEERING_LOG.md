@@ -9799,3 +9799,25 @@ Diferenças deliberadas em relação à proposta original da Mission 170: `origi
 **Pendente.** Aplicar a Migration 016 no NEXO Pilot (autorização humana explícita); repetir a matriz cross-tenant ao vivo, de preferência com os IDs reais de COMPANY_A.
 
 **Origem.** Mission 199B Security Closure — CNPJ Cross-Tenant Enumeration.
+
+## Mission 199B Security Closure — Pilot Migration Gate
+
+**Status.** `PILOT_MIGRATION_GATE_PASSED` — Migration 016 aplicada e verificada no NEXO Pilot. Nenhuma mudança de código; nenhuma decisão arquitetural nova (executa D-126).
+
+**Pre-flight.** `develop`, `HEAD == origin/develop == 563c871`, working tree limpo; type-check/lint limpos; 155/155. Migration 016 re-auditada: nenhum DML, nenhuma policy/RLS; só remove unicidade de chave exata `cnpj` e cria `unique (user_id, cnpj)`.
+
+**Supabase CLI.** `npx supabase` 2.118.0. Autenticação feita pelo humano (`npx.cmd supabase login` — o `npx` do PowerShell estava bloqueado pela política de execução de scripts do Windows, contornado pela variante `.cmd` sem alterar configuração de segurança). Nenhum token visto ou digitado pelo agente.
+
+**Identidade do projeto.** `supabase projects list`: "NEXO Pillot" (`ca-central-1`, `ACTIVE_HEALTHY`, criado 2026-09-20) é o único cujo ref bate com `NEXT_PUBLIC_SUPABASE_URL` do `.env.local`; o histórico `nexo-platform` (`sa-east-1`, `INACTIVE`) não bate e nunca foi linkado nem consultado. `supabase link` com o ref lido do `.env.local` (nunca impresso), sem pedido de senha; `supabase/.temp/linked-project.json` → "NEXO Pillot".
+
+**Estado antes.** `supabase migration list --linked`: 001–015 local == remoto, 016 só local, nenhuma remota desconhecida — `ONLY_016_PENDING`. `db push --linked --dry-run`: somente `20260926000000_companies_cnpj_tenant_scoped_unique.sql`, sem seeds/roles.
+
+**Aplicação.** `npx supabase db push --linked --yes` — sucesso, só a 016. Nenhum SQL manual, `repair`, reset ou edição de migration.
+
+**Verificação remota (somente leitura, `supabase db query --linked`, só metadados e contagens).** Diferença exata antes → depois: removidos a constraint e o índice único `companies_document_key (cnpj)`; adicionados a constraint e o índice único `companies_user_id_cnpj_key (user_id, cnpj)`; `supabase_migrations.schema_migrations` 15 → 16 (última `20260926000000`); `migration list` 16/16 sem local-only nem remote-only. Inalterados: `companies.user_id` e `companies.cnpj` `NOT NULL`, PK e FK de `user_id`, índices `companies_user_id_idx`/`companies_active_idx`, RLS habilitada (13/13 tabelas de `public`), 28 policies em `public` (as 3 de `companies` presentes), contagem de linhas das 13 tabelas idêntica antes e depois. O Pilot tem uma empresa registrada — a COMPANY_A existe, então a matriz cross-tenant não é vazia.
+
+**Regressão pós-migration.** Type-check/lint/build limpos, 16 rotas · 155/155 (financial-ingestion 65 · executive-report 27 · activation 36 · production-surface 22 · release-candidate 5).
+
+**Pendente.** Repetir a matriz cross-tenant com USER_B contra o Pilot já migrado. A Mission 199B só fecha com `CROSS_TENANT_GATE_PASSED`.
+
+**Origem.** Mission 199B Security Closure — Pilot Migration Gate.
