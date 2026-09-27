@@ -42,10 +42,18 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 202 — Tenant-Safe Company Offboarding & Data Purge.** Ver `docs/ENGINEERING_LOG.md`, D-130 em `docs/DECISIONS.md` e as seções de encerramento/exclusão e retenção de dumps no runbook. **Status: `YES — IMPLEMENTED, PILOT MIGRATION PENDING`.** Regressão no CI: 226 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 85 · release-candidate 5), type-check/lint/build limpos, **17 rotas** (nova `/companies/closed`). Provas locais: pgTAP 51/51 e ponta a ponta 8/8 contra Supabase local.
+**Mission 202 — Pilot Activation & Closure Gate (2026-09-27).** Ver `docs/ENGINEERING_LOG.md` e, no runbook, "Migration 017" (Seção de migrations) e "Encerramento e exclusão definitiva de uma empresa". **Status: `MISSION_202_CLOSED`.** Só operação e documentação; nenhum código, nenhuma migration nova, nenhuma decisão nova (D-130 inalterada). Regressão inalterada: 226/226, 17 rotas.
+
+- **Migration 017 APLICADA no NEXO Pilot** com autorização humana explícita: alvo confirmado (NEXO Pilot, `ca-central-1`; histórico `sa-east-1` INACTIVE, não tocado), `ONLY_017_PENDING`, `--dry-run`, `db push --linked`. **Pilot 17/17**, `db push --dry-run` "up to date".
+- **Checkpoint pré-migration:** novo par de dumps (`schema` + `data --use-copy`) em arquivos novos na pasta privada, tamanho maior que zero, SHA-256 conferido; nada no Git.
+- **Verificação estrutural remota:** 4 funções com `search_path` vazio, só a purga `SECURITY DEFINER`, EXECUTE só para `authenticated`; 32/32 policies com posse via `auth.uid()`; encerramento monotônico; 13 policies de escrita exigem empresa aberta; DELETE de Storage só para empresa encerrada do dono.
+- **Smoke remoto:** empresa técnica descartável da conta de teste DEV_USER — upload sintético, análise, encerramento, sondagem de RLS sempre desfeita (aberta: gravações passam; encerrada: `42501`/0 linhas; não-dono = inexistente), prévia igual ao banco, exclusão definitiva pela UI. Depois: alvo zerado no banco e no Storage; empresa de controle (a empresa técnica sintética da Mission 201, sem alteração), conta e totais globais idênticos ao retrato anterior. **Nenhuma fixture restou.**
+- **Limitações que permanecem:** remoção física dos bytes no Storage remoto não observável sem `service_role` (provada localmente); falhas destrutivas não simuladas no Pilot (provadas localmente); pgTAP/ponta a ponta fora do CI; restauração de dump não testada; prazo de retenção e `[A DEFINIR]` de encerramento do documento do cliente em aberto (por instrução). Observado uma vez, sem reprodução: erro transitório `{"message":""}` no primeiro `/dashboard` logo após o login (só leitura; recarregar resolveu).
+
+**Contexto imediatamente anterior (mesma sessão).** **Mission 202 — Tenant-Safe Company Offboarding & Data Purge.** Ver `docs/ENGINEERING_LOG.md`, D-130 em `docs/DECISIONS.md` e as seções de encerramento/exclusão e retenção de dumps no runbook. **Status na entrega: `YES — IMPLEMENTED, PILOT MIGRATION PENDING`** (fechada depois pelo Pilot Activation & Closure Gate, acima). Regressão no CI: 226 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 85 · release-candidate 5), type-check/lint/build limpos, **17 rotas** (nova `/companies/closed`). Provas locais: pgTAP 51/51 e ponta a ponta 8/8 contra Supabase local.
 
 - **Entregue:** encerramento monotônico (empresa encerrada não reabre nem recebe dados, nem por API direta); exclusão definitiva de empresa encerrada pelo próprio dono — Storage pela Storage API, depois purga transacional das 12 tabelas por `company_id`, empresa por último, conta preservada; prévia só com contagens; frase de confirmação vinculada à empresa; nenhum `service_role`, nenhuma cascata nova.
-- **Migration 017 (`20260926120000_company_offboarding.sql`): NOT_APPLIED no NEXO Pilot.** Aplicar só com autorização humana, pelo fluxo do Pilot Migration Gate. Até lá, o Pilot só tem o encerramento lógico, ainda sem o bloqueio de novos dados no banco.
+- **Migration 017 (`20260926120000_company_offboarding.sql`):** NOT_APPLIED no NEXO Pilot na entrega; aplicada em 2026-09-27 pelo Pilot Activation & Closure Gate (acima).
 - **Não feito (por instrução):** prazo comercial de retenção no documento do cliente — o `[A DEFINIR]` de encerramento continua aberto.
 - **Ambiente local:** o Supabase local (Docker) é descartável; `npx supabase start` + `npx supabase test db` + `npm run test:offboarding-local` reproduzem as provas.
 
@@ -361,7 +369,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 202):** (1) revisão arquitetural externa da Mission 202; (2) com autorização humana explícita, aplicar a Migration 017 no NEXO Pilot pelo fluxo do Pilot Migration Gate (identidade do projeto, `ONLY_017_PENDING`, `--dry-run`, `db push --linked`, verificação remota de policies e funções); (3) só então definir o prazo de retenção e preencher o `[A DEFINIR]` de encerramento do documento do cliente. Nenhuma Mission 203 foi iniciada.
+**Próximo passo (após o fechamento da Mission 202):** (1) revisão arquitetural externa da Mission 202; (2) decisão humana do prazo de retenção e preenchimento do `[A DEFINIR]` de encerramento no documento do cliente (junto com a revisão apropriada do documento); (3) as pré-condições humanas da Mission 201 continuam valendo antes do primeiro upload real (documento revisado, aceite registrado, checkpoint). Nenhuma Mission 203 foi iniciada.
+
+Histórico (Mission 202, entrega): **Próximo passo:** (1) revisão arquitetural externa; (2) aplicar a Migration 017 no NEXO Pilot com autorização humana — **feito em 2026-09-27**; (3) só então definir o prazo de retenção.
 
 Histórico (Mission 201 Closure): **Próximo passo (após a Mission 201 Closure): humano, sem código.** (1) Revisão apropriada de `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md` e preenchimento dos campos `[A DEFINIR]`; (2) aceite da Founding Company registrado no registro do operador (fora do repositório); (3) checkpoint operacional do runbook (originais preservados com hash; dump com Docker, ou risco aceito explicitamente); (4) primeira sessão acompanhada seguindo o checklist do runbook. Nenhuma Mission 202 foi iniciada. Aguarda revisão arquitetural externa.
 

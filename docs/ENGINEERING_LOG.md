@@ -10015,3 +10015,35 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Limitações.** Migration 017 NOT_APPLIED no Pilot. Linhas legadas de referência cruzada em `financial_observations` (anteriores à 017) bloqueiam a purga da empresa referenciada (fail-closed). pgTAP e o teste de ponta a ponta exigem Supabase local (não rodam no CI). A restauração de dumps e a reaplicação de purgas continuam não testadas.
 
 **Origem.** Mission 202 — Tenant-Safe Company Offboarding & Data Purge.
+
+## Mission 202 — Pilot Activation & Closure Gate
+
+**Status.** `MISSION_202_CLOSED`. Continuação operacional da Mission 202 (não é Mission 203): a Migration 017 foi aplicada no NEXO Pilot em 2026-09-27, com autorização humana explícita, e o fluxo de encerramento → prévia → exclusão definitiva foi provado no ambiente remoto com uma fixture técnica descartável. Nenhum código, nenhuma migration nova, nenhuma decisão nova (D-130 inalterada).
+
+**Baseline.** `HEAD == origin/develop == 0965670`, limpo; type-check/lint limpos; 226/226; build 17 rotas; cadeia local de 17 migrations.
+
+**Alvo.** Projeto linkado confirmado pelo CLI, sem imprimir segredo: NEXO Pilot, `ca-central-1`, ACTIVE_HEALTHY; arquivo de link coerente com o project-ref; o projeto histórico `nexo-platform` (`sa-east-1`) INACTIVE e não linkado, não tocado. `migration list --linked`: 16 remoto, 17 local, só `20260926120000` pendente.
+
+**Checkpoint pré-migration.** Novo par de dumps do Pilot na pasta privada, em arquivos novos com data (sem sobrescrever os de 2026-09-26): esquema e dados (`--data-only --use-copy`), ambos com tamanho maior que zero, SHA-256 calculado e conferido e guardado só fora do Git. O esquema não contém nenhuma função da 017 (confirma o estado anterior). Nenhum conteúdo nem hash no repositório.
+
+**Preflight.** Leitura da 017 e varredura mecânica: só `ALTER POLICY` (14), `CREATE POLICY` (1), `CREATE FUNCTION` (4), `REVOKE`/`GRANT` e `COMMENT`; nenhum DELETE/UPDATE/INSERT/DROP fora do corpo das funções; nenhuma cascata, SQL dinâmico, UUID, e-mail ou CNPJ; um único `SECURITY DEFINER`; nenhum GRANT para `anon`/`public`. As 14 policies alteradas existem no Pilot com o mesmo nome e comando (catálogo). Contagens agregadas: 0 empresas encerradas e 0 observações financeiras com referência entre empresas — nenhum dado existente muda de comportamento e a limitação de referência legada não se aplica ao Pilot hoje. `db push --linked --dry-run`: só a 017, sem seeds nem roles.
+
+**Aplicação.** Depois da autorização humana: preflight reconfirmado sem divergência; `npx supabase db push --linked` aplicou só a 017, sem erro. `migration list --linked`: 17 local == 17 remoto, 0 divergências; `db push --dry-run`: "Remote database is up to date".
+
+**Verificação estrutural (catálogo, só leitura).** As 4 funções: `search_path` vazio, sem SQL dinâmico; `purge_closed_company` é a única `SECURITY DEFINER` (volátil); as de prévia/listagem são `stable` e INVOKER; `authenticated` com EXECUTE, `anon` e `public` sem. 32 policies em `public` e `storage.objects`, todas com posse via `auth.uid()` (nenhuma aceita só um `company_id` do cliente); `companies_update_own` com USING de empresa aberta (monotônico); 13 policies de escrita com empresa aberta; `documents_storage_delete_closed_company` presente, exigindo empresa encerrada; `documents_storage_delete_own` (órfãos, D-123) inalterada; nenhuma policy de DELETE em tabela de `public`. As 11 tabelas com `company_id` são exatamente as cobertas pela purga.
+
+**Smoke remoto (conta de teste DEV_USER, dados sintéticos, sessão operada com `npm run dev` apontando ao Pilot; o login foi feito pelo humano).**
+- Controle: a empresa técnica sintética já existente da conta (Mission 201), somente lida — nenhuma empresa de controle nova foi criada. Retratos agregados antes/durante/depois (empresa de controle, empresa alvo, conta, totais globais), sem imprimir identificadores.
+- Empresa alvo "M202 SMOKE ALVO" criada pela UI com CNPJ sintético; dois CSVs sintéticos enviados (o primeiro, sem período, foi recusado pela análise — comportamento esperado do Data Engine; o segundo, no formato textual de DRE das fixtures de teste, analisado); 1 análise persistida. Estado: 2 arquivos, 2 documentos, 1 execução.
+- Sondagem de RLS pelo catálogo, como `authenticated` com a identidade do dono e com um uid aleatório sem conta, num bloco que sempre termina com exceção (tudo desfeito; retrato idêntico antes e depois, nas duas execuções). Empresa ABERTA (controle positivo): inserir documento, execução e objeto de Storage passa; editar/reabrir/alterar documento atinge linhas; purga → `not_closed`; listagem de Storage para purga vazia. Empresa ENCERRADA pela UI: os três inserts → `42501`; editar, reabrir e alterar documento → 0 linhas; prévia do dono com as contagens exatas; listagem = 2; purga com frase errada → `confirmation_mismatch`; com a frase certa e arquivos presentes → `storage_not_empty`. Não-dono: prévia `{"found": false}`, listagem 0, SELECT 0, purga `not_found` — idêntico a um UUID inexistente.
+- UI: "Empresas encerradas" → prévia igual ao banco (2 arquivos, 2 documentos, 1 análise, demais 0) → botão desabilitado até a frase exata → "Excluir definitivamente" com sucesso.
+- Depois: empresa alvo, as 11 tabelas filhas e o prefixo de Storage = 0 (nenhum objeto em nenhum bucket cita o id); diferença global exatamente a da empresa alvo (−1 empresa, −2 documentos, −1 execução, −2 objetos); empresa de controle, `auth.users`/`public.users` da conta e totais globais idênticos ao retrato anterior à fixture. Nenhuma fixture restou; nenhum dump contém a fixture (criada depois do checkpoint).
+- Não simulado no Pilot (por instrução): falhas destrutivas — a semântica de falha está provada localmente (pgTAP, ponta a ponta).
+
+**Observação.** Uma vez, sem reprodução: `Error: {"message":""}` no primeiro `/dashboard` logo depois do login do humano, antes de qualquer ação desta missão. O dashboard só lê contagens de empresas (a 017 não altera policy de SELECT); recarregado, renderizou normalmente. Registrado, não tratado.
+
+**Regressão.** Sem alteração de código: type-check/lint/build limpos, 17 rotas, 226/226.
+
+**Limitações que permanecem.** A remoção física dos bytes no backend do Storage remoto não é observável sem `service_role` (a Storage API remove objeto e metadado; a remoção física está provada no Supabase local). pgTAP e ponta a ponta continuam só locais. Restauração de dump e reaplicação de purgas não testadas. Prazo de retenção e o `[A DEFINIR]` de encerramento do documento do cliente em aberto (por instrução). Referências legadas entre empresas em `financial_observations` bloqueariam a purga (fail-closed) — hoje 0 no Pilot.
+
+**Origem.** Mission 202 — Pilot Activation & Closure Gate.

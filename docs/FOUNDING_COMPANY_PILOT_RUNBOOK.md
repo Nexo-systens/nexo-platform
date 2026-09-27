@@ -24,7 +24,7 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 - **Infraestrutura:** banco e arquivos no Supabase, projeto NEXO Pilot, região `ca-central-1` (Canadá) — fora do Brasil.
 - **IA:** ao gerar Diagnóstico Executivo ou usar o Executive Chat, o contexto financeiro da empresa (indicadores, valores, evidências — sem razão social/CNPJ) é enviado à API da Anthropic (EUA). A análise financeira determinística não usa IA.
 - **Acesso:** um único usuário por empresa (dono da conta); não existe compartilhamento com sócios/conselho. Enquanto não houver deploy público, o operador opera as sessões (suporte operacional, nunca revisão da análise).
-- **Exclusão:** na operação normal, arquivos aceitos, execuções e diagnósticos são imutáveis. Desde a Mission 202 (D-130) existe a **exclusão definitiva de uma empresa encerrada** pelo próprio dono (arquivos + todos os dados; a conta não é afetada) — **ainda não disponível no NEXO Pilot até a Migration 017 ser aplicada**. Dados já copiados em dumps só saem quando o dump inteiro é apagado.
+- **Exclusão:** na operação normal, arquivos aceitos, execuções e diagnósticos são imutáveis. Desde a Mission 202 (D-130) existe a **exclusão definitiva de uma empresa encerrada** pelo próprio dono (arquivos + todos os dados; a conta não é afetada) — **ativa no NEXO Pilot desde 2026-09-27** (Migration 017 aplicada). Dados já copiados em dumps só saem quando o dump inteiro é apagado.
 - **Retenção:** não existe prazo formal de retenção; os dados permanecem até uma decisão explícita. O procedimento de retenção dos dumps está abaixo, com prazo ainda configurável.
 - **Backup:** o Supabase não tem backup restaurável do Pilot (`backups list` vazio, PITR desligado). Mitigação VERIFICADA (2026-09-26): dump lógico de esquema e de dados executado de verdade na máquina do operador (Docker + Supabase CLI), com SHA-256 conferido — mais os originais preservados. Não é PITR nem disaster recovery completo; não inclui os arquivos do Storage; restauração nunca testada.
 - **Hospedagem:** não existe deploy público; o acesso é por sessões operadas pelo operador NEXO (suporte operacional).
@@ -63,13 +63,13 @@ Alinhada ao `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`:
 
 ### Checkpoint operacional (backup lógico, antes de cada ciclo com dado real)
 
-**Estado: VERIFICADO (2026-09-26).** Na máquina do operador da NEXO: Docker Desktop instalado e com o Engine em execução (`docker run --rm hello-world` com sucesso); pasta privada `C:\NEXO_BACKUPS\pilot` criada fora do Git; dump real do esquema e dump real dos dados do NEXO Pilot executados com sucesso, em arquivos separados (`2026-09-26-schema.sql`, `2026-09-26-data.sql`), ambos com tamanho maior que zero e SHA-256 calculado e conferido. Nenhum conteúdo nem hash dos dumps foi para o Git ou para chats — os hashes ficam só no registro do operador. O Supabase CLI + `db dump` estão funcionais nessa máquina.
+**Estado: VERIFICADO (2026-09-26).** Na máquina do operador da NEXO: Docker Desktop instalado e com o Engine em execução (`docker run --rm hello-world` com sucesso); pasta privada `C:\NEXO_BACKUPS\pilot` criada fora do Git; dump real do esquema e dump real dos dados do NEXO Pilot executados com sucesso, em arquivos separados (`2026-09-26-schema.sql`, `2026-09-26-data.sql`), ambos com tamanho maior que zero e SHA-256 calculado e conferido. Nenhum conteúdo nem hash dos dumps foi para o Git ou para chats — os hashes ficam só no registro do operador. O Supabase CLI + `db dump` estão funcionais nessa máquina. **Segundo checkpoint VERIFICADO (2026-09-27), pré-Migration 017:** novo par `schema` + `data` (`--use-copy`) em arquivos novos com data, sem sobrescrever os anteriores, ambos com tamanho maior que zero e SHA-256 calculado e conferido (hashes só na pasta privada/registro do operador, nunca no Git).
 
 Procedimento obrigatório, nesta ordem, antes de cada ciclo real:
 
 1. **Preservar os originais do cliente fora do Git**, na pasta privada da NEXO, com o hash de cada arquivo. A empresa também mantém os próprios originais.
 2. **Confirmar o Pilot saudável:** Seções 1–3 (git limpo, `HEAD == origin/develop`, CI verde).
-3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com todas as migrations do repositório aplicadas (hoje 16/17 — a 017 da Mission 202 aguarda autorização; depois de aplicada, 17/17).
+3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com todas as migrations do repositório aplicadas (hoje 17/17 — a 017 da Mission 202 foi aplicada em 2026-09-27).
 4. **Dump do esquema** (Docker Desktop precisa estar em execução — o Supabase CLI roda o `pg_dump` num contêiner):
    ```bash
    npx supabase db dump --linked -f C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-schema.sql
@@ -115,7 +115,7 @@ O prazo de retenção ainda **não está definido** (é configurável e será fi
 
 ### Encerramento e exclusão definitiva de uma empresa (Mission 202, D-130)
 
-**Estado: implementado e provado no Supabase local; NOT_APPLIED no NEXO Pilot até a Migration 017 ser aplicada com autorização humana.** Antes disso, no Pilot, só o encerramento lógico existe (e sem o bloqueio de novos dados no banco).
+**Estado: ATIVO no NEXO Pilot desde 2026-09-27 (Migration 017 aplicada com autorização humana, 17/17).** Provado no Supabase local (pgTAP 51/51, ponta a ponta 8/8, UI) e no Pilot com uma empresa técnica descartável da conta de teste DEV_USER (smoke da ativação, abaixo), já excluída definitivamente — nenhuma fixture ficou no Pilot.
 
 - **Encerrar** (Empresas → "Encerrar"): a empresa some das listagens e deixa de aceitar qualquer dado novo, inclusive por API direta. É irreversível para o usuário (não há reabertura). Os dados continuam guardados. A CNPJ continua ocupada para aquele dono até a exclusão definitiva.
 - **Excluir definitivamente** (Empresas → "Empresas encerradas" → "Ver o que será excluído" → digitar a frase `EXCLUIR-XXXXXXXX` → "Excluir definitivamente"): feito na sessão do **próprio dono**, na sessão operada. Remove primeiro os arquivos da empresa no Storage (inclusive órfãos), depois, numa única transação, todos os dados da empresa nas 12 tabelas, e por último a empresa. **A conta do usuário não é apagada.** Outras empresas — do mesmo dono ou de outros — não são tocadas.
@@ -135,7 +135,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - [ ] Tipos de documento suportados confirmados com a empresa (PDF/CSV)
 - [ ] Originais preservados na pasta privada, com hashes
 - [ ] Pilot saudável (Seções 1–3)
-- [ ] Migrations do repositório todas aplicadas no Pilot (17/17 depois da Migration 017)
+- [ ] Migrations do repositório todas aplicadas no Pilot (17/17 desde 2026-09-27)
 - [ ] Dumps de esquema e de dados feitos, tamanho maior que zero e SHA-256 registrados no registro do operador (ou risco aceito explicitamente)
 - [ ] Conta e empresa corretas (conta própria do fundador, identificada no registro)
 - [ ] Nenhuma conta de teste misturada com a empresa real
@@ -245,7 +245,7 @@ Para reverificar a qualquer momento:
 npx supabase migration list --linked
 ```
 
-Cadeia esperada (17 migrations no repositório, ordem exata — `supabase/migrations/`; **as 16 primeiras aplicadas no NEXO Pilot** desde o Pilot Migration Gate da Mission 199B; **a 017 (Mission 202) NOT_APPLIED**, aguardando autorização humana):
+Cadeia esperada (17 migrations no repositório, ordem exata — `supabase/migrations/`; **todas as 17 aplicadas no NEXO Pilot** — as 16 primeiras desde o Pilot Migration Gate da Mission 199B, a 017 (Mission 202) desde 2026-09-27):
 
 ```
 20260715151336_initial_schema
@@ -269,7 +269,19 @@ Cadeia esperada (17 migrations no repositório, ordem exata — `supabase/migrat
 
 **Migration 016 — ATUALIZADO (Mission 199B Security Closure, D-126).** `companies_cnpj_tenant_scoped_unique` troca a unicidade global de `companies.cnpj` por `unique (user_id, cnpj)`, fechando o oráculo cross-tenant de CNPJ encontrado pela matriz da Mission 199B. **LIVE_PROVEN — APLICADA no NEXO Pilot (Mission 199B Security Closure — Pilot Migration Gate).** Estado anterior `ONLY_016_PENDING` (001–015 local == remoto, 016 só local), `db push --linked --dry-run` confirmando só a 016, depois `npx supabase db push --linked`. Verificado no banco real, somente por metadados/contagens: `companies_document_key (cnpj)` removida; `companies_user_id_cnpj_key (user_id, cnpj)` presente; `migration list --linked` 16/16; RLS habilitada em 13/13 tabelas, 28 policies (as 3 de `companies` presentes) e contagem de linhas idêntica antes e depois. Estado esperado a partir de agora: `migration list --linked` com 16 local == remoto. No Windows, se `npx` for bloqueado pela política de execução do PowerShell, usar `npx.cmd` (nunca alterar a política de segurança).
 
-**Migration 017 — Mission 202 (D-130), NOT_APPLIED no NEXO Pilot.** `company_offboarding`: encerramento monotônico, bloqueio de novos dados em empresa encerrada, prévia/listagem/purga definitiva. Provada num Supabase local descartável (cadeia 001–017 do zero, pgTAP 51/51, ponta a ponta 8/8, UI). Até a aplicação autorizada, `migration list --linked` mostra 16 aplicadas e a 017 só local — `MIGRATION_BEHIND` conhecido e intencional. Aplicar só com autorização humana explícita, pelo mesmo fluxo do Pilot Migration Gate (identidade do projeto, `ONLY_017_PENDING`, `--dry-run`, `db push --linked`, verificação remota de policies e funções).
+**Migration 017 — Mission 202 (D-130). LIVE_PROVEN — APLICADA no NEXO Pilot em 2026-09-27 (Mission 202 — Pilot Activation & Closure Gate), com autorização humana explícita.** `company_offboarding`: encerramento monotônico, bloqueio de novos dados em empresa encerrada, prévia/listagem/purga definitiva. Provada antes num Supabase local descartável (cadeia 001–017 do zero, pgTAP 51/51, ponta a ponta 8/8, UI). Fluxo da aplicação: identidade do projeto confirmada (NEXO Pilot, `ca-central-1`; o projeto histórico de `sa-east-1` INACTIVE e não linkado); estado `ONLY_017_PENDING` (16 local == remoto, 017 só local); checkpoint novo pré-migration (Seção "Checkpoint operacional"); as 14 policies alteradas pela 017 conferidas no Pilot por nome e comando; `db push --linked --dry-run` listando só a 017; `npx supabase db push --linked`. Estado esperado a partir de agora: `migration list --linked` com 17 local == remoto e `db push --dry-run` "up to date".
+
+Verificação remota (somente catálogo, metadados e contagens agregadas):
+- As 4 funções existem com `search_path` vazio e sem SQL dinâmico; só `purge_closed_company` é `SECURITY DEFINER`; EXECUTE para `authenticated`, nunca para `anon`/`public`.
+- Todas as 32 policies de `public` e `storage.objects` exigem posse via `auth.uid()` (nenhuma confia só num `company_id` enviado pelo cliente); o UPDATE de `companies` exige empresa aberta (sem reabertura); as 13 policies de escrita exigem empresa aberta; a nova policy de DELETE no Storage exige empresa encerrada do próprio dono.
+- Antes da aplicação: 0 empresas encerradas e 0 observações financeiras com referência entre empresas no Pilot — nenhum dado existente mudou de comportamento.
+
+Smoke da ativação (empresa técnica descartável da conta de teste DEV_USER; nenhum dado real; a empresa técnica sintética já existente dessa conta, da Mission 201, serviu de controle, sem nenhuma alteração):
+- Empresa alvo criada pela UI, 2 arquivos sintéticos enviados e 1 análise executada; encerrada pela UI.
+- Sondagem de RLS como o dono (e como um uid aleatório sem conta), dentro de um bloco que sempre termina com exceção — tudo desfeito, contagens idênticas antes e depois: com a empresa ABERTA as mesmas gravações passam (controle positivo); ENCERRADA, inserir documento, execução ou objeto de Storage dá `42501` e editar/reabrir/alterar documento atinge 0 linhas; purga com frase errada → `confirmation_mismatch`, com a frase certa e arquivos presentes → `storage_not_empty`; quem não é dono recebe exatamente a mesma resposta de uma empresa inexistente (`{"found": false}` / `not_found`).
+- Prévia pela UI igual ao banco (2 arquivos, 2 documentos, 1 análise); botão desabilitado até a frase exata; exclusão definitiva pela UI com sucesso.
+- Depois: empresa, as 11 tabelas filhas e o prefixo do Storage da empresa alvo = 0; a diferença global foi exatamente a da empresa alvo; a empresa de controle, a conta (`auth.users` e `public.users`) e os totais globais idênticos ao retrato anterior à fixture. Nenhuma fixture restou; nenhum dump contém a fixture (criada depois do checkpoint).
+- Não verificável remotamente sem `service_role`: a remoção física dos bytes no backend do Storage (feita pela própria Storage API, que remove o objeto e o metadado; provada fisicamente só no Supabase local). Falhas destrutivas propositais não foram simuladas no Pilot (provadas localmente).
 
 Se a lista real divergir desta (uma a mais, uma a menos, ordem diferente): **não tentar corrigir manualmente**. Classificar `MIGRATION_BEHIND`/`MIGRATION_AHEAD`/`MIGRATION_DIVERGED` e tratar como bloqueio até entendido — nunca reparar histórico de migration à mão (`docs/PROJECT_RULES.md`, mesma disciplina de nunca reescrever decisão já registrada).
 
