@@ -15,7 +15,7 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 ### Pré-condições humanas (antes do primeiro upload real)
 
 1. **Revisão apropriada do `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`**, por quem tiver competência para isso. Nenhuma revisão foi feita ou é declarada aqui; este runbook não é aconselhamento jurídico. A revisão precisa preencher os campos `[A DEFINIR]` (contatos, compromisso de encerramento/exclusão, vigência) e decidir se os fatos internos abaixo estão comunicados de forma adequada.
-2. **Aceite registrado:** a Founding Company aceita a versão revisada; o operador registra data, versão aceita e quem aceitou no registro do operador (fora do repositório — ver "Registro do operador").
+2. **Aceite registrado:** a Founding Company recebe e aceita a versão revisada — incluindo a concordância com o processamento necessário às funcionalidades de IA previstas, que fazem parte do serviço nesta modalidade; o operador registra data, versão aceita e quem aceitou no registro do operador (fora do repositório — ver "Registro do operador"). Se a empresa não concordar com o uso de IA, o onboarding é interrompido antes de receber qualquer documento.
 3. **Checkpoint operacional executado** (procedimento abaixo).
 4. **Operador NEXO disponível** durante toda a primeira sessão.
 
@@ -54,7 +54,7 @@ Alinhada ao `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`:
 - **Upload:** feito na sessão operada, na conta do próprio fundador, com a categoria correta.
 - **Análise:** produzida pela plataforma ao executar pelo botão da empresa. A empresa vê a análise como a plataforma a produziu.
 - **Validação técnica temporária (primeiros ciclos reais):** verificar o status de governança de cada documento (aceito, duplicata, conflito, requer revisão) e se os números-chave foram extraídos corretamente do documento de origem — ver a regra canônica acima. Não é revisão financeira nem condição de entrega. O operador nunca completa, estima nem corrige números manualmente; dado ausente aparece como indisponível, e divergência é incidente técnico.
-- **IA:** opcional; só nas funcionalidades previstas (Diagnóstico Executivo, Executive Chat) e só se a versão revisada do documento do cliente cobrir esse uso. Falha do provider não afeta a análise já feita.
+- **IA:** nesta modalidade do programa, as funcionalidades de IA previstas (Diagnóstico Executivo, Executive Chat) fazem parte do serviço. A empresa concorda com o processamento das informações necessárias ao aceitar a versão apropriada do documento do cliente, antes do upload real. Se a empresa não concordar, o operador interrompe o onboarding antes de receber qualquer documento. Não improvisar um "modo sem IA": um escopo sem essas funcionalidades exige definição própria (produto e documento), nunca uma decisão do operador durante a sessão. Falha do provider não afeta a análise já feita.
 - **Incidente:** qualquer um de — dado de outra empresa visível, acesso indevido, perda de dado, credencial recebida, número financeiro claramente errado, erro inesperado repetido. Ação: seguir "Parada / rollback"; registrar horário, o que foi observado e o HEAD em uso (sem copiar dados financeiros); avisar a empresa pelo canal acordado, conforme a versão revisada do documento; abrir uma missão de correção. Nunca "consertar" no banco (Seção 15).
 - **Encerramento:** a empresa pode encerrar a participação a qualquer momento; a NEXO para de receber documentos. O destino dos dados segue o compromisso definido na revisão do documento do cliente. Como o produto só faz exclusão lógica, qualquer remoção física exige autorização explícita por escrito e uma ação privilegiada documentada — uma exceção formal à Seção 15, nunca improvisada.
 - **Retenção:** sem política formal hoje (P2 operacional) — não prometer prazos que não estejam na versão revisada.
@@ -111,7 +111,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 
 **Antes do primeiro upload real**
 - [ ] Documento do cliente revisado de forma apropriada (versão e data no registro do operador)
-- [ ] Aceite da Founding Company registrado
+- [ ] Aceite da Founding Company registrado, incluindo a concordância com as funcionalidades de IA previstas (sem concordância: onboarding interrompido antes de receber documentos)
 - [ ] Tipos de documento suportados confirmados com a empresa (PDF/CSV)
 - [ ] Originais preservados na pasta privada, com hashes
 - [ ] Pilot saudável (Seções 1–3)
@@ -128,7 +128,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - [ ] Validação técnica (temporária): números-chave extraídos conferem com os originais; divergência registrada como incidente técnico
 - [ ] Validação técnica (temporária): dados ausentes aparecem como indisponíveis e conflitos aparecem como alerta — nunca como zero
 - [ ] Análise entregue exatamente como a plataforma a produziu — sem revisão financeira manual como condição de entrega, sem números corrigidos à mão
-- [ ] IA só se coberta pela versão revisada (opcional)
+- [ ] Funcionalidades de IA previstas usadas como parte do serviço, dentro do aceite registrado — nenhum "modo sem IA" improvisado
 - [ ] Nenhuma decisão automática
 
 **Depois da primeira análise**
@@ -154,7 +154,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 4. Enviar documento (categoria + PDF/CSV) → status "Disponível".
 5. Executar análise → a empresa vê a análise produzida pela plataforma. Em paralelo, nos primeiros ciclos reais, fazer a validação técnica: conferir se os números-chave extraídos (ex.: Receita Líquida, Lucro Líquido, período) batem com o documento de origem. Divergência = incidente técnico, nunca correção manual.
 6. Recarregar a página → a análise continua lá (hidratação, D-125); Histórico mostra a execução "Atual".
-7. Opcional, se coberto pela versão revisada do documento do cliente: Gerar diagnóstico executivo.
+7. Gerar diagnóstico executivo — funcionalidade de IA prevista, parte do serviço nesta modalidade e coberta pelo aceite registrado.
 8. Checklist "Depois da primeira análise"; registrar o feedback no registro do operador (não existe módulo de feedback no produto).
 
 ### Parada / rollback

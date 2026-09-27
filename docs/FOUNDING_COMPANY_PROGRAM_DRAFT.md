@@ -88,7 +88,13 @@ Quando uma funcionalidade da NEXO utilizar inteligência artificial, as informa�
 
 A inteligência artificial pode ser utilizada, por exemplo, para apoiar a interpretação de informações financeiras, geração de análises executivas e interação em linguagem natural com as informações da empresa.
 
-[A DEFINIR APÓS REVISÃO: forma de autorização da empresa para utilização das funcionalidades que envolvem inteligência artificial e consequências práticas caso essas funcionalidades não sejam autorizadas.]
+A participação nesta fase do NEXO Founding Company Program envolve funcionalidades que utilizam inteligência artificial para produzir determinadas análises, interpretações e interações da plataforma.
+
+Ao aceitar este documento, a empresa concorda com o processamento, pelos fornecedores tecnológicos utilizados pela NEXO, das informações necessárias para executar essas funcionalidades.
+
+Esse processamento não autoriza a NEXO ou seus fornecedores a movimentar recursos financeiros, acessar contas bancárias por meio de credenciais da empresa ou tomar decisões em seu nome.
+
+Caso a empresa não concorde com a utilização dessas funcionalidades, deverá informar a NEXO antes de enviar qualquer documento financeiro. Nessa situação, a participação nesta modalidade do NEXO Founding Company Program não deverá prosseguir, salvo se a NEXO e a empresa definirem posteriormente um escopo diferente que não dependa dessas funcionalidades.
 
 ## Natureza das análises
 
