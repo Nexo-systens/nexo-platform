@@ -12,22 +12,11 @@ import {
   previewCompanyPurgeAction,
   purgeClosedCompanyAction,
 } from "@/modules/companies/actions/company-offboarding.actions";
-import type { CompanyPurgePreview, CompanyPurgeResource } from "@/modules/companies/lib/company-offboarding";
-
-const RESOURCE_LABELS: Readonly<Record<CompanyPurgeResource, string>> = {
-  storage_objects: "Arquivos armazenados",
-  documents: "Documentos",
-  executions: "Análises executadas",
-  executive_diagnoses: "Diagnósticos executivos",
-  diagnosis_reviews: "Revisões de diagnóstico",
-  decisions: "Decisões",
-  decision_execution_events: "Acompanhamentos de decisão",
-  decision_outcomes: "Resultados de decisão",
-  financial_observations: "Observações financeiras",
-  learning_records: "Aprendizados",
-  knowledge_records: "Conhecimentos",
-  knowledge_evaluations: "Avaliações de conhecimento",
-};
+import {
+  COMPANY_PURGE_RESOURCE_LABELS as RESOURCE_LABELS,
+  type CompanyPurgePreview,
+  type CompanyPurgeResource,
+} from "@/modules/companies/lib/company-offboarding";
 
 type Preview = Extract<CompanyPurgePreview, { found: true }>;
 

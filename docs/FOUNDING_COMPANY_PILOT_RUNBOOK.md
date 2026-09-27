@@ -69,7 +69,7 @@ Procedimento obrigatório, nesta ordem, antes de cada ciclo real:
 
 1. **Preservar os originais do cliente fora do Git**, na pasta privada da NEXO, com o hash de cada arquivo. A empresa também mantém os próprios originais.
 2. **Confirmar o Pilot saudável:** Seções 1–3 (git limpo, `HEAD == origin/develop`, CI verde).
-3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com todas as migrations do repositório aplicadas (hoje 17/17 — a 017 da Mission 202 foi aplicada em 2026-09-27).
+3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com todas as migrations do repositório aplicadas (hoje 17 de 18 — a 017 da Mission 202 aplicada em 2026-09-27; a 018 da Mission 202B aguarda autorização; depois dela, 18/18).
 4. **Dump do esquema** (Docker Desktop precisa estar em execução — o Supabase CLI roda o `pg_dump` num contêiner):
    ```bash
    npx supabase db dump --linked -f C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-schema.sql
@@ -123,6 +123,20 @@ O prazo de retenção ainda **não está definido** (é configurável e será fi
 - **Se falhar:** "Não foi possível remover os arquivos…" — nada foi apagado do banco; tentar de novo. "Os arquivos foram removidos, mas a exclusão dos dados falhou…" — a empresa continua encerrada com os dados estruturados; tentar de novo (repetir é seguro). "…outra empresa referencia dados desta" — nada foi apagado; é uma referência legada entre empresas: parar e abrir uma missão de correção. Depois do sucesso, repetir é inofensivo.
 - **Nunca** usar SQL Editor, `service_role` ou DELETE direto em `storage.objects` para "adiantar" uma exclusão (Seção 15).
 
+### Autoridade de offboarding do operador (Mission 202B, D-131)
+
+**Estado: implementado e provado no Supabase local (pgTAP 65/65 + 51/51, ponta a ponta 10/10 + 8/8, UI); NOT_APPLIED no NEXO Pilot até a Migration 018 ser aplicada com autorização humana.** Remove a dependência da sessão do dono para concluir um offboarding: o operador NEXO, com autoridade explícita, registra o encerramento solicitado pelo canal acordado e conclui a exclusão definitiva. Não é posse da empresa: o operador continua sem ver nem alterar nenhum dado dela.
+
+- **Quem pode:** só uma conta com concessão ativa em `public.offboarding_operators` — de preferência uma conta própria de operador, sem empresas. Nunca a conta de uma Founding Company.
+- **Conceder (ação administrativa governada, não é operação de dados):** com autorização humana explícita e registrada no registro do operador (quem autorizou, data, conta), o dono do banco executa pelo Supabase CLI, no projeto confirmado (Seção de migrations: identidade e região): `select public.grant_offboarding_operator('<id da conta do operador>', '<referência do registro privado>');`. O id e a referência ficam só no registro privado — nunca no Git ou em chat. A referência aceita só letras, números e `. _ : / -` (nunca e-mail ou nome).
+- **Revogar:** `select public.revoke_offboarding_operator('<id>', '<referência>');` — vale na próxima requisição (a autoridade é lida no banco a cada chamada). Revogar quando o operador deixar a função ou ao fim de cada janela de offboarding, se assim decidido.
+- **Fluxo** (sessão operada, conta do operador logada, `/operator/offboarding` — para quem não é operador a página responde 404):
+  1. informar o identificador técnico da empresa (do registro privado) → "Consultar": estado (aberta/encerrada), solicitação registrada (sim/não) e contagens — sem razão social, CNPJ ou conteúdo;
+  2. se não registrada: informar a referência do registro privado e digitar `ENCERRAR-XXXXXXXX` → "Registrar solicitação de encerramento". Empresa ainda aberta é encerrada aqui (irreversível para o usuário: deixa de receber dados e não reabre). Nada é apagado;
+  3. digitar `EXCLUIR-XXXXXXXX` → "Excluir definitivamente": mesma orquestração do dono (arquivos primeiro pela Storage API, depois a purga transacional, depois a verificação). A conta do dono não é afetada.
+- **O que o operador nunca consegue:** ler, baixar, listar ou gravar dados/arquivos de qualquer empresa; reabrir empresa; purgar empresa aberta ou sem solicitação registrada; conceder autoridade.
+- **Auditoria:** cada encerramento e purga ficam em `public.company_offboarding_records` (id técnico, instantes, autoridade `owner`/`operator`, referência, contagens — nenhum dado da empresa). Transcrever o resultado para o registro privado do operador: é essa cópia que permite reaplicar a purga depois de uma restauração.
+
 ### Registro do operador
 
 Um documento privado da NEXO, **fora do repositório**, com o que este runbook proíbe commitar: identidade do operador designado, canal acordado com a empresa, contas de teste (por e-mail), conta e empresa reais com data de criação, aceite do documento do cliente, checkpoints, inventário e rotação de dumps, offboardings, incidentes e feedback. É a fonte de identificação positiva — nunca a memória.
@@ -135,7 +149,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - [ ] Tipos de documento suportados confirmados com a empresa (PDF/CSV)
 - [ ] Originais preservados na pasta privada, com hashes
 - [ ] Pilot saudável (Seções 1–3)
-- [ ] Migrations do repositório todas aplicadas no Pilot (17/17 desde 2026-09-27)
+- [ ] Migrations do repositório todas aplicadas no Pilot (18/18 depois da Migration 018)
 - [ ] Dumps de esquema e de dados feitos, tamanho maior que zero e SHA-256 registrados no registro do operador (ou risco aceito explicitamente)
 - [ ] Conta e empresa corretas (conta própria do fundador, identificada no registro)
 - [ ] Nenhuma conta de teste misturada com a empresa real
@@ -245,7 +259,7 @@ Para reverificar a qualquer momento:
 npx supabase migration list --linked
 ```
 
-Cadeia esperada (17 migrations no repositório, ordem exata — `supabase/migrations/`; **todas as 17 aplicadas no NEXO Pilot** — as 16 primeiras desde o Pilot Migration Gate da Mission 199B, a 017 (Mission 202) desde 2026-09-27):
+Cadeia esperada (18 migrations no repositório, ordem exata — `supabase/migrations/`; **17 aplicadas no NEXO Pilot** — as 16 primeiras desde o Pilot Migration Gate da Mission 199B, a 017 (Mission 202) desde 2026-09-27; **a 018 (Mission 202B) NOT_APPLIED**, aguardando autorização humana):
 
 ```
 20260715151336_initial_schema
@@ -265,6 +279,7 @@ Cadeia esperada (17 migrations no repositório, ordem exata — `supabase/migrat
 20260920000000_documents_storage_delete_policy
 20260926000000_companies_cnpj_tenant_scoped_unique
 20260926120000_company_offboarding
+20260927120000_offboarding_operator_authority
 ```
 
 **Migration 016 — ATUALIZADO (Mission 199B Security Closure, D-126).** `companies_cnpj_tenant_scoped_unique` troca a unicidade global de `companies.cnpj` por `unique (user_id, cnpj)`, fechando o oráculo cross-tenant de CNPJ encontrado pela matriz da Mission 199B. **LIVE_PROVEN — APLICADA no NEXO Pilot (Mission 199B Security Closure — Pilot Migration Gate).** Estado anterior `ONLY_016_PENDING` (001–015 local == remoto, 016 só local), `db push --linked --dry-run` confirmando só a 016, depois `npx supabase db push --linked`. Verificado no banco real, somente por metadados/contagens: `companies_document_key (cnpj)` removida; `companies_user_id_cnpj_key (user_id, cnpj)` presente; `migration list --linked` 16/16; RLS habilitada em 13/13 tabelas, 28 policies (as 3 de `companies` presentes) e contagem de linhas idêntica antes e depois. Estado esperado a partir de agora: `migration list --linked` com 16 local == remoto. No Windows, se `npx` for bloqueado pela política de execução do PowerShell, usar `npx.cmd` (nunca alterar a política de segurança).
@@ -282,6 +297,8 @@ Smoke da ativação (empresa técnica descartável da conta de teste DEV_USER; n
 - Prévia pela UI igual ao banco (2 arquivos, 2 documentos, 1 análise); botão desabilitado até a frase exata; exclusão definitiva pela UI com sucesso.
 - Depois: empresa, as 11 tabelas filhas e o prefixo do Storage da empresa alvo = 0; a diferença global foi exatamente a da empresa alvo; a empresa de controle, a conta (`auth.users` e `public.users`) e os totais globais idênticos ao retrato anterior à fixture. Nenhuma fixture restou; nenhum dump contém a fixture (criada depois do checkpoint).
 - Não verificável remotamente sem `service_role`: a remoção física dos bytes no backend do Storage (feita pela própria Storage API, que remove o objeto e o metadado; provada fisicamente só no Supabase local). Falhas destrutivas propositais não foram simuladas no Pilot (provadas localmente).
+
+**Migration 018 — Mission 202B (D-131), NOT_APPLIED no NEXO Pilot.** `offboarding_operator_authority`: autoridade governada de offboarding do operador, núcleo único da purga (o fluxo do dono mantém os mesmos guards e respostas), registro mínimo de offboarding, policies de Storage do operador só para remoção. Aditiva: não apaga nem altera dado existente (só registra, em `company_offboarding_records`, as empresas já encerradas). Provada num Supabase local descartável (cadeia 001–018 do zero, pgTAP 116/116, ponta a ponta 18/18, UI). Até a aplicação autorizada, `migration list --linked` mostra 17 aplicadas e a 018 só local — `MIGRATION_BEHIND` conhecido e intencional. Aplicar só com autorização humana explícita, pelo mesmo fluxo do Pilot Migration Gate (identidade do projeto, checkpoint novo, `ONLY_018_PENDING`, `--dry-run`, `db push --linked`, verificação remota).
 
 Se a lista real divergir desta (uma a mais, uma a menos, ordem diferente): **não tentar corrigir manualmente**. Classificar `MIGRATION_BEHIND`/`MIGRATION_AHEAD`/`MIGRATION_DIVERGED` e tratar como bloqueio até entendido — nunca reparar histórico de migration à mão (`docs/PROJECT_RULES.md`, mesma disciplina de nunca reescrever decisão já registrada).
 
@@ -402,7 +419,7 @@ Em nenhuma circunstância, para operação normal do primeiro Founding Company:
 
 Se qualquer uma dessas parecer necessária, é um sinal de que existe um defeito de produto — não um procedimento operacional válido. Reportar, não contornar.
 
-A exclusão definitiva de uma empresa (D-130) **não é** uma ação manual: é o caminho do produto, feito pela sessão do próprio dono, e continua proibido executá-la ou "adiantá-la" por SQL, `service_role` ou dashboard.
+A exclusão definitiva de uma empresa (D-130) **não é** uma ação manual: é o caminho do produto, feito pela sessão do próprio dono, e continua proibido executá-la ou "adiantá-la" por SQL, `service_role` ou dashboard. Depois da Migration 018 (D-131), o operador de offboarding também pode concluí-la — sempre pelo caminho do produto (`/operator/offboarding`, sessão do próprio operador), nunca por SQL. A única ação por CLI prevista é administrativa: conceder ou revogar a autoridade (`grant_offboarding_operator`/`revoke_offboarding_operator`), com autorização humana registrada — nunca uma operação sobre dados de empresa.
 
 ---
 

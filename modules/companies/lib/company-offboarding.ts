@@ -25,6 +25,12 @@ import { isUuid } from "@/lib/identifiers";
  * As portas são injetadas: o server action usa o cliente Supabase da
  * sessão do usuário (nunca `service_role`); os testes usam falhas
  * simuladas e o Supabase local real.
+ *
+ * Mission 202B (D-131): a MESMA orquestração serve às duas autoridades
+ * do ciclo de vida — o dono (portas da sessão do dono) e o operador de
+ * offboarding (portas do operador). Quando a prévia informa
+ * `registered: false` (autoridade do operador sem solicitação
+ * registrada), nada é tocado.
  */
 
 export const COMPANY_PURGE_RESOURCES = [
@@ -49,6 +55,8 @@ export type CompanyPurgePreview =
   | {
       readonly found: true;
       readonly closed: boolean;
+      /** Só na autoridade do operador (D-131): existe solicitação de encerramento registrada. */
+      readonly registered?: boolean;
       readonly confirmation: string;
       readonly counts: Readonly<Record<CompanyPurgeResource, number>>;
     };
@@ -56,6 +64,7 @@ export type CompanyPurgePreview =
 export type PurgeDatabaseRefusal =
   | "not_found"
   | "not_closed"
+  | "not_registered"
   | "confirmation_mismatch"
   | "storage_not_empty"
   | "blocked_by_external_reference";
@@ -118,6 +127,7 @@ export async function runCompanyPurge(
   const preview = await ports.preview(companyId);
   if (!preview.found) return { ok: false, reason: "not_found" };
   if (!preview.closed) return { ok: false, reason: "not_closed" };
+  if (preview.registered === false) return { ok: false, reason: "not_registered" };
   if (confirmation !== preview.confirmation) return { ok: false, reason: "confirmation_mismatch" };
 
   let paths: readonly string[];
@@ -164,6 +174,7 @@ export async function runCompanyPurge(
 const PURGE_REFUSALS: readonly PurgeDatabaseRefusal[] = [
   "not_found",
   "not_closed",
+  "not_registered",
   "confirmation_mismatch",
   "storage_not_empty",
   "blocked_by_external_reference",
@@ -172,7 +183,7 @@ const PURGE_REFUSALS: readonly PurgeDatabaseRefusal[] = [
 /** Lê o JSON devolvido por `preview_company_purge`; qualquer forma inesperada vira "não encontrada". */
 export function parseCompanyPurgePreview(raw: unknown): CompanyPurgePreview {
   if (typeof raw !== "object" || raw === null) return { found: false };
-  const value = raw as { found?: unknown; closed?: unknown; confirmation?: unknown; counts?: unknown };
+  const value = raw as { found?: unknown; closed?: unknown; registered?: unknown; confirmation?: unknown; counts?: unknown };
   if (value.found !== true || typeof value.closed !== "boolean" || typeof value.confirmation !== "string") {
     return { found: false };
   }
@@ -183,7 +194,9 @@ export function parseCompanyPurgePreview(raw: unknown): CompanyPurgePreview {
       return [resource, Number.isFinite(count) ? count : 0];
     })
   ) as Record<CompanyPurgeResource, number>;
-  return { found: true, closed: value.closed, confirmation: value.confirmation, counts };
+  return typeof value.registered === "boolean"
+    ? { found: true, closed: value.closed, registered: value.registered, confirmation: value.confirmation, counts }
+    : { found: true, closed: value.closed, confirmation: value.confirmation, counts };
 }
 
 /** Lê o JSON devolvido por `purge_closed_company`; forma inesperada é tratada como falha do banco. */
@@ -199,10 +212,39 @@ export function parsePurgeDatabaseResult(raw: unknown): PurgeDatabaseResult {
   throw new Error("unexpected purge result");
 }
 
+/** Rótulos dos recursos da prévia (dono e operador). */
+export const COMPANY_PURGE_RESOURCE_LABELS: Readonly<Record<CompanyPurgeResource, string>> = {
+  storage_objects: "Arquivos armazenados",
+  documents: "Documentos",
+  executions: "Análises executadas",
+  executive_diagnoses: "Diagnósticos executivos",
+  diagnosis_reviews: "Revisões de diagnóstico",
+  decisions: "Decisões",
+  decision_execution_events: "Acompanhamentos de decisão",
+  decision_outcomes: "Resultados de decisão",
+  financial_observations: "Observações financeiras",
+  learning_records: "Aprendizados",
+  knowledge_records: "Conhecimentos",
+  knowledge_evaluations: "Avaliações de conhecimento",
+};
+
+/** Só metadados do erro no servidor — nunca IDs de empresa, nomes de arquivo ou dados. */
+export function logOffboardingUnexpected(stage: string, error: unknown): void {
+  const detail = typeof error === "object" && error !== null ? (error as { name?: unknown; code?: unknown }) : {};
+  console.error(
+    `[offboarding:${stage}] falha inesperada (D-130)`,
+    JSON.stringify({
+      name: typeof detail.name === "string" ? detail.name : null,
+      code: typeof detail.code === "string" ? detail.code : null,
+    })
+  );
+}
+
 /** Mensagens para o usuário — nunca texto interno do banco ou do Storage. */
 export const COMPANY_PURGE_FAILURE_MESSAGES: Readonly<Record<CompanyPurgeFailure, string>> = {
   not_found: "Empresa não encontrada ou sem acesso.",
   not_closed: "A empresa precisa estar encerrada antes da exclusão definitiva.",
+  not_registered: "A solicitação de encerramento desta empresa ainda não foi registrada.",
   confirmation_mismatch: "A confirmação não confere. Digite exatamente a frase indicada.",
   storage_not_empty: "Ainda há arquivos desta empresa no armazenamento. Tente novamente.",
   blocked_by_external_reference:

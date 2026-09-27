@@ -598,6 +598,31 @@ export type Database = {
         Args: { p_company_id: string };
         Returns: string;
       };
+      // Mission 202B (D-131) — Migration 018.
+      is_offboarding_operator: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      company_closure_confirmation: {
+        Args: { p_company_id: string };
+        Returns: string;
+      };
+      operator_preview_company_purge: {
+        Args: { p_company_id: string };
+        Returns: Json;
+      };
+      operator_register_offboarding: {
+        Args: { p_company_id: string; p_reference: string; p_confirmation: string };
+        Returns: Json;
+      };
+      operator_list_offboarding_storage_objects: {
+        Args: { p_company_id: string };
+        Returns: string[];
+      };
+      operator_purge_closed_company: {
+        Args: { p_company_id: string; p_confirmation: string };
+        Returns: Json;
+      };
     };
     Enums: {
       company_status: CompanyStatus;

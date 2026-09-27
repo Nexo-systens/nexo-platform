@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/modules/auth/services/auth.service";
 import {
   COMPANY_PURGE_FAILURE_MESSAGES,
+  logOffboardingUnexpected as logUnexpected,
   previewCompanyPurge,
   runCompanyPurge,
   type CompanyPurgePreview,
@@ -77,16 +78,4 @@ export async function purgeClosedCompanyAction(input: {
     logUnexpected("purge", error);
     return { ok: false, reason: "unexpected", message: UNEXPECTED };
   }
-}
-
-/** Só metadados do erro no servidor — nunca IDs de empresa, nomes de arquivo ou dados. */
-function logUnexpected(stage: string, error: unknown): void {
-  const detail = typeof error === "object" && error !== null ? (error as { name?: unknown; code?: unknown }) : {};
-  console.error(
-    `[offboarding:${stage}] falha inesperada (D-130)`,
-    JSON.stringify({
-      name: typeof detail.name === "string" ? detail.name : null,
-      code: typeof detail.code === "string" ? detail.code : null,
-    })
-  );
 }

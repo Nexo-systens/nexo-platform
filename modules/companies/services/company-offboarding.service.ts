@@ -11,6 +11,21 @@ import type { Database } from "@/types/database";
 const STORAGE_REMOVE_BATCH = 100;
 
 /**
+ * Remoção em lote pela Storage API, com a sessão de quem chama (dono ou
+ * operador de offboarding, D-131) — a policy aplicável decide o alcance.
+ */
+export async function removeDocumentStorageObjects(
+  supabase: SupabaseClient<Database>,
+  paths: readonly string[]
+): Promise<void> {
+  for (let start = 0; start < paths.length; start += STORAGE_REMOVE_BATCH) {
+    const batch = paths.slice(start, start + STORAGE_REMOVE_BATCH);
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).remove(batch);
+    if (error) throw error;
+  }
+}
+
+/**
  * Mission 202 (D-130) — liga as portas de `runCompanyPurge()` a um
  * cliente Supabase com a SESSÃO DO PRÓPRIO USUÁRIO. Nenhuma chave
  * privilegiada: a prévia e a listagem rodam sob RLS, a remoção de
@@ -39,11 +54,7 @@ export function createCompanyOffboardingPorts(supabase: SupabaseClient<Database>
     },
 
     async removeStorageObjects(paths) {
-      for (let start = 0; start < paths.length; start += STORAGE_REMOVE_BATCH) {
-        const batch = paths.slice(start, start + STORAGE_REMOVE_BATCH);
-        const { error } = await supabase.storage.from(STORAGE_BUCKET).remove(batch);
-        if (error) throw error;
-      }
+      await removeDocumentStorageObjects(supabase, paths);
     },
 
     async purgeDatabase(companyId, confirmation) {

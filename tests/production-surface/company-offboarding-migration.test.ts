@@ -59,7 +59,7 @@ const purgeOrder = [...purge.matchAll(/delete\s+from\s+public\.(\w+)/gi)].map((m
 
 describe("Mission 202 — cobertura e ordem da purga (derivadas do grafo real de FKs)", () => {
   test("a Migration 017 existe e é aditiva, depois de todas as anteriores", () => {
-    assert.equal(files[files.length - 1], OFFBOARDING);
+    assert.ok(files.includes(OFFBOARDING));
     assert.ok(files.indexOf("20260926000000_companies_cnpj_tenant_scoped_unique.sql") < files.indexOf(OFFBOARDING));
   });
 
