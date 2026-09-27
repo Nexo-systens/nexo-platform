@@ -10073,3 +10073,37 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Limitações.** Migration 018 NOT_APPLIED no Pilot. Encerrar em nome da empresa é irreversível para o usuário e não tem período de carência (contido por frase, referência obrigatória e auditoria). A cópia do registro de offboarding que sobrevive a uma restauração é a do registro privado do operador. pgTAP e ponta a ponta continuam só locais. Referências legadas entre empresas continuam bloqueando a purga (fail-closed; 0 no Pilot).
 
 **Origem.** Mission 202B — Governed Operator Offboarding Authority.
+
+## Mission 202B — Pilot Activation & Retention Closure
+
+**Status.** `MISSION_202B_CLOSED`. Continuação da Mission 202B (não é Mission 203): implementação commitada antes de tocar no Pilot, Migration 018 aplicada com autorização humana, autoridade de offboarding concedida pelo mecanismo da D-131, offboarding remoto concluído pelo caminho do operador sem sessão do dono, e o texto de retenção 30/90 fechado. Nenhuma decisão nova (D-130/D-131 inalteradas).
+
+**Commit pré-ativação.** `b601fb7` (`mission 202b: implement governed operator offboarding`) com código, migration, testes, D-131, log, handoff e a seção do operador no runbook — sem `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md` e sem a parte 30/90 do runbook (os trechos do runbook foram separados com precisão: o diff commitado continha só a 202B; o restante local, só o 30/90). Antes: type-check/lint limpos, 257/257, build 18 rotas, varreduras limpas. CI verde.
+
+**Preflight.** Alvo: NEXO Pilot (`ca-central-1`, ACTIVE_HEALTHY), arquivo de link coerente; `sa-east-1` INACTIVE, não tocado. `ONLY_018_PENDING` (17 remoto, 18 local, 0 divergências). Checkpoint novo pré-018 na pasta privada (schema + data `--use-copy`, tamanho > 0, SHA-256 conferido e guardado só na pasta privada; o esquema não continha nenhum objeto da 018). A primeira tentativa de dump falhou porque o Docker Desktop estava parado: parada e relato; os dois arquivos vazios criados pela falha foram removidos; o humano iniciou o Docker e o checkpoint foi refeito. Revisão da 018: a única escrita de nível superior é o backfill de auditoria (0 linhas no Pilot: nenhuma empresa encerrada); nenhum DELETE/UPDATE/DROP, cascata, SQL dinâmico, UUID/e-mail/CNPJ; 13 funções com `search_path` vazio; `GRANT` só para `authenticated`; `service_role` só em `REVOKE`; nenhum nome novo já existente no Pilot. `db push --dry-run`: só a 018.
+
+**Aplicação.** `npx supabase db push --linked` sem erro. `migration list --linked`: 18 local == 18 remoto; `db push --dry-run`: "Remote database is up to date".
+
+**Verificação estrutural remota (catálogo).** Núcleo, contagem interna, concessão e revogação sem EXECUTE para `authenticated` e `service_role`; nenhuma função executável por `anon`; funções do operador `SECURITY DEFINER`. 34 policies (32 + 2 do operador); nenhuma policy de dados referencia o operador; nenhuma policy de DELETE em `public`; tabelas novas com RLS, sem policy e sem privilégio de cliente; SELECT de Storage do operador só dentro de `storage.object.delete_many`; a purga do dono delega ao núcleo com o guard de posse; gatilho de encerramento presente. A `service_role` mantém EXECUTE nas funções do operador pelo padrão do Supabase — inócuo (sem `auth.uid()`, elas respondem `not_found`).
+
+**Concessão.** `grant_offboarding_operator` executada como dono do banco pela CLI, identificando a conta técnica DEV_USER pela posse da empresa técnica da Mission 201 (exatamente uma correspondência exigida na própria consulta), com referência governada — nenhum e-mail ou UUID impresso ou registrado. Verificado: 1 concessão ativa, na conta DEV_USER.
+
+**Smoke remoto pelo caminho do operador (dados sintéticos; sessão operada; login feito pelo humano).**
+- Operador autenticado acessou `/operator/offboarding` (200).
+- Empresa técnica descartável criada pela UI, 1 CSV sintético (formato DRE) e 1 análise.
+- Operador: consulta (aberta, sem registro, 1 arquivo, 1 documento, 1 análise — sem razão social, CNPJ ou conteúdo) → registro da solicitação com referência e frase `ENCERRAR-…` → empresa encerrada, registro com autoridade `operator`.
+- Sondagem no Pilot num bloco sempre desfeito (nada persistiu): operador não reabre (0 linhas); não lê a outra empresa do Pilot (0 linhas visíveis de 12 existentes); escrita nela `42501`, alteração 0 linhas; nenhum arquivo dela visível em download nem na remoção; não concede autoridade, não lê os registros, não chama o núcleo (`42501`); purga de empresa aberta → `not_closed`; não-operador (uid aleatório) idêntico a empresa inexistente, `not_found` na purga e no registro.
+- Exclusão definitiva pela UI do operador (botão desabilitado até a frase `EXCLUIR-…`): 1 arquivo e todos os dados removidos.
+- Depois: empresa, filhos e objetos de Storage da fixture = 0 (nenhum objeto em nenhum bucket cita o id); conta DEV_USER e empresa de controle idênticas ao retrato anterior (inclusive `updated_at`); totais globais de volta ao baseline; a única diferença é +1 registro de offboarding (encerramento e purga com autoridade `operator`, referência, contagens; colunas mínimas).
+- Usuário sem autoridade: concessão revogada pelo mecanismo da D-131 → a mesma sessão recebeu **404** na hora; reconcedida → 200. Histórico: 2 linhas (a primeira revogada), 1 ativa.
+- Limite: no Pilot, a conta operadora também é a dona da fixture (nenhuma conta nova foi criada); a independência dono × operador está provada localmente (contas distintas: pgTAP, ponta a ponta, UI).
+
+**Limpeza.** Nenhuma empresa, documento, execução ou objeto de Storage da fixture restou; ficou só o registro mínimo previsto pela D-131. Scratchpad sem UUID, CNPJ ou e-mail. Nenhuma empresa real alterada.
+
+**Retenção 30/90 (texto do cliente, ainda `DRAFT — REQUIRES APPROPRIATE REVIEW BEFORE USE`).** Removida a frase redundante sobre a empresa preservar os próprios documentos (fica a original); backups: "Os backups controlados pela NEXO que ainda contiverem dados da empresa serão eliminados até o término do respectivo período de retenção." Nada prometido sobre a retenção interna dos fornecedores. Vigência, contatos e aceite continuam `[A DEFINIR]`. Runbook: removida a antiga "dependência da sessão do dono"; D+30 e restauração pelo caminho do operador (ou do dono); operador ATIVO no Pilot; 30 dias (ambientes ativos) / 90 dias (backups controlados pela NEXO) preservados.
+
+**Observação fora do escopo.** O `Error: {"message":""}` do primeiro `/dashboard` logo após o login apareceu de novo (segunda vez, sempre depois de um login humano). `getCompanyCounts()` faz 3 contagens `HEAD` em paralelo; um `HEAD` com falha não tem corpo, e o erro sai sem mensagem. Só leitura; recarregar resolve. Anterior à 202B.
+
+**Regressão.** Type-check/lint/build limpos, 18 rotas · 257/257 no CI · migration parity 18/18 · varreduras de segredo e PII limpas.
+
+**Origem.** Mission 202B — Pre-Activation Commit + Pilot Activation Gate.

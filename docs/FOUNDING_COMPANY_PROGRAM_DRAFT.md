@@ -167,7 +167,15 @@ Alterações que modifiquem materialmente as condições aplicáveis à particip
 
 A empresa poderá encerrar sua participação no NEXO Founding Company Program mediante comunicação pelo canal indicado neste documento.
 
-[A DEFINIR ANTES DO USO: procedimento de encerramento, prazo de retenção e tratamento dos documentos, análises, dados e eventuais cópias de segurança após o término da participação.]
+Após o encerramento da participação, a NEXO interromperá novos processamentos relacionados à empresa e iniciará o procedimento de encerramento dos seus dados no serviço.
+
+Os documentos, dados financeiros, análises e demais informações da empresa mantidos nos ambientes ativos sob controle da NEXO serão removidos em até 30 dias corridos após o encerramento, ressalvadas situações em que a preservação seja necessária em razão de obrigação aplicável ou outra circunstância que exija retenção.
+
+Cópias existentes em backups de contingência controlados pela NEXO poderão permanecer por até 90 dias após o encerramento. Durante esse período, essas cópias não serão utilizadas para operação normal do serviço, realização de novas análises ou desenvolvimento do produto e permanecerão restritas à finalidade de recuperação do ambiente.
+
+Os backups controlados pela NEXO que ainda contiverem dados da empresa serão eliminados até o término do respectivo período de retenção.
+
+Fornecedores tecnológicos utilizados pela NEXO poderão possuir procedimentos próprios de retenção técnica de informações em suas infraestruturas, sujeitos às condições aplicáveis a esses serviços.
 
 O encerramento da participação não elimina a responsabilidade da empresa de preservar seus próprios documentos financeiros e registros oficiais.
 
