@@ -103,10 +103,16 @@ const USER_B = "user-b";
 const CNPJ_A = "11222333000181";
 
 describe("Mission 199B Security Closure — unicidade de companies.cnpj escopada ao tenant (D-126)", () => {
-  test("a migration de correção existe, é a mais recente da cadeia e nunca edita a Migration 001/003", () => {
+  test("a migration de correção existe, vem depois de todas as migrations que já existiam e nunca edita a Migration 001/003", () => {
     const files = listMigrations();
     assert.ok(files.includes(FIX_MIGRATION), `${FIX_MIGRATION} deve existir`);
-    assert.equal(files[files.length - 1], FIX_MIGRATION, "a correção deve ser aditiva, depois de toda migration já aplicada");
+    // Aditiva: depois da última migration anterior à correção (015). Migrations
+    // posteriores (ex.: 017, Mission 202) podem existir; a chave final de CNPJ
+    // continua provada pelo teste seguinte, sobre a cadeia inteira.
+    assert.ok(
+      files.indexOf(FIX_MIGRATION) > files.indexOf("20260920000000_documents_storage_delete_policy.sql"),
+      "a correção deve ser aditiva, depois de toda migration já aplicada"
+    );
 
     const initial = stripSqlComments(readMigration("20260715151336_initial_schema.sql"));
     assert.match(initial, /\bdocument\s+text\s+not\s+null\s+unique/i, "a Migration 001 permanece intacta (histórico nunca reescrito)");

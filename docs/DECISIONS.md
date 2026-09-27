@@ -1991,6 +1991,29 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 **Origem.** Mission 200 Closure — Live Auth Verification & Internal Error Redaction.
 
+## D-130 — Offboarding de Company: a imutabilidade continua sendo a regra da operação normal; a purga definitiva é uma EXCEÇÃO de ciclo de vida, só para empresa encerrada, só pelo dono, com confirmação vinculada à empresa, restrita por `company_id`, com Storage tratado explicitamente antes do banco
+
+**Problema.** A auditoria de offboarding da Mission 201 mostrou que a NEXO só fazia exclusão lógica (`companies.deleted_at`): nenhuma tabela tinha policy de DELETE, todas as FKs para `companies(id)` são NO ACTION, os bytes de documento aceito eram imutáveis para o usuário (D-123) e não existia procedimento de purga. Além disso, o RLS ignorava `deleted_at`: o dono de uma empresa encerrada ainda gravava dados nela e podia reabri-la por API direta.
+
+**Decisão.**
+1. **Imutabilidade normal preservada.** Documentos, execuções, diagnósticos, decisões, desfechos, observações, aprendizado e conhecimento continuam sem DELETE para o usuário (D-017, D-027, D-066, D-070, D-123). Nenhuma policy de DELETE foi adicionada a essas tabelas.
+2. **Encerramento lógico é monotônico e congela a empresa.** `companies_update_own` só permite UPDATE em empresa aberta (active → closed; nunca closed → active nem edição de encerrada). Toda gravação company-scoped (12 tabelas + upload no Storage) exige `deleted_at is null` na mesma subquery de posse. `financial_observations` passa a exigir que execuções e desfecho referenciados sejam da mesma empresa (era a única referência cruzada possível).
+3. **Purga definitiva = exceção governada**, um caminho único e transacional: `public.purge_closed_company(company_id, confirmation)`, `SECURITY DEFINER` (necessário porque nenhuma tabela tem, nem deve ter, DELETE para usuários), `search_path` vazio, sem SQL dinâmico, EXECUTE só para `authenticated`. Valida `auth.uid()` e a posse dentro da fronteira privilegiada, exige empresa encerrada, a frase exata `company_purge_confirmation(company_id)` (`EXCLUIR-` + 8 primeiros caracteres do id) e o prefixo do Storage já vazio; apaga as 11 tabelas dependentes na ordem das FKs, sempre por `company_id`, e a empresa por último; verifica zero restante na mesma transação. Nunca toca em `auth.users`/`public.users`.
+4. **Sem cascata ampla.** Nenhum `ON DELETE CASCADE` foi introduzido: a ausência de cascata é o que garante que uma purga nunca se propaga para outra empresa. Uma referência de OUTRA empresa a dados desta faz a purga falhar inteira (`blocked_by_external_reference`), sem apagar nada.
+5. **Storage tratado explicitamente e ANTES do banco**, pela Storage API com a sessão do próprio dono (policy `documents_storage_delete_closed_company`: bucket `documents`, prefixo exato `company/{companyId}/`, empresa encerrada do próprio `auth.uid()`). Nunca `service_role`, nunca DELETE direto em `storage.objects` (o Supabase bloqueia com `protect_objects_delete`). A listagem (`list_closed_company_storage_objects`) e a prévia (`preview_company_purge`, só contagens) são `SECURITY INVOKER`, sob RLS.
+6. **Semântica de falha entre serviços (sem atomicidade fingida).** Ordem: empresa encerrada → prévia → remover Storage → confirmar prefixo vazio → purga transacional do banco → confirmar que a empresa não existe mais. Falha no Storage: o banco não é purgado. Falha no banco depois do Storage: a empresa continua encerrada com os dados estruturados, e repetir a operação completa a purga. Depois do sucesso, repetir é inofensivo (`not_found`).
+7. **Sem enumeração.** Empresa inexistente e empresa de outro dono produzem exatamente a mesma resposta na prévia (`{"found": false}`) e na purga (`not_found`); identificador malformado é rejeitado antes do banco (D-128); nenhuma resposta ao usuário contém texto interno (D-129).
+8. **Empresa ≠ conta.** Excluir uma empresa nunca apaga a conta de autenticação. A exclusão de conta é outro ciclo de vida (hoje bloqueado pelas FKs de autoria sem `ON DELETE`), fora desta decisão.
+9. **Backups são outro ciclo de vida.** A purga altera só o banco e o Storage ativos; dumps e snapshots já existentes continuam contendo os dados da empresa até serem apagados inteiros pela rotina de retenção. Uma restauração de backup anterior a um offboarding reintroduz dados purgados e exige reaplicar as purgas registradas no registro privado de offboarding.
+
+**Entrada executável.** Server actions `previewCompanyPurgeAction`/`purgeClosedCompanyAction` (sessão do usuário) sobre a orquestração única `runCompanyPurge()` (`modules/companies/lib/company-offboarding.ts`), e a página `/companies/closed` (prévia, frase digitada, exclusão). O botão "Excluir" das empresas passa a se chamar "Encerrar".
+
+**Impacto.** Migration 017 (`20260926120000_company_offboarding.sql`). Provas: `supabase/tests/database/company_offboarding.test.sql` (pgTAP, 51 asserções, Postgres real), `tests/offboarding-local/` (8 testes de ponta a ponta com Auth, Storage API e RPC reais), ambos só contra Supabase local; `tests/production-surface/company-offboarding*.test.ts` (28 testes no CI: orquestração com falhas simuladas e cobertura/ordem da purga derivadas do grafo real de FKs).
+
+**Limitação conhecida.** Linhas legadas de `financial_observations` com referência cruzada criadas antes da 017 continuam bloqueando a purga da empresa referenciada (fail-closed, nunca apagam dado alheio); resolvê-las exige decisão caso a caso. A promessa comercial de prazo (30/90 dias) não faz parte desta decisão.
+
+**Origem.** Mission 202 — Tenant-Safe Company Offboarding & Data Purge.
+
 ---
 
 ## Próximas decisões

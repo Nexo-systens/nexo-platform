@@ -9983,3 +9983,35 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Regressão.** Nenhum código alterado; 198/198, type-check/lint/build limpos, 16 rotas.
 
 **Origem.** Mission 201 Operational Closure Addendum — Real Backup Verification.
+
+## Mission 202 — Tenant-Safe Company Offboarding & Data Purge
+
+**Status.** `YES — IMPLEMENTED, PILOT MIGRATION PENDING`. Mecanismo tenant-safe, executável e testado de exclusão definitiva dos dados ativos de uma Company, sem apagar a conta. Provado de ponta a ponta num Supabase LOCAL descartável; a Migration 017 **não** foi aplicada no NEXO Pilot. Decisão nova: **D-130**.
+
+**Baseline.** `HEAD == origin/develop == 1975553`, limpo, 198/198, type-check/lint limpos, build 16 rotas.
+
+**Premissas reverificadas no código/migrations.** 13 tabelas, 12 company-scoped (`public.users` é da conta). Nenhuma FK para `companies(id)` nem entre dependentes tem `ON DELETE` (NO ACTION); única cascata do schema: `public.users → auth.users`. Nenhuma policy de DELETE além dos órfãos de Storage (D-123). `executive_diagnoses.execution_id` sem FK; `knowledge_records` usa arrays de UUID sem FK. RLS ignorava `deleted_at` (o dono gravava em empresa encerrada e podia reabri-la). No Supabase real, `storage.objects` tem o gatilho `protect_objects_delete` — DELETE direto por SQL é bloqueado, a remoção física tem de ser pela Storage API. Premissa da missão confirmada; nenhum STOP.
+
+**Matriz final (recurso → vínculo → ordem → invariante).** 0 Storage `documents/company/{id}/…` (caminho, sem FK; removido antes do banco; o banco recusa se sobrar) → 1 `knowledge_evaluations` → 2 `financial_observations` → 3 `learning_records` → 4 `knowledge_records` → 5 `decision_outcomes` → 6 `decision_execution_events` → 7 `decisions` → 8 `diagnosis_reviews` → 9 `executive_diagnoses` → 10 `executions` → 11 `documents` → 12 `companies` (por último). Todos por `company_id` (a empresa por `id` + `user_id = auth.uid()`). Nunca apagados: `auth.users`, `public.users`, sequence global.
+
+**Migration 017** (`20260926120000_company_offboarding.sql`): `companies_update_own` com `USING … and deleted_at is null` (active → closed, nunca closed → active); 13 policies de escrita (12 tabelas + upload no Storage) com `c.deleted_at is null`; `financial_observations` exigindo execuções e desfecho da mesma empresa; policy de Storage `documents_storage_delete_closed_company` (prefixo exato, empresa encerrada do próprio dono); funções `company_purge_confirmation`, `preview_company_purge` e `list_closed_company_storage_objects` (SECURITY INVOKER, sob RLS) e `purge_closed_company` (SECURITY DEFINER, `search_path` vazio, sem SQL dinâmico, trava a linha, valida posse/encerramento/confirmação/Storage vazio antes do primeiro DELETE, apaga na ordem das FKs, verifica zero restante, `blocked_by_external_reference` desfaz tudo); EXECUTE só para `authenticated`. Nenhum `ON DELETE CASCADE`.
+
+**Aplicação.** Orquestração única `runCompanyPurge()` (`modules/companies/lib/company-offboarding.ts`): prévia → lista Storage → recusa caminho fora do prefixo exato → remove pela Storage API → relista (remove() não acusa recusa do RLS) → purga do banco → confirma inexistência. Portas ligadas à sessão do usuário (`company-offboarding.service.ts`, sem `service_role`). Server actions `previewCompanyPurgeAction`/`purgeClosedCompanyAction` (D-128, D-129). UI mínima: `/companies/closed` (prévia só com contagens, frase digitada, exclusão) e link em Empresas; o botão "Excluir" passa a "Encerrar". Rotas: 17 (nova página).
+
+**Semântica de falha.** Storage falha → banco intacto, repetir. Banco falha depois do Storage → empresa encerrada com dados estruturados, repetir completa a purga. Sucesso → repetir devolve `not_found`. Nada finge atomicidade entre serviços.
+
+**Provas.**
+- **Postgres real (pgTAP, `supabase/tests/database/company_offboarding.test.sql`, 51/51):** encerramento monotônico; empresa encerrada recusa inserts nas 12 tabelas e no Storage (42501) e a ativa do mesmo dono aceita; observação com execuções de outra empresa recusada; prévia com contagens exatas, sem enumeração (inexistente ≡ de outro dono); listagem de Storage isolada; purga recusada para empresa ativa, confirmação errada, outro dono, UUID inexistente e Storage não vazio; referência externa desfaz a purga inteira sem tocar na outra empresa; purga completa com zero linhas restantes, empresa irmã e empresa alheia intactas, `auth.users`/`public.users` preservados; nova tentativa inofensiva; `anon` sem EXECUTE; só a purga é DEFINER.
+- **Ponta a ponta local (`tests/offboarding-local/`, 8/8):** usuários reais do Auth local, uploads reais, Storage API e RPC reais, sem `service_role`; inclui objeto órfão, falha simulada de Storage, owner B sem alcance e CNPJ liberada após a purga. Arquivos físicos conferidos no backend local: o diretório da empresa purgada desaparece.
+- **UI local:** servidor apontado ao Supabase local (arquivo de ambiente temporário, removido depois) — signup sintético, empresa, upload, análise, "Encerrar", prévia (1 arquivo, 1 documento, 1 análise), frase, "Excluir definitivamente" → empresa, documento, execução, metadado e arquivo físico removidos; conta preservada.
+- **Mutação:** com a policy anterior à 017, o insert em empresa encerrada seria permitido; com a 017, 42501.
+- **Reprodutibilidade:** `supabase db reset --local` aplicou as 17 migrations do zero sem erro.
+- **CI (sem Postgres):** `tests/production-surface/company-offboarding.test.ts` (14, orquestração com falhas simuladas) e `company-offboarding-migration.test.ts` (14, cobertura e ordem da purga derivadas do grafo real de FKs — 11 arestas —, segurança das funções, endurecimento do RLS, nenhuma cascata nova). O teste de D-126 deixou de exigir que a 016 seja a última migration (exige que venha depois da 015).
+
+**Retenção de dumps.** Procedimento manual no runbook: inventário privado, offboardings posteriores a cada dump, rotação apagando o dump inteiro, nunca editar dump, reaplicar purgas depois de qualquer restauração anterior a um offboarding. Nenhum prazo definido; documento do cliente inalterado.
+
+**Regressão.** Type-check/lint/build limpos, 17 rotas · financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 85 · release-candidate 5 — **226 testes no CI** · pgTAP 51 e ponta a ponta 8 (locais).
+
+**Limitações.** Migration 017 NOT_APPLIED no Pilot. Linhas legadas de referência cruzada em `financial_observations` (anteriores à 017) bloqueiam a purga da empresa referenciada (fail-closed). pgTAP e o teste de ponta a ponta exigem Supabase local (não rodam no CI). A restauração de dumps e a reaplicação de purgas continuam não testadas.
+
+**Origem.** Mission 202 — Tenant-Safe Company Offboarding & Data Purge.

@@ -42,7 +42,10 @@ export default async function CompaniesPage({
       <div>
         <h1 className="text-xl font-semibold text-foreground">Empresas</h1>
         <p className="text-sm text-muted-foreground">
-          Cadastre e gerencie as empresas vinculadas à sua conta.
+          Cadastre e gerencie as empresas vinculadas à sua conta.{" "}
+          <Link href="/companies/closed" className="underline underline-offset-4 hover:text-foreground">
+            Empresas encerradas
+          </Link>
         </p>
       </div>
 

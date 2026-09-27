@@ -581,6 +581,23 @@ export type Database = {
         Args: Record<string, never>;
         Returns: number;
       };
+      // Mission 202 (D-130) — Migration 017.
+      preview_company_purge: {
+        Args: { p_company_id: string };
+        Returns: Json;
+      };
+      list_closed_company_storage_objects: {
+        Args: { p_company_id: string };
+        Returns: string[];
+      };
+      purge_closed_company: {
+        Args: { p_company_id: string; p_confirmation: string };
+        Returns: Json;
+      };
+      company_purge_confirmation: {
+        Args: { p_company_id: string };
+        Returns: string;
+      };
     };
     Enums: {
       company_status: CompanyStatus;

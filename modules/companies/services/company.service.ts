@@ -191,6 +191,25 @@ export async function softDeleteCompany(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export type ClosedCompany = Pick<Company, "id" | "razao_social" | "cnpj" | "deleted_at">;
+
+/**
+ * Mission 202 (D-130) — empresas ENCERRADAS do usuário (`deleted_at`
+ * preenchido), candidatas à exclusão definitiva. O RLS de `companies`
+ * já restringe ao próprio dono.
+ */
+export async function listClosedCompanies(): Promise<ClosedCompany[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id, razao_social, cnpj, deleted_at")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export interface CompanyCounts {
   total: number;
   active: number;

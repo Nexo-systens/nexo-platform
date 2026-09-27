@@ -32,15 +32,17 @@ export function DeleteCompanyButton({
         render={<Button type="button" variant="outline" size="sm" />}
       >
         <Trash2 className="size-4" aria-hidden="true" />
-        Excluir
+        Encerrar
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
+          <AlertDialogTitle>Encerrar empresa</AlertDialogTitle>
           <AlertDialogDescription>
-            Tem certeza que deseja excluir <strong>{companyName}</strong>? A
-            empresa deixará de aparecer em qualquer listagem. Esta ação não
-            pode ser desfeita pela interface.
+            Tem certeza que deseja encerrar <strong>{companyName}</strong>? A
+            empresa deixará de aparecer nas listagens e não receberá novos
+            dados; o encerramento não pode ser desfeito. Os dados continuam
+            guardados até a exclusão definitiva, feita em Empresas
+            encerradas.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -53,7 +55,7 @@ export function DeleteCompanyButton({
               });
             }}
           >
-            {isPending ? "Excluindo..." : "Excluir"}
+            {isPending ? "Encerrando..." : "Encerrar"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -24,8 +24,8 @@ Este é o documento INTERNO: registra todos os riscos e limitações conhecidos.
 - **Infraestrutura:** banco e arquivos no Supabase, projeto NEXO Pilot, região `ca-central-1` (Canadá) — fora do Brasil.
 - **IA:** ao gerar Diagnóstico Executivo ou usar o Executive Chat, o contexto financeiro da empresa (indicadores, valores, evidências — sem razão social/CNPJ) é enviado à API da Anthropic (EUA). A análise financeira determinística não usa IA.
 - **Acesso:** um único usuário por empresa (dono da conta); não existe compartilhamento com sócios/conselho. Enquanto não houver deploy público, o operador opera as sessões (suporte operacional, nunca revisão da análise).
-- **Exclusão:** o produto só faz exclusão LÓGICA de documentos; arquivos aceitos, execuções e diagnósticos são imutáveis e não podem ser apagados pelo produto.
-- **Retenção:** não existe política formal de retenção; os dados permanecem até uma decisão explícita.
+- **Exclusão:** na operação normal, arquivos aceitos, execuções e diagnósticos são imutáveis. Desde a Mission 202 (D-130) existe a **exclusão definitiva de uma empresa encerrada** pelo próprio dono (arquivos + todos os dados; a conta não é afetada) — **ainda não disponível no NEXO Pilot até a Migration 017 ser aplicada**. Dados já copiados em dumps só saem quando o dump inteiro é apagado.
+- **Retenção:** não existe prazo formal de retenção; os dados permanecem até uma decisão explícita. O procedimento de retenção dos dumps está abaixo, com prazo ainda configurável.
 - **Backup:** o Supabase não tem backup restaurável do Pilot (`backups list` vazio, PITR desligado). Mitigação VERIFICADA (2026-09-26): dump lógico de esquema e de dados executado de verdade na máquina do operador (Docker + Supabase CLI), com SHA-256 conferido — mais os originais preservados. Não é PITR nem disaster recovery completo; não inclui os arquivos do Storage; restauração nunca testada.
 - **Hospedagem:** não existe deploy público; o acesso é por sessões operadas pelo operador NEXO (suporte operacional).
 
@@ -56,7 +56,7 @@ Alinhada ao `docs/FOUNDING_COMPANY_PROGRAM_DRAFT.md`:
 - **Validação técnica temporária (primeiros ciclos reais):** verificar o status de governança de cada documento (aceito, duplicata, conflito, requer revisão) e se os números-chave foram extraídos corretamente do documento de origem — ver a regra canônica acima. Não é revisão financeira nem condição de entrega. O operador nunca completa, estima nem corrige números manualmente; dado ausente aparece como indisponível, e divergência é incidente técnico.
 - **IA:** nesta modalidade do programa, as funcionalidades de IA previstas (Diagnóstico Executivo, Executive Chat) fazem parte do serviço. A empresa concorda com o processamento das informações necessárias ao aceitar a versão apropriada do documento do cliente, antes do upload real. Se a empresa não concordar, o operador interrompe o onboarding antes de receber qualquer documento. Não improvisar um "modo sem IA": um escopo sem essas funcionalidades exige definição própria (produto e documento), nunca uma decisão do operador durante a sessão. Falha do provider não afeta a análise já feita.
 - **Incidente:** qualquer um de — dado de outra empresa visível, acesso indevido, perda de dado, credencial recebida, número financeiro claramente errado, erro inesperado repetido. Ação: seguir "Parada / rollback"; registrar horário, o que foi observado e o HEAD em uso (sem copiar dados financeiros); avisar a empresa pelo canal acordado, conforme a versão revisada do documento; abrir uma missão de correção. Nunca "consertar" no banco (Seção 15).
-- **Encerramento:** a empresa pode encerrar a participação a qualquer momento; a NEXO para de receber documentos. O destino dos dados segue o compromisso definido na revisão do documento do cliente. Como o produto só faz exclusão lógica, qualquer remoção física exige autorização explícita por escrito e uma ação privilegiada documentada — uma exceção formal à Seção 15, nunca improvisada.
+- **Encerramento:** a empresa pode encerrar a participação a qualquer momento; a NEXO para de receber documentos. O destino dos dados segue o compromisso definido na revisão do documento do cliente. A remoção física é feita pelo caminho do produto — "Encerramento e exclusão definitiva de uma empresa", abaixo — nunca por SQL manual nem `service_role` (Seção 15).
 - **Retenção:** sem política formal hoje (P2 operacional) — não prometer prazos que não estejam na versão revisada.
 - **Backup:** checkpoint operacional por sessão (abaixo) — não é PITR.
 - **A NEXO não é sistema contábil, ERP nem registro oficial.** A fonte oficial continua sendo a contabilidade da empresa; a NEXO produz inteligência a partir de cópias dos demonstrativos.
@@ -69,7 +69,7 @@ Procedimento obrigatório, nesta ordem, antes de cada ciclo real:
 
 1. **Preservar os originais do cliente fora do Git**, na pasta privada da NEXO, com o hash de cada arquivo. A empresa também mantém os próprios originais.
 2. **Confirmar o Pilot saudável:** Seções 1–3 (git limpo, `HEAD == origin/develop`, CI verde).
-3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com 16/16.
+3. **Confirmar a paridade de migrations:** `npx supabase migration list --linked` com todas as migrations do repositório aplicadas (hoje 16/17 — a 017 da Mission 202 aguarda autorização; depois de aplicada, 17/17).
 4. **Dump do esquema** (Docker Desktop precisa estar em execução — o Supabase CLI roda o `pg_dump` num contêiner):
    ```bash
    npx supabase db dump --linked -f C:\NEXO_BACKUPS\pilot\<AAAA-MM-DD>-schema.sql
@@ -103,9 +103,29 @@ Se um dump falhar: não iniciar o ciclo até resolver, ou registrar no registro 
 - **Não é PITR nem disaster recovery completo:** é uma fotografia lógica do banco no instante do dump. Mudanças posteriores só ficam protegidas pelo próximo checkpoint.
 - **A restauração continua não testada.** Uso previsto, se um dia necessário: recuperação manual num projeto NOVO e vazio (aplicar as migrations, depois o arquivo de dados com `psql` e a string de conexão digitada pelo próprio operador) — **nunca sobrescrever o NEXO Pilot**. Tratar como melhor esforço. Alternativa futura: backups do plano do Supabase.
 
+### Retenção dos dumps (procedimento manual verificável)
+
+O prazo de retenção ainda **não está definido** (é configurável e será fixado junto com a versão revisada do documento do cliente — não prometer prazo antes disso). O procedimento, independente do prazo:
+
+1. **Inventário privado** (no registro do operador, nunca no repositório): para cada dump — nome do arquivo, data/hora de criação (UTC e BRT), tipo (`schema` ou `data`), tamanho, SHA-256 e o HEAD em uso.
+2. **Offboardings relevantes:** ao lado de cada dump de dados, registrar quais empresas foram excluídas definitivamente DEPOIS da data do dump — esses dumps ainda contêm os dados delas.
+3. **Rotação:** quando um dump atingir o prazo definido, apagar o arquivo **inteiro** (o par `schema` + `data` daquela data) da pasta privada e de qualquer cópia, e registrar data, arquivos e hashes apagados. Conferir a data de criação e o hash contra o inventário antes de apagar.
+4. **Nunca editar um dump** para remover uma única empresa: um dump é uma fotografia de todas as empresas; a única forma de tirar dados de um dump é apagar o dump inteiro.
+5. **Depois de qualquer restauração** de dump ou snapshot anterior a um offboarding: antes de reabrir o ambiente, consultar o registro de offboarding e reaplicar a exclusão definitiva de cada empresa excluída depois daquela data. Como a restauração nunca foi testada, o procedimento exato de reaplicação deve ser definido e ensaiado junto com o primeiro teste de restauração — até lá, uma restauração não pode voltar à operação sem essa revisão.
+
+### Encerramento e exclusão definitiva de uma empresa (Mission 202, D-130)
+
+**Estado: implementado e provado no Supabase local; NOT_APPLIED no NEXO Pilot até a Migration 017 ser aplicada com autorização humana.** Antes disso, no Pilot, só o encerramento lógico existe (e sem o bloqueio de novos dados no banco).
+
+- **Encerrar** (Empresas → "Encerrar"): a empresa some das listagens e deixa de aceitar qualquer dado novo, inclusive por API direta. É irreversível para o usuário (não há reabertura). Os dados continuam guardados. A CNPJ continua ocupada para aquele dono até a exclusão definitiva.
+- **Excluir definitivamente** (Empresas → "Empresas encerradas" → "Ver o que será excluído" → digitar a frase `EXCLUIR-XXXXXXXX` → "Excluir definitivamente"): feito na sessão do **próprio dono**, na sessão operada. Remove primeiro os arquivos da empresa no Storage (inclusive órfãos), depois, numa única transação, todos os dados da empresa nas 12 tabelas, e por último a empresa. **A conta do usuário não é apagada.** Outras empresas — do mesmo dono ou de outros — não são tocadas.
+- **Registrar** no registro do operador: data/hora, empresa, quem pediu e quem confirmou, contagens da prévia e o resultado. Depois, anotar a empresa nos dumps que ainda a contêm (procedimento de retenção acima).
+- **Se falhar:** "Não foi possível remover os arquivos…" — nada foi apagado do banco; tentar de novo. "Os arquivos foram removidos, mas a exclusão dos dados falhou…" — a empresa continua encerrada com os dados estruturados; tentar de novo (repetir é seguro). "…outra empresa referencia dados desta" — nada foi apagado; é uma referência legada entre empresas: parar e abrir uma missão de correção. Depois do sucesso, repetir é inofensivo.
+- **Nunca** usar SQL Editor, `service_role` ou DELETE direto em `storage.objects` para "adiantar" uma exclusão (Seção 15).
+
 ### Registro do operador
 
-Um documento privado da NEXO, **fora do repositório**, com o que este runbook proíbe commitar: identidade do operador designado, canal acordado com a empresa, contas de teste (por e-mail), conta e empresa reais com data de criação, aceite do documento do cliente, checkpoints, incidentes e feedback. É a fonte de identificação positiva — nunca a memória.
+Um documento privado da NEXO, **fora do repositório**, com o que este runbook proíbe commitar: identidade do operador designado, canal acordado com a empresa, contas de teste (por e-mail), conta e empresa reais com data de criação, aceite do documento do cliente, checkpoints, inventário e rotação de dumps, offboardings, incidentes e feedback. É a fonte de identificação positiva — nunca a memória.
 
 ### Checklist de go-live
 
@@ -115,7 +135,7 @@ Um documento privado da NEXO, **fora do repositório**, com o que este runbook p
 - [ ] Tipos de documento suportados confirmados com a empresa (PDF/CSV)
 - [ ] Originais preservados na pasta privada, com hashes
 - [ ] Pilot saudável (Seções 1–3)
-- [ ] Migrations 16/16
+- [ ] Migrations do repositório todas aplicadas no Pilot (17/17 depois da Migration 017)
 - [ ] Dumps de esquema e de dados feitos, tamanho maior que zero e SHA-256 registrados no registro do operador (ou risco aceito explicitamente)
 - [ ] Conta e empresa corretas (conta própria do fundador, identificada no registro)
 - [ ] Nenhuma conta de teste misturada com a empresa real
@@ -225,7 +245,7 @@ Para reverificar a qualquer momento:
 npx supabase migration list --linked
 ```
 
-Cadeia esperada (16 migrations, ordem exata — `supabase/migrations/`; **todas as 16 aplicadas no NEXO Pilot** desde o Pilot Migration Gate da Mission 199B, ver abaixo):
+Cadeia esperada (17 migrations no repositório, ordem exata — `supabase/migrations/`; **as 16 primeiras aplicadas no NEXO Pilot** desde o Pilot Migration Gate da Mission 199B; **a 017 (Mission 202) NOT_APPLIED**, aguardando autorização humana):
 
 ```
 20260715151336_initial_schema
@@ -244,9 +264,12 @@ Cadeia esperada (16 migrations, ordem exata — `supabase/migrations/`; **todas 
 20260919120000_documents_bucket_size_limit
 20260920000000_documents_storage_delete_policy
 20260926000000_companies_cnpj_tenant_scoped_unique
+20260926120000_company_offboarding
 ```
 
 **Migration 016 — ATUALIZADO (Mission 199B Security Closure, D-126).** `companies_cnpj_tenant_scoped_unique` troca a unicidade global de `companies.cnpj` por `unique (user_id, cnpj)`, fechando o oráculo cross-tenant de CNPJ encontrado pela matriz da Mission 199B. **LIVE_PROVEN — APLICADA no NEXO Pilot (Mission 199B Security Closure — Pilot Migration Gate).** Estado anterior `ONLY_016_PENDING` (001–015 local == remoto, 016 só local), `db push --linked --dry-run` confirmando só a 016, depois `npx supabase db push --linked`. Verificado no banco real, somente por metadados/contagens: `companies_document_key (cnpj)` removida; `companies_user_id_cnpj_key (user_id, cnpj)` presente; `migration list --linked` 16/16; RLS habilitada em 13/13 tabelas, 28 policies (as 3 de `companies` presentes) e contagem de linhas idêntica antes e depois. Estado esperado a partir de agora: `migration list --linked` com 16 local == remoto. No Windows, se `npx` for bloqueado pela política de execução do PowerShell, usar `npx.cmd` (nunca alterar a política de segurança).
+
+**Migration 017 — Mission 202 (D-130), NOT_APPLIED no NEXO Pilot.** `company_offboarding`: encerramento monotônico, bloqueio de novos dados em empresa encerrada, prévia/listagem/purga definitiva. Provada num Supabase local descartável (cadeia 001–017 do zero, pgTAP 51/51, ponta a ponta 8/8, UI). Até a aplicação autorizada, `migration list --linked` mostra 16 aplicadas e a 017 só local — `MIGRATION_BEHIND` conhecido e intencional. Aplicar só com autorização humana explícita, pelo mesmo fluxo do Pilot Migration Gate (identidade do projeto, `ONLY_017_PENDING`, `--dry-run`, `db push --linked`, verificação remota de policies e funções).
 
 Se a lista real divergir desta (uma a mais, uma a menos, ordem diferente): **não tentar corrigir manualmente**. Classificar `MIGRATION_BEHIND`/`MIGRATION_AHEAD`/`MIGRATION_DIVERGED` e tratar como bloqueio até entendido — nunca reparar histórico de migration à mão (`docs/PROJECT_RULES.md`, mesma disciplina de nunca reescrever decisão já registrada).
 
@@ -366,6 +389,8 @@ Em nenhuma circunstância, para operação normal do primeiro Founding Company:
 - reverter uma migration já aplicada.
 
 Se qualquer uma dessas parecer necessária, é um sinal de que existe um defeito de produto — não um procedimento operacional válido. Reportar, não contornar.
+
+A exclusão definitiva de uma empresa (D-130) **não é** uma ação manual: é o caminho do produto, feito pela sessão do próprio dono, e continua proibido executá-la ou "adiantá-la" por SQL, `service_role` ou dashboard.
 
 ---
 
