@@ -10153,3 +10153,40 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Regressão.** Type-check e lint limpos · build com **18 rotas** · 287/287 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 146 · release-candidate 5; 30 novos em `premium-experience.test.ts`) · varredura de segredos e PII limpa no diff (o único UUID é o fixture sintético `11111111-…`).
 
 **Origem.** Mission 203 — Premium Product Experience & Design System.
+
+## Mission 203 — Visual Review Closure
+
+**Status.** `MISSION_203_CLOSED`. Conclui a revisão visual que ficara pendente no commit `4e8afc4`. O Docker Desktop voltou depois do reinício, e o Supabase local subiu com os mesmos dados sintéticos. As 8 rotas pendentes foram revisadas e os achados, corrigidos. Continua só de apresentação: nenhuma mudança em Engines, semântica, persistência, RLS ou migrations.
+
+**Revisado (conta de teste local, empresas sintéticas, sem o NEXO Pilot).**
+- **Executive Chat:** a falha do provedor mostra a mensagem executiva, o detalhe técnico recolhido (sem chave) e "Tentar novamente".
+- **`/companies`:** tabela rola dentro do próprio contêiner.
+- **`/companies/closed`:** vazio e com empresa encerrada; a prévia só mostra contagens e o botão de exclusão fica desabilitado até a frase exata. Nada foi excluído.
+- **`/operator/offboarding`:**
+  - sem autoridade: 404;
+  - com autoridade local concedida e revogada pelo mecanismo da D-131: consulta, registro do encerramento com referência e frase `ENCERRAR-…`, e etapa de exclusão com `EXCLUIR-…` e botão desabilitado.
+- **`/documents`, `/diagnostics`, `/reports` e `/settings`:** revisados.
+- **Larguras:** 577px e 1440px; sidebar, conteúdo e nenhuma rolagem horizontal.
+- **Logs:** nenhum erro de servidor. Único erro de console: o aviso de hidratação `SheetTrigger`/`Button` (`data-slot`), anterior à missão (arquivos intocados desde a Mission 195), em toda página com gatilho de Sheet.
+
+**Achados corrigidos.**
+1. **404 invisível (regressão da 203).** O 404 padrão do Next injeta `body{color:#fff}` no esquema escuro do sistema, e o fundo claro que a 203 pôs no shell escondia o texto. Criados `app/(app)/not-found.tsx` (no shell) e `app/not-found.tsx` (raiz), com o mesmo texto para qualquer ausência. O status HTTP continua 404.
+2. **Rota do operador distinguível para quem não é operador (D-131).** O Header da 203 mostrava "Operação NEXO › Offboarding" acima do 404; agora mostra "NEXO", como qualquer endereço. Havia também um vazamento anterior (desde a 202B): o título estático da página ia no payload da resposta 404. A página passou a `generateMetadata` com a mesma verificação e `notFound()`, e o título só existe para o operador. Os únicos rastros restantes são stacks de erro do modo dev, ausentes em produção.
+3. **Valor cru nos `Select`** (anterior, sistêmico). O Base UI mostra o valor no gatilho sem `items`: `lucro_presumido`, `pequena`, o UUID da empresa em `/documents`, enums nas decisões e cenários. Os 19 `Select` afetados (de 20; o do histórico já renderizava rótulo) passaram a receber os rótulos já existentes; os valores enviados não mudaram.
+4. **Frase de confirmação em coluna separada** (anterior, 202/202B). O `Label` é flex e jogava a frase para o lado. Agora ela aparece na própria instrução, em fonte mono. A lógica de habilitação ficou intacta e continua coberta por teste.
+5. **Âncora encoberta.** `scroll-mt-24` (96px) era menor que cabeçalho mais navegação de seções (104px); agora é `scroll-mt-32`.
+
+**Testes.** +3 em `premium-experience.test.ts`, que agora tem 33:
+- a rota do operador não se distingue de um endereço inexistente (Header e título);
+- 404 próprio com texto único;
+- todo `Select` com rótulo.
+
+**Regressão.** Type-check e lint limpos · build com **18 rotas** · 290/290 (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 149 · release-candidate 5).
+
+**Limites que permanecem.**
+- Central de Decisões e Executive Chat com conteúdo real não são observáveis localmente, porque a chave de IA local é inválida.
+- Aviso de hidratação anterior (P3).
+- `lib/supabase/proxy.ts` descarta cookies nos redirects (tarefa separada sugerida).
+- A causa raiz do erro pós-login no Pilot continua não provada; agora é observável.
+
+**Origem.** Mission 203 — continuação após o Docker voltar.

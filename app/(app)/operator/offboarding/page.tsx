@@ -6,7 +6,17 @@ import { createClient } from "@/lib/supabase/server";
 import { OperatorOffboardingPanel } from "@/modules/companies/components/OperatorOffboardingPanel";
 import { isOffboardingOperator } from "@/modules/companies/services/operator-offboarding.service";
 
-export const metadata: Metadata = { title: "Offboarding — Operador NEXO" };
+/**
+ * O título só é resolvido depois da mesma verificação da página. Com
+ * metadados estáticos, o nome da rota ia no payload da resposta 404 de
+ * quem não é operador (e, com o 404 próprio da Mission 203, aparecia na
+ * aba) — a rota deixava de ser indistinguível de um endereço inexistente.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createClient();
+  if (!(await isOffboardingOperator(supabase))) notFound();
+  return { title: "Offboarding — Operador NEXO" };
+}
 
 /**
  * Mission 202B (D-131) — superfície única da autoridade de offboarding

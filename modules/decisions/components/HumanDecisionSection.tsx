@@ -294,7 +294,13 @@ export function HumanDecisionSection({
         {linkToDiagnosis && recommendationOptions.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <Label>Recomendação da IA (opcional)</Label>
-            <Select value={recommendationId} onValueChange={(value) => setRecommendationId(value ?? "")}>
+            <Select
+              items={recommendationOptions.map((option) => ({
+                value: option.recommendationId,
+                label: `[${RECOMMENDATION_CATEGORY_LABELS[option.category]}] ${option.statement}`,
+              }))}
+              value={recommendationId}
+              onValueChange={(value) => setRecommendationId(value ?? "")}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Nenhuma recomendação específica" />
               </SelectTrigger>
@@ -361,7 +367,7 @@ export function HumanDecisionSection({
         <div className="grid grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label>Tipo</Label>
-            <Select value={type} onValueChange={(value) => setType(value as DecisionType)}>
+            <Select items={TYPE_LABELS} value={type} onValueChange={(value) => setType(value as DecisionType)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -376,7 +382,7 @@ export function HumanDecisionSection({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Prioridade</Label>
-            <Select value={priority} onValueChange={(value) => setPriority(value as RecommendationPriority)}>
+            <Select items={PRIORITY_LABELS} value={priority} onValueChange={(value) => setPriority(value as RecommendationPriority)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -391,7 +397,7 @@ export function HumanDecisionSection({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Confiança</Label>
-            <Select value={confidence} onValueChange={(value) => setConfidence(value as RecommendationConfidence)}>
+            <Select items={CONFIDENCE_LABELS} value={confidence} onValueChange={(value) => setConfidence(value as RecommendationConfidence)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>

@@ -163,6 +163,7 @@ export function CollectionPeriodScenarioLab({ companyId }: { companyId: string }
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="collection-direction">O que você quer simular?</Label>
             <Select
+              items={COLLECTION_PERIOD_DIRECTION_LABELS}
               value={direction}
               onValueChange={(value) => setDirection(value as CollectionPeriodDirection)}
             >

@@ -248,6 +248,7 @@ export function UploadDocumentSheet({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="category">Categoria</Label>
             <Select
+              items={DOCUMENT_CATEGORIES}
               value={category ?? ""}
               onValueChange={(value) => setCategory(value as DocumentCategory)}
               disabled={busy}

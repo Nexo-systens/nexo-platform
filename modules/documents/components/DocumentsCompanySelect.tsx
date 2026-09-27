@@ -31,6 +31,7 @@ export function DocumentsCompanySelect({
 
   return (
     <Select
+      items={companies.map((company) => ({ value: company.id, label: company.razao_social }))}
       value={companyId ?? ""}
       onValueChange={(value) => router.push(`/documents?companyId=${value}`)}
     >

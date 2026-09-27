@@ -549,7 +549,7 @@ export function DecisionExecutionCard({
             <Label className="text-xs">Registrar progresso</Label>
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex flex-col gap-1">
-                <Select value={nextStatus} onValueChange={(value) => setNextStatus(value as DecisionExecutionStatus)}>
+                <Select items={STATUS_LABELS} value={nextStatus} onValueChange={(value) => setNextStatus(value as DecisionExecutionStatus)}>
                   <SelectTrigger className="w-44">
                     <SelectValue placeholder="Novo status" />
                   </SelectTrigger>
@@ -611,7 +611,7 @@ export function DecisionExecutionCard({
             </div>
           )}
           <div className="flex flex-wrap items-end gap-2">
-            <Select value={outcomeStatus} onValueChange={(value) => setOutcomeStatus(value as OutcomeStatus)}>
+            <Select items={OUTCOME_LABELS} value={outcomeStatus} onValueChange={(value) => setOutcomeStatus(value as OutcomeStatus)}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Avaliação" />
               </SelectTrigger>

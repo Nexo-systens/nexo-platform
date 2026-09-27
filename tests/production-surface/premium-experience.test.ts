@@ -91,9 +91,26 @@ describe("Mission 203 — navegação executiva", () => {
     assert.deepEqual(describeRouteContext("/companies"), { section: "Empresas" });
     assert.deepEqual(describeRouteContext("/companies/abc"), { section: "Empresas", page: "Empresa" });
     assert.deepEqual(describeRouteContext("/companies/closed"), { section: "Empresas", page: "Empresas encerradas" });
-    assert.deepEqual(describeRouteContext("/operator/offboarding"), { section: "Operação NEXO", page: "Offboarding" });
     assert.deepEqual(describeRouteContext("/diagnostics"), { section: "Central de Decisões" });
     assert.deepEqual(describeRouteContext("/rota-desconhecida"), { section: "NEXO" });
+  });
+
+  test("a rota do operador não se distingue de um endereço inexistente — Header e título (D-131)", () => {
+    assert.deepEqual(describeRouteContext("/operator/offboarding"), describeRouteContext("/rota-desconhecida"));
+    const page = read("app/(app)/operator/offboarding/page.tsx");
+    assert.doesNotMatch(page, /export const metadata/);
+    assert.match(
+      page,
+      /export async function generateMetadata\(\)[^{]*\{\s*const supabase = await createClient\(\);\s*if \(!\(await isOffboardingOperator\(supabase\)\)\) notFound\(\);/
+    );
+  });
+
+  test("404 próprio, no shell e na raiz, com texto único que não revela o motivo", () => {
+    const inShell = read("app/(app)/not-found.tsx");
+    const root = read("app/not-found.tsx");
+    const message = "Este endereço não existe ou não está disponível para a sua conta.";
+    assert.ok(inShell.includes(message) && root.includes(message));
+    assert.doesNotMatch(inShell + root, /operador|offboarding/i);
   });
 });
 
@@ -320,6 +337,23 @@ describe("Mission 203 — cor vem dos tokens semânticos", () => {
       return /\.tsx?$/.test(entry.name) ? [path] : [];
     });
   }
+
+  test("todo Select mostra o rótulo da opção escolhida, nunca o valor cru (enum, UUID)", () => {
+    // Sem `items` na raiz (ou um render de `SelectValue`), o Base UI exibe
+    // o próprio valor no gatilho: "lucro_presumido", o UUID da empresa…
+    const offenders: string[] = [];
+    for (const path of ["app", "modules"].flatMap(sourceFiles).filter((file) => file.endsWith(".tsx"))) {
+      const source = read(path);
+      for (const match of source.matchAll(/<Select(?=[\s>])/g)) {
+        const end = source.indexOf("</SelectTrigger>", match.index);
+        const opening = source.slice(match.index, end);
+        if (!/\bitems=\{/.test(opening) && !/<SelectValue[^>]*>\s*\{\s*\(/.test(opening)) {
+          offenders.push(`${path}:${source.slice(0, match.index).split("\n").length}`);
+        }
+      }
+    }
+    assert.deepEqual(offenders, []);
+  });
 
   test("nenhum componente usa cor solta da paleta do Tailwind (docs/DESIGN_SYSTEM.md)", () => {
     const offenders = ["app", "components", "modules"]

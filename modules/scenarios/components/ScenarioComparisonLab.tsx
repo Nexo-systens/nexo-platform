@@ -103,7 +103,7 @@ function ScenarioSlotFields({
 
       <div className="flex flex-col gap-1.5">
         <Label>Tipo de simulação</Label>
-        <Select value={slot.kind} onValueChange={(value) => onChange({ ...EMPTY_SLOT, kind: value as SlotKind })}>
+        <Select items={SLOT_KIND_OPTIONS} value={slot.kind} onValueChange={(value) => onChange({ ...EMPTY_SLOT, kind: value as SlotKind })}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -122,6 +122,7 @@ function ScenarioSlotFields({
           <div className="flex flex-col gap-1.5">
             <Label>Direção</Label>
             <Select
+              items={OPERATING_COST_DIRECTION_LABELS}
               value={slot.opexDirection}
               onValueChange={(value) => onChange({ ...slot, opexDirection: value as OperatingCostDirection })}
             >
@@ -152,6 +153,7 @@ function ScenarioSlotFields({
           <div className="flex flex-col gap-1.5">
             <Label>Direção</Label>
             <Select
+              items={COLLECTION_PERIOD_DIRECTION_LABELS}
               value={slot.collectionDirection}
               onValueChange={(value) =>
                 onChange({ ...slot, collectionDirection: value as CollectionPeriodDirection })

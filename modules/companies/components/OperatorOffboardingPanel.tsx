@@ -172,11 +172,11 @@ export function OperatorOffboardingPanel() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="operator-closure-phrase">
+                  <Label htmlFor="operator-closure-phrase" className="block leading-snug">
                     {preview.closed
                       ? "A empresa já está encerrada. Para registrar a solicitação, digite "
                       : "Registrar encerra a empresa: ela deixa de receber dados e não pode ser reaberta. Para confirmar, digite "}
-                    <strong>{preview.closureConfirmation}</strong>
+                    <strong className="font-mono">{preview.closureConfirmation}</strong>
                   </Label>
                   <Input
                     id="operator-closure-phrase"
@@ -199,9 +199,9 @@ export function OperatorOffboardingPanel() {
             ) : (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="operator-purge-phrase">
+                  <Label htmlFor="operator-purge-phrase" className="block leading-snug">
                     Exclusão definitiva: remove os arquivos e todos os dados da empresa; não pode ser desfeita. Para
-                    confirmar, digite <strong>{preview.confirmation}</strong>
+                    confirmar, digite <strong className="font-mono">{preview.confirmation}</strong>
                   </Label>
                   <Input
                     id="operator-purge-phrase"

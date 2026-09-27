@@ -149,7 +149,7 @@ export function ScenarioDecisionForm({
         <div className="grid grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label>Tipo</Label>
-            <Select value={type} onValueChange={(value) => setType(value as DecisionType)}>
+            <Select items={DECISION_TYPE_LABELS} value={type} onValueChange={(value) => setType(value as DecisionType)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -164,7 +164,7 @@ export function ScenarioDecisionForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Prioridade</Label>
-            <Select value={priority} onValueChange={(value) => setPriority(value as RecommendationPriority)}>
+            <Select items={DECISION_PRIORITY_LABELS} value={priority} onValueChange={(value) => setPriority(value as RecommendationPriority)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -179,7 +179,7 @@ export function ScenarioDecisionForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Confiança</Label>
-            <Select value={confidence} onValueChange={(value) => setConfidence(value as RecommendationConfidence)}>
+            <Select items={DECISION_CONFIDENCE_LABELS} value={confidence} onValueChange={(value) => setConfidence(value as RecommendationConfidence)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>

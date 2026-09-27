@@ -167,6 +167,7 @@ export function CompanyFormSheet({ trigger, company }: CompanyFormSheetProps) {
                 name="regimeTributario"
                 render={({ field }) => (
                   <Select
+                    items={TAX_REGIME_OPTIONS}
                     value={field.value ?? ""}
                     onValueChange={field.onChange}
                   >
@@ -192,6 +193,7 @@ export function CompanyFormSheet({ trigger, company }: CompanyFormSheetProps) {
                 name="porte"
                 render={({ field }) => (
                   <Select
+                    items={COMPANY_SIZE_OPTIONS}
                     value={field.value ?? ""}
                     onValueChange={field.onChange}
                   >

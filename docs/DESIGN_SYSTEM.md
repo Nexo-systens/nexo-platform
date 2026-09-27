@@ -53,6 +53,10 @@ Geist (texto) e Geist Mono (detalhe técnico). A escala é fixa, com classes em 
 | `TechnicalDetail` | texto técnico original recolhido ("Detalhe técnico para o suporte") |
 | `EmptyState` (`compact`), `ErrorState`, `PlaceholderPage` | estados vazio, erro e "em breve" |
 
+**Formulários.**
+- Todo `Select` recebe `items` (os mesmos rótulos das opções). Sem isso, o Base UI mostra no gatilho o valor cru: `lucro_presumido`, o UUID da empresa.
+- A frase de confirmação de uma ação destrutiva aparece na própria instrução (`Label` com `block`), em fonte mono, para ser digitada exatamente.
+
 Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (natureza, camada, severidade, confiança e prioridade) e em `modules/analysis/lib/recordTypeLabels.ts` (tipos de recurso e evento, com mapeamento exaustivo). As mensagens de erro executivas ficam em `modules/analysis/lib/analysis-error-message.ts`.
 
 ## Shell e navegação
@@ -72,6 +76,7 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 | Erro | `ErrorState` (`role="alert"`) com tentar novamente, mais `TechnicalDetail` quando houver texto interno |
 | Indisponível | `UnavailableValue` com o motivo |
 | Em breve | `PlaceholderPage` com o que já está disponível hoje |
+| Não encontrado | `app/(app)/not-found.tsx` (no shell) e `app/not-found.tsx` (raiz); o mesmo texto para qualquer ausência, sem revelar o motivo |
 
 ## Testes
 
@@ -84,5 +89,7 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 - as mensagens executivas com o detalhe preservado;
 - o erro de consulta observável;
 - a ausência de cores soltas da paleta;
+- que todo `Select` mostre o rótulo, nunca o valor cru;
+- que o 404 próprio e a rota do operador não revelem a existência da rota;
 - a acessibilidade do shell;
 - a integridade das confirmações destrutivas.

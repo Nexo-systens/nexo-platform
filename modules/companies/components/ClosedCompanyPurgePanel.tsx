@@ -109,8 +109,8 @@ export function ClosedCompanyPurgePanel({
             </ul>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`purge-confirmation-${companyId}`}>
-                Esta ação não pode ser desfeita. Para confirmar, digite <strong>{preview.confirmation}</strong>
+              <Label htmlFor={`purge-confirmation-${companyId}`} className="block leading-snug">
+                Esta ação não pode ser desfeita. Para confirmar, digite <strong className="font-mono">{preview.confirmation}</strong>
               </Label>
               <Input
                 id={`purge-confirmation-${companyId}`}

@@ -175,7 +175,7 @@ export function DiagnosisReviewSection({
 
         <div className="flex flex-col gap-1.5">
           <Label>Status da revisão</Label>
-          <Select value={status} onValueChange={(value) => setStatus(value as DiagnosisReviewStatus)}>
+          <Select items={SUBMITTABLE_STATUSES} value={status} onValueChange={(value) => setStatus(value as DiagnosisReviewStatus)}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione o que você concluiu ao revisar" />
             </SelectTrigger>

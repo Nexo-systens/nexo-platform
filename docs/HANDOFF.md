@@ -42,7 +42,7 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 203 — Premium Product Experience & Design System (2026-09-27).** Ver `docs/ENGINEERING_LOG.md` e `docs/DESIGN_SYSTEM.md`. **Status: `MISSION_203_NOT_CLOSED`.** A implementação está completa e os gates automatizados estão verdes. Falta só a revisão visual de 8 rotas autenticadas, bloqueada porque o Docker Desktop não inicia nesta máquina. Regressão: type-check/lint/build limpos, **18 rotas**, 287 testes (production-surface 146, com 30 novos em `premium-experience.test.ts`).
+**Mission 203 — Premium Product Experience & Design System (2026-09-27).** Ver `docs/ENGINEERING_LOG.md` (entrega + "Visual Review Closure") e `docs/DESIGN_SYSTEM.md`. **Status: `MISSION_203_CLOSED`.** Commits `4e8afc4` (entrega) e o commit de fechamento da revisão visual. Regressão: type-check/lint/build limpos, **18 rotas**, 290 testes (production-surface 149, com 33 em `premium-experience.test.ts`).
 
 - **Entregue:**
   - tokens e componentes compartilhados (`PageHeader`, `SectionShell`, `Callout`, `SemanticBadge`, `KindMarker`, `UnavailableValue`, `TechnicalDetail`);
@@ -57,11 +57,12 @@ Ele representa o estado atual do desenvolvimento.
   - zero cores soltas da paleta, com teste.
 - **Erro pós-login do `/dashboard`:** assinatura provada (HEAD não-2xx do PostgREST, típico de JWT recusado); causa raiz no Pilot **não provada**, nenhuma correção especulativa. As consultas do dashboard agora lançam `QueryError` com contexto, status HTTP e código do PostgREST.
 - **Defeito separado, não corrigido:** os redirects de `lib/supabase/proxy.ts` descartam os cookies gravados por `getUser()` (contra a orientação do `@supabase/ssr`). Não é a causa do erro acima.
-- **Para fechar:**
-  1. reiniciar o Windows (os sockets `*.stale` em `%LOCALAPPDATA%Dockerun` ficam inacessíveis depois de uma queda) e iniciar o Docker Desktop;
-  2. `npx supabase start` (local), com dados sintéticos;
-  3. revisar Executive Chat, `/companies`, `/companies/closed`, `/operator/offboarding`, `/documents`, `/diagnostics`, `/reports` e `/settings` (console e hidratação inclusos);
-  4. registrar o fechamento.
+- **Revisão visual concluída** (Supabase local, dados sintéticos): todas as rotas principais, em 577px e 1440px. Achados corrigidos:
+  - 404 próprio no lugar do padrão, que ficava invisível no esquema escuro;
+  - rota do operador indistinguível de um endereço inexistente (Header e título; o título estático vazava desde a 202B);
+  - `Select` mostrando valor cru (enum, UUID) — 19 corrigidos;
+  - frase de confirmação na própria instrução, em fonte mono;
+  - âncoras de seção não mais encobertas.
 - **Limitações:**
   - Central de Decisões e Executive Chat com conteúdo não são observáveis localmente (a chave de IA local é inválida);
   - aviso de hidratação `SheetTrigger`/`Button` anterior à missão (P3);
@@ -404,9 +405,8 @@ Ele representa o estado atual do desenvolvimento.
 ## Próxima missão (sugestão, não decidida)
 
 **Próximo passo (após a Mission 203):**
-1. Concluir a revisão visual pendente da Mission 203 (ver "Para fechar" em "Última missão"); nenhuma mudança de código é esperada.
-2. Missão própria para os cookies descartados nos redirects de `lib/supabase/proxy.ts`, observando o `QueryError` do dashboard no log do Pilot na próxima ocorrência.
-3. Os passos humanos da Mission 202B abaixo continuam valendo.
+1. Missão própria para os cookies descartados nos redirects de `lib/supabase/proxy.ts`, observando o `QueryError` do dashboard no log do Pilot na próxima ocorrência.
+2. Os passos humanos da Mission 202B abaixo continuam valendo.
 
 Nenhuma Mission 204 foi iniciada.
 
@@ -563,7 +563,6 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 ## Pendências
 
 - **Mission 203:**
-  - revisão visual de 8 rotas autenticadas, bloqueada pelo Docker Desktop local;
   - `lib/supabase/proxy.ts` descarta cookies de sessão nos redirects;
   - causa raiz do `Error: {"message":""}` pós-login no Pilot ainda não provada (agora observável via `QueryError`);
   - aviso de hidratação `SheetTrigger`/`Button` (P3, anterior);

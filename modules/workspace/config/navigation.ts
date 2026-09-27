@@ -67,10 +67,14 @@ export function navItemsByGroup(group: NavGroupId): NavItem[] {
   return workspaceNavigation.filter((item) => item.group === group);
 }
 
-/** Contexto exibido no Header para rotas que não estão na navegação. */
+/**
+ * Contexto exibido no Header para rotas que não estão na navegação.
+ * `/operator/offboarding` fica de fora de propósito: para quem não é
+ * operador a rota não existe (404, D-131), e o Header não pode tratá-la
+ * diferente de um endereço qualquer — a página já traz o próprio contexto.
+ */
 export function describeRouteContext(pathname: string): { section: string; page?: string } {
   if (pathname === "/companies/closed") return { section: "Empresas", page: "Empresas encerradas" };
-  if (pathname.startsWith("/operator/offboarding")) return { section: "Operação NEXO", page: "Offboarding" };
   const item = findActiveNavItem(pathname);
   if (!item) return { section: "NEXO" };
   if (item.href === "/companies" && pathname !== "/companies") return { section: "Empresas", page: "Empresa" };
