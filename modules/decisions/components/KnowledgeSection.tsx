@@ -72,7 +72,7 @@ export async function KnowledgeSection({ companyId }: { companyId: string }) {
 
   return (
     <div id="knowledge" className="flex flex-col gap-4">
-      <h3 className="text-base font-semibold text-foreground">Conhecimento Acumulado (Knowledge)</h3>
+      <h3 className="type-subsection-title">Conhecimento acumulado</h3>
       <KnowledgeFormationPanel
         companyId={companyId}
         knowledge={knowledge}

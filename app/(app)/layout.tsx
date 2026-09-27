@@ -13,11 +13,19 @@ export default async function AppLayout({
   const user = await getCurrentUser();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-background">
+      <a
+        href="#conteudo"
+        className="sr-only z-50 rounded-md bg-surface px-3 py-2 text-sm font-medium text-foreground shadow-md focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Pular para o conteúdo
+      </a>
       <AppSidebar />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader user={user} />
-        <main className="flex-1 p-6">{children}</main>
+        <main id="conteudo" className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+          <div className="mx-auto w-full max-w-(--content-max)">{children}</div>
+        </main>
       </div>
     </div>
   );

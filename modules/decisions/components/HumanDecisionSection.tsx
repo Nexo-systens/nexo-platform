@@ -218,7 +218,7 @@ export function HumanDecisionSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Decisão humana (Human Decision)</CardTitle>
+        <CardTitle className="text-base">Decisão humana</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <p className="text-xs text-muted-foreground">
@@ -429,7 +429,7 @@ export function HumanDecisionSection({
             )}
           </p>
         )}
-        {success && <p className="text-sm text-emerald-600">Decisão registrada com sucesso.</p>}
+        {success && <p role="status" className="text-sm text-positive">Decisão registrada com sucesso.</p>}
 
         <Button onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-fit">
           {submitting ? "Registrando decisão..." : "Registrar decisão"}

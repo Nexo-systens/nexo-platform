@@ -1,46 +1,40 @@
 import { CheckCircle2, FileWarning, Sparkles, UploadCloud } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { Card, CardContent } from "@/components/ui/card";
+import { Callout } from "@/components/shared/Callout";
+import type { SemanticTone } from "@/modules/analysis/lib/insight-semantics";
 import type { ActivationState } from "@/modules/activation/resolveActivationState";
 
-const STATE_ICON: Record<ActivationState, LucideIcon> = {
-  no_documents: UploadCloud,
-  documents_not_analyzable: FileWarning,
-  ready_for_analysis: Sparkles,
-  analysis_available: Sparkles,
-  diagnosis_available: CheckCircle2,
+const STATE: Record<ActivationState, { icon: LucideIcon; tone: SemanticTone }> = {
+  no_documents: { icon: UploadCloud, tone: "neutral" },
+  documents_not_analyzable: { icon: FileWarning, tone: "warning" },
+  ready_for_analysis: { icon: Sparkles, tone: "info" },
+  analysis_available: { icon: Sparkles, tone: "info" },
+  diagnosis_available: { icon: CheckCircle2, tone: "positive" },
 };
 
 /**
- * Mission 195 — Founding Company Production Onboarding & First
- * Executive Value, Seção 6/8/9/12/23/38. Único ponto de orientação
- * contextual da jornada de ativação — nunca um tutorial de múltiplas
- * páginas (Seção 38: "keep guidance contextual... Do not build a
- * multi-page tutorial"), apenas uma frase do estado atual mais a
- * PRÓXIMA ação, derivadas puramente por `resolveActivationState()`
- * (nenhum texto novo inventado aqui, apenas apresentação). Nunca
- * renderizado no estado `diagnosis_available` — uma empresa madura já
- * tem sua própria interface falando por si (Seção 60: nenhuma
- * "completude" fabricada quando não há nada de útil a orientar).
+ * Mission 195 (Seção 36) — orientação de ativação, derivada só do estado
+ * canônico (`resolveActivationState()`). Mission 203: apresentada como
+ * "próximo passo", com tom semântico; some quando a empresa já tem
+ * diagnóstico (nenhuma orientação de onboarding para empresa madura).
  */
 export function ActivationGuidanceCard({
   state,
   description,
+  primaryAction,
 }: {
   state: ActivationState;
   description: string;
+  primaryAction?: string;
 }) {
   if (state === "diagnosis_available") return null;
 
-  const Icon = STATE_ICON[state];
+  const { icon, tone } = STATE[state];
 
   return (
-    <Card className="border-border bg-muted/30">
-      <CardContent className="flex items-start gap-3 py-4">
-        <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <p className="text-sm text-foreground">{description}</p>
-      </CardContent>
-    </Card>
+    <Callout tone={tone} icon={icon} title={primaryAction ? `Próximo passo: ${primaryAction}` : "Próximo passo"}>
+      {description}
+    </Callout>
   );
 }

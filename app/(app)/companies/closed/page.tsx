@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { ClosedCompanyPurgePanel } from "@/modules/companies/components/ClosedCompanyPurgePanel";
 import { listClosedCompanies } from "@/modules/companies/services/company.service";
 import { formatCnpj } from "@/modules/companies/utils/cnpj";
@@ -20,16 +21,16 @@ export default async function ClosedCompaniesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Empresas encerradas</h1>
-        <p className="text-sm text-muted-foreground">
-          Empresas encerradas não recebem novos dados e não aparecem nas listagens. A exclusão definitiva
-          remove os arquivos e todos os dados da empresa; sua conta não é afetada.{" "}
-          <Link href="/companies" className="underline underline-offset-4 hover:text-foreground">
+      <PageHeader
+        eyebrow="Empresas"
+        title="Empresas encerradas"
+        description="Empresas encerradas não recebem novos dados e não aparecem nas listagens. A exclusão definitiva remove os arquivos e todos os dados da empresa; sua conta não é afetada."
+        meta={
+          <Link href="/companies" className="underline-offset-4 hover:underline">
             Voltar para Empresas
           </Link>
-        </p>
-      </div>
+        }
+      />
 
       {companies.length === 0 ? (
         <EmptyState

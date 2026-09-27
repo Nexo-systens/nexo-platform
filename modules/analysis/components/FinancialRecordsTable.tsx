@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { NormalizedFinancialRecord } from "@/efos/engines/data";
+import { FINANCIAL_EVENT_TYPE_LABELS, RESOURCE_TYPE_LABELS } from "@/modules/analysis/lib/recordTypeLabels";
 import { STATEMENT_CATEGORY_LABELS } from "@/modules/analysis/lib/statementCategoryLabels";
 
 interface FinancialRecordsTableProps {
@@ -64,8 +65,8 @@ function formatWhen(record: NormalizedFinancialRecord): string {
  * (`documentGovernance.ts`), nunca o nome literal do enum.
  */
 function formatType(record: NormalizedFinancialRecord): string {
-  if (record.resourceType) return record.resourceType;
-  if (record.eventType) return record.eventType;
+  if (record.resourceType) return RESOURCE_TYPE_LABELS[record.resourceType] ?? record.resourceType;
+  if (record.eventType) return FINANCIAL_EVENT_TYPE_LABELS[record.eventType] ?? record.eventType;
   if (record.statementCategory) return STATEMENT_CATEGORY_LABELS[record.statementCategory];
   return "—";
 }
@@ -89,12 +90,12 @@ export function FinancialRecordsTable({ records }: FinancialRecordsTableProps) {
   }
 
   return (
-    <div className="rounded-lg border border-border">
+    <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Registro</TableHead>
-            <TableHead>Valor</TableHead>
+            <TableHead className="text-right">Valor</TableHead>
             <TableHead>Quando</TableHead>
             <TableHead>Tipo</TableHead>
           </TableRow>
@@ -110,11 +111,11 @@ export function FinancialRecordsTable({ records }: FinancialRecordsTableProps) {
                   </Badge>
                 )}
               </TableCell>
-              <TableCell className={cn(record.isTotalLine && "font-semibold")}>
+              <TableCell className={cn("num text-right", record.isTotalLine && "font-semibold")}>
                 {formatMoney(record.amount, record.currency)}
               </TableCell>
-              <TableCell>{formatWhen(record)}</TableCell>
-              <TableCell>{formatType(record)}</TableCell>
+              <TableCell className="num text-muted-foreground">{formatWhen(record)}</TableCell>
+              <TableCell className="text-foreground-secondary">{formatType(record)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

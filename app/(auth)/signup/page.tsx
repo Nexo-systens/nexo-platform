@@ -15,7 +15,9 @@ export default function SignupPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Criar conta</CardTitle>
+        <CardTitle>
+          <h1 className="text-lg font-semibold tracking-tight">Criar conta</h1>
+        </CardTitle>
         <CardDescription>
           Comece a organizar a inteligência financeira da sua empresa.
         </CardDescription>

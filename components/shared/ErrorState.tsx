@@ -10,6 +10,7 @@ interface ErrorStateProps {
   className?: string;
 }
 
+/** Falha ao carregar ou executar — nunca mostra texto interno (D-129). */
 export function ErrorState({
   title = "Algo deu errado",
   description = "Não foi possível carregar esta informação. Tente novamente.",
@@ -18,22 +19,18 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <div
+      role="alert"
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border border-border px-6 py-16 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border border-negative/25 bg-negative-soft/50 px-6 py-12 text-center",
         className
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
-        <AlertTriangle
-          className="size-6 text-destructive"
-          aria-hidden="true"
-        />
+      <div className="flex size-10 items-center justify-center rounded-full border border-negative/25 bg-surface">
+        <AlertTriangle className="size-5 text-negative" aria-hidden="true" />
       </div>
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          {description}
-        </p>
+        <p className="type-subsection-title">{title}</p>
+        <p className="type-body max-w-md text-pretty">{description}</p>
       </div>
       {onRetry && (
         <Button variant="outline" onClick={onRetry}>

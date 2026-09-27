@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -31,8 +32,9 @@ export async function DocumentsSection({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
-        <CardTitle>Documentos</CardTitle>
+      <CardHeader>
+        <CardTitle>Arquivos enviados</CardTitle>
+        <CardAction>
         <UploadDocumentSheet
           companyId={companyId}
           trigger={
@@ -42,6 +44,7 @@ export async function DocumentsSection({
             </Button>
           }
         />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {(documents.length > 0 || hasFilters) && (

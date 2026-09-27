@@ -1,32 +1,34 @@
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PageHeader } from "@/components/shared/PageHeader";
 
 interface PlaceholderPageProps {
   icon: LucideIcon;
+  eyebrow?: string;
   title: string;
   description: string;
+  /** O que o usuário pode fazer hoje, enquanto a área não existe. */
+  availableToday?: string;
+  action?: ReactNode;
 }
 
-// Usado pelas rotas do Workspace cujo modulo de negocio ainda nao foi
-// implementado (Empresas, Documentos, Diagnosticos, Relatorios,
-// Configuracoes) — mantem a navegacao funcional e consistente ate cada
-// modulo ser desenvolvido em sua propria sprint.
-export function PlaceholderPage({
-  icon,
-  title,
-  description,
-}: PlaceholderPageProps) {
+/**
+ * Rotas do Workspace cuja capacidade ainda não existe. Mission 203:
+ * dizem com honestidade que a área está "em breve" (a navegação marca o
+ * mesmo) e apontam o que já é possível fazer hoje — nunca números ou
+ * conteúdo simulados.
+ */
+export function PlaceholderPage({ icon, eyebrow, title, description, availableToday, action }: PlaceholderPageProps) {
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader eyebrow={eyebrow} title={title} description={description} />
       <EmptyState
         icon={icon}
-        title="Módulo em construção"
-        description="Esta área ainda não foi implementada. Ela chegará em uma próxima sprint."
+        title="Em breve"
+        description={availableToday ?? "Esta área ainda não está disponível nesta fase do produto."}
+        action={action}
       />
     </div>
   );

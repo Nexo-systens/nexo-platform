@@ -4,11 +4,13 @@ import { AlertTriangle, CircleHelp, Lightbulb, MessageCircle, Send, ShieldAlert 
 import { useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { TechnicalDetail } from "@/components/shared/TechnicalDetail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import type { ExecutiveChatAnswer, ExecutiveChatGroundingStatus } from "@/efos/application/executive-chat";
+import { presentExecutiveChatProviderError } from "@/modules/analysis/lib/analysis-error-message";
 
 import { askExecutiveChatQuestionAction } from "../actions/executive-chat.actions";
 import { ExecutiveChatActionCard } from "./ExecutiveChatActionCard";
@@ -57,6 +59,7 @@ export function ExecutiveChatPanel({ companyId }: { companyId: string }) {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [errorDetail, setErrorDetail] = useState<string | undefined>();
   const [lastQuestion, setLastQuestion] = useState<string | undefined>();
 
   async function submitQuestion(question: string) {
@@ -65,6 +68,7 @@ export function ExecutiveChatPanel({ companyId }: { companyId: string }) {
 
     setStatus("loading");
     setErrorMessage(undefined);
+    setErrorDetail(undefined);
     setLastQuestion(trimmed);
     const priorMessages = turns.map((turn) => ({ role: turn.role, content: turn.content }));
     setTurns((current) => [...current, { role: "user", content: trimmed }]);
@@ -75,7 +79,13 @@ export function ExecutiveChatPanel({ companyId }: { companyId: string }) {
 
       if (!result.success) {
         setStatus("error");
-        setErrorMessage(result.error);
+        if (result.stage === "provider") {
+          const presented = presentExecutiveChatProviderError(result.error);
+          setErrorMessage(presented.message);
+          setErrorDetail(presented.technicalDetail);
+        } else {
+          setErrorMessage(result.error);
+        }
         return;
       }
 
@@ -136,11 +146,12 @@ export function ExecutiveChatPanel({ companyId }: { companyId: string }) {
       )}
 
       {status === "error" && errorMessage && (
-        <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-          <div className="flex items-center gap-2 text-sm text-destructive">
-            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+        <div role="alert" className="flex flex-col gap-2 rounded-lg border border-negative/25 bg-negative-soft p-3">
+          <div className="flex items-start gap-2 text-sm text-negative-soft-foreground">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>{errorMessage}</span>
           </div>
+          <TechnicalDetail detail={errorDetail} />
           <Button variant="outline" size="sm" className="w-fit" onClick={handleRetry}>
             Tentar novamente
           </Button>

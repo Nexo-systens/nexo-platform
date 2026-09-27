@@ -48,11 +48,11 @@ export function DocumentGovernanceBadge({
         isStaleAttempt
           ? "border-border bg-muted text-muted-foreground opacity-70"
           : governance.outcome === "same_period_conflict"
-            ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+            ? "border-warning/30 bg-warning-soft text-warning-soft-foreground"
             : governance.outcome === "needs_review"
-              ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+              ? "border-warning/30 bg-warning-soft text-warning-soft-foreground"
               : governance.outcome === "accepted"
-                ? "border-success/30 bg-success/10 text-success"
+                ? "border-positive/20 bg-positive-soft text-positive-soft-foreground"
                 : "border-border bg-muted text-muted-foreground"
       )}
     >

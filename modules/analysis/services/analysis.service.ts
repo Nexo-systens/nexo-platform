@@ -1,3 +1,5 @@
+import { queryFailure } from "@/lib/supabase/query-error";
+import type { ExecutiveReportSummary } from "@/efos/application/report";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -20,11 +22,53 @@ import { createClient } from "@/lib/supabase/server";
 export async function countExecutionsByCompany(companyId: string): Promise<number> {
   const supabase = await createClient();
 
-  const { count, error } = await supabase
+  const { count, error, status } = await supabase
     .from("executions")
     .select("id", { count: "exact", head: true })
     .eq("company_id", companyId);
 
-  if (error) throw error;
+  if (error) throw queryFailure("countExecutionsByCompany", { error, status });
   return count ?? 0;
+}
+
+/**
+ * Mission 203 — Visão executiva. Última análise persistida de uma
+ * empresa: instante e o `summary` do `ExecutiveReport` (contagens de
+ * evidências, interpretações, recomendações e propostas). Lê SÓ esses
+ * dois caminhos JSON (`report->summary`, `report->metadata`), nunca o
+ * relatório inteiro. `summary` ausente (execução antiga, sem `report`)
+ * volta `null` — a UI mostra "indisponível", nunca zero.
+ */
+export interface LatestAnalysisSummary {
+  readonly generatedAt: string;
+  readonly summary: ExecutiveReportSummary | null;
+}
+
+export async function getLatestAnalysisSummary(companyId: string): Promise<LatestAnalysisSummary | null> {
+  const supabase = await createClient();
+
+  const { data, error, status } = await supabase
+    .from("executions")
+    .select("created_at, summary:report->summary, generatedAt:report->metadata->>generatedAt")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw queryFailure("getLatestAnalysisSummary", { error, status });
+  if (!data) return null;
+
+  const row = data as unknown as { created_at: string; summary: unknown; generatedAt: unknown };
+  return {
+    generatedAt: typeof row.generatedAt === "string" ? row.generatedAt : row.created_at,
+    summary: isExecutiveReportSummary(row.summary) ? row.summary : null,
+  };
+}
+
+function isExecutiveReportSummary(value: unknown): value is ExecutiveReportSummary {
+  if (typeof value !== "object" || value === null) return false;
+  const summary = value as Record<string, unknown>;
+  return ["indicatorsCount", "evidenceCount", "contextCount", "reasoningCount", "recommendationCount", "decisionCount"].every(
+    (key) => typeof summary[key] === "number"
+  );
 }

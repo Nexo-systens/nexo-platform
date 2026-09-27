@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { TechnicalDetail } from "@/components/shared/TechnicalDetail";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { presentExecutiveAiError } from "@/modules/analysis/lib/analysis-error-message";
 import { activateExecutiveDiagnosisAction } from "@/modules/decisions/actions/executive-diagnosis.actions";
 
 type Status =
@@ -75,11 +77,13 @@ export function ExecutiveDiagnosisActivation({ companyId }: { companyId: string 
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
-        <CardTitle className="text-base">Diagnósticos Executivos</CardTitle>
-        <Button size="sm" onClick={activate} disabled={status === "activating"}>
-          {status === "activating" ? "Gerando diagnóstico..." : "Gerar diagnóstico executivo"}
-        </Button>
+      <CardHeader>
+        <CardTitle className="text-base">Diagnóstico executivo</CardTitle>
+        <CardAction>
+          <Button size="sm" onClick={activate} disabled={status === "activating"}>
+            {status === "activating" ? "Gerando diagnóstico..." : "Gerar diagnóstico executivo"}
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent>
         {status === "idle" && (
@@ -98,11 +102,14 @@ export function ExecutiveDiagnosisActivation({ companyId }: { companyId: string 
         )}
 
         {status === "provider-failed" && (
-          <ErrorState
-            title="Não foi possível gerar o diagnóstico"
-            description={errorMessage}
-            onRetry={activate}
-          />
+          <div className="flex flex-col gap-2">
+            <ErrorState
+              title="Não foi possível gerar o diagnóstico"
+              description={presentExecutiveAiError(errorMessage).message}
+              onRetry={activate}
+            />
+            <TechnicalDetail detail={presentExecutiveAiError(errorMessage).technicalDetail} />
+          </div>
         )}
 
         {status === "persistence-failed" && (

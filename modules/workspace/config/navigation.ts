@@ -2,34 +2,58 @@ import {
   BarChart3,
   Building2,
   FileText,
-  LayoutDashboard,
+  Gauge,
+  Scale,
   Settings,
-  Stethoscope,
   type LucideIcon,
 } from "lucide-react";
+
+export type NavGroupId = "overview" | "companies" | "decision" | "account";
 
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  group: NavGroupId;
+  /** Capacidade ainda não disponível: o item continua navegável e diz isso. */
+  status?: "soon";
 }
 
-// Fonte unica de navegacao: alimenta a Sidebar e o Breadcrumb do Workspace.
-// Ao trocar para rotas com contexto de empresa (multiempresa, futuro), o
-// "href" e o unico ponto que precisa mudar.
+export interface NavGroup {
+  id: NavGroupId;
+  /** Rótulo do grupo na sidebar; `null` quando o grupo dispensa título. */
+  label: string | null;
+}
+
+/**
+ * Mission 203 — navegação organizada por função executiva, não por
+ * módulo técnico: acompanhar (visão executiva), operar as empresas e
+ * seus documentos, decidir; conta e itens ainda não disponíveis ficam
+ * separados, no rodapé. As rotas são as mesmas de antes (nenhum
+ * bookmark quebra); só o rótulo "Dashboard" passa a "Visão executiva",
+ * que é o que a página entrega.
+ */
+export const workspaceNavGroups: NavGroup[] = [
+  { id: "overview", label: null },
+  { id: "companies", label: "Empresas" },
+  { id: "decision", label: "Decisão" },
+  { id: "account", label: null },
+];
+
+// Fonte única de navegação: alimenta a Sidebar e o contexto do Header.
 export const workspaceNavigation: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Empresas", href: "/companies", icon: Building2 },
-  { label: "Documentos", href: "/documents", icon: FileText },
-  { label: "Central de Decisões", href: "/diagnostics", icon: Stethoscope },
-  { label: "Relatórios", href: "/reports", icon: BarChart3 },
-  { label: "Configurações", href: "/settings", icon: Settings },
+  { label: "Visão executiva", href: "/dashboard", icon: Gauge, group: "overview" },
+  { label: "Empresas", href: "/companies", icon: Building2, group: "companies" },
+  { label: "Documentos", href: "/documents", icon: FileText, group: "companies" },
+  { label: "Central de Decisões", href: "/diagnostics", icon: Scale, group: "decision" },
+  { label: "Relatórios", href: "/reports", icon: BarChart3, group: "account", status: "soon" },
+  { label: "Configurações", href: "/settings", icon: Settings, group: "account", status: "soon" },
 ];
 
 /**
  * Um item de navegacao esta ativo tanto na sua propria rota quanto em
  * qualquer sub-rota dela (ex: /companies/[id] pertence a "Empresas").
- * Usado pela Sidebar (destaque do item) e pelo Header (breadcrumb).
+ * Usado pela Sidebar (destaque do item) e pelo Header (contexto).
  */
 export function isNavItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -37,4 +61,18 @@ export function isNavItemActive(pathname: string, href: string): boolean {
 
 export function findActiveNavItem(pathname: string): NavItem | undefined {
   return workspaceNavigation.find((item) => isNavItemActive(pathname, item.href));
+}
+
+export function navItemsByGroup(group: NavGroupId): NavItem[] {
+  return workspaceNavigation.filter((item) => item.group === group);
+}
+
+/** Contexto exibido no Header para rotas que não estão na navegação. */
+export function describeRouteContext(pathname: string): { section: string; page?: string } {
+  if (pathname === "/companies/closed") return { section: "Empresas", page: "Empresas encerradas" };
+  if (pathname.startsWith("/operator/offboarding")) return { section: "Operação NEXO", page: "Offboarding" };
+  const item = findActiveNavItem(pathname);
+  if (!item) return { section: "NEXO" };
+  if (item.href === "/companies" && pathname !== "/companies") return { section: "Empresas", page: "Empresa" };
+  return { section: item.label };
 }

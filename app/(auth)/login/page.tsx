@@ -15,7 +15,9 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Entrar</CardTitle>
+        <CardTitle>
+          <h1 className="text-lg font-semibold tracking-tight">Entrar</h1>
+        </CardTitle>
         <CardDescription>
           Acesse sua conta para continuar na NEXO.
         </CardDescription>

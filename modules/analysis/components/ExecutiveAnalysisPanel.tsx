@@ -1,12 +1,14 @@
 "use client";
 
-import { AlertTriangle, FileWarning, Sparkles } from "lucide-react";
+import { FileWarning, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Callout } from "@/components/shared/Callout";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { TechnicalDetail } from "@/components/shared/TechnicalDetail";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocumentGovernanceResult } from "@/app/api/efos/_shared/documentGovernance";
 import { DOCUMENT_GOVERNANCE_LABELS } from "@/app/api/efos/_shared/documentGovernance";
@@ -17,6 +19,7 @@ import {
   deriveFinancialCompletenessSummary,
   summarizeDocumentGovernance,
 } from "@/modules/analysis/lib/financialGovernance";
+import { presentAnalysisError } from "@/modules/analysis/lib/analysis-error-message";
 import { hasNoSections } from "@/modules/analysis/lib/report-view";
 
 import { ExecutiveReportView } from "./ExecutiveReportView";
@@ -176,6 +179,7 @@ export function ExecutiveAnalysisPanel({
     }
   }
 
+  const errorPresentation = presentAnalysisError(errorMessage);
   const governanceSummary = summarizeDocumentGovernance(documentGovernance);
   const conflictingDocuments = documentGovernance.filter(
     (result) => result.outcome === "same_period_conflict"
@@ -197,15 +201,17 @@ export function ExecutiveAnalysisPanel({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
-        <CardTitle>Análise Executiva</CardTitle>
-        <Button
-          size="sm"
-          onClick={runAnalysis}
-          disabled={status === "loading" || !hasDocuments}
-        >
-          {status === "loading" ? "Processando análise..." : "Executar análise"}
-        </Button>
+      <CardHeader>
+        <CardTitle>Última análise</CardTitle>
+        <CardAction>
+          <Button
+            size="sm"
+            onClick={runAnalysis}
+            disabled={status === "loading" || !hasDocuments}
+          >
+            {status === "loading" ? "Processando análise..." : "Executar análise"}
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent>
         {status !== "idle" && status !== "loading" && documentGovernance.length > 0 && (
@@ -226,36 +232,22 @@ export function ExecutiveAnalysisPanel({
             </div>
 
             {conflictingDocuments.length > 0 && (
-              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden="true" />
-                <div className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-foreground">
-                    Encontramos demonstrações diferentes para o mesmo período/data-base.
-                  </span>
-                  <span className="text-muted-foreground">
-                    Nenhuma delas foi usada como autoridade até que o conflito seja corrigido — remova o
-                    documento incorreto ou envie a versão correta na seção Documentos e execute a análise
-                    novamente.
-                  </span>
-                </div>
-              </div>
+              <Callout tone="warning" title="Encontramos demonstrações diferentes para o mesmo período/data-base.">
+                Nenhuma delas foi usada como autoridade até que o conflito seja corrigido — remova o
+                documento incorreto ou envie a versão correta na seção Documentos e execute a análise
+                novamente.
+              </Callout>
             )}
 
             {needsReviewDocuments.length > 0 && (
-              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden="true" />
-                <div className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-foreground">
-                    Um demonstrativo enviado foi considerado nesta análise, mas seus próprios valores
-                    declarados não se reconciliam entre si.
-                  </span>
-                  <span className="text-muted-foreground">
-                    Isto não é um erro de processamento — os números abaixo já refletem o documento como
-                    enviado. Revise o documento de origem (ex.: Lucro Líquido declarado divergindo da soma
-                    dos componentes) e reenvie a versão corrigida, se necessário.
-                  </span>
-                </div>
-              </div>
+              <Callout
+                tone="warning"
+                title="Um demonstrativo enviado foi considerado nesta análise, mas seus próprios valores declarados não se reconciliam entre si."
+              >
+                Isto não é um erro de processamento — os números abaixo já refletem o documento como
+                enviado. Revise o documento de origem (ex.: Lucro Líquido declarado divergindo da soma
+                dos componentes) e reenvie a versão corrigida, se necessário.
+              </Callout>
             )}
           </div>
         )}
@@ -285,11 +277,14 @@ export function ExecutiveAnalysisPanel({
         )}
 
         {status === "error" && (
-          <ErrorState
-            title="Não foi possível executar a análise"
-            description={errorMessage}
-            onRetry={runAnalysis}
-          />
+          <div className="flex flex-col gap-2">
+            <ErrorState
+              title="Não foi possível executar a análise"
+              description={errorPresentation.message}
+              onRetry={runAnalysis}
+            />
+            <TechnicalDetail detail={errorPresentation.technicalDetail} />
+          </div>
         )}
 
         {status === "empty" && (
@@ -309,17 +304,14 @@ export function ExecutiveAnalysisPanel({
             <ExecutiveReportView report={report} />
 
             {completeness && !completeness.crossSourceCompatible && (
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="text-muted-foreground">
-                  Alguns indicadores que combinam Demonstração de Resultado e Balanço (ex.: ROA, Giro do
-                  Ativo, prazos médios) estão indisponíveis — o período do demonstrativo e a data-base do
-                  balanço enviados não descrevem o mesmo recorte temporal.
-                </span>
-              </div>
+              <Callout tone="neutral">
+                Alguns indicadores que combinam Demonstração de Resultado e Balanço (ex.: ROA, Giro do
+                Ativo, prazos médios) estão indisponíveis — o período do demonstrativo e a data-base do
+                balanço enviados não descrevem o mesmo recorte temporal.
+              </Callout>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-subtle px-4 py-3">
               <span className="text-sm text-muted-foreground">
                 {report.summary.recommendationCount > 0
                   ? `${report.summary.recommendationCount} recomendação(ões) determinística(s) identificada(s) nesta análise.`

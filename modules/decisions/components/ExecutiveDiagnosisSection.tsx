@@ -1,3 +1,4 @@
+import { SectionShell } from "@/components/shared/SectionShell";
 import { getExecutiveDiagnosesByCompany } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
 import { ExecutiveDiagnosisView } from "@/modules/decisions/components/ExecutiveDiagnosisView";
 import { ExecutiveDiagnosisActivation } from "@/modules/decisions/components/ExecutiveDiagnosisActivation";
@@ -53,21 +54,30 @@ import { KnowledgeSection } from "@/modules/decisions/components/KnowledgeSectio
 export async function ExecutiveDiagnosisSection({ companyId }: { companyId: string }) {
   const diagnoses = await getExecutiveDiagnosesByCompany(companyId);
 
+  // Mission 203: mesma moldura de seção do workspace da empresa; o
+  // conteúdo e a ordem continuam exatamente os mesmos.
+  const shell = {
+    id: "diagnostico-executivo",
+    eyebrow: "Inteligência executiva",
+    title: "Diagnóstico e decisões",
+    description:
+      "O diagnóstico interpreta a análise; a Central de Decisões mostra o que precisa da sua decisão, o que já foi decidido e o que aconteceu depois. A decisão final é sempre da empresa.",
+  } as const;
+
   if (diagnoses.length === 0) {
     return (
-      <div id="diagnostico-executivo" className="flex flex-col gap-4">
+      <SectionShell {...shell}>
         <ExecutiveDiagnosisActivation companyId={companyId} />
         <DecisionCenter companyId={companyId} />
-      </div>
+      </SectionShell>
     );
   }
 
   return (
-    <div id="diagnostico-executivo" className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-foreground">Inteligência Executiva</h2>
+    <SectionShell {...shell}>
       <ExecutiveDiagnosisView diagnosis={diagnoses[0].diagnosis} />
       <DecisionCenter companyId={companyId} />
       <KnowledgeSection companyId={companyId} />
-    </div>
+    </SectionShell>
   );
 }

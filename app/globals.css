@@ -2,14 +2,29 @@
 @import "../styles/tokens.css";
 @import "tw-animate-css";
 
+/*
+ * Mapeamento dos tokens canônicos (styles/tokens.css) para utilitários
+ * do Tailwind. Nenhum componente define cor, raio ou sombra por conta
+ * própria — ver docs/DESIGN_SYSTEM.md.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-inverse: var(--foreground-inverse);
+
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-inverse: var(--surface-inverse);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
 
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
@@ -18,26 +33,55 @@
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-foreground: var(--primary-soft-foreground);
 
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
 
+  --color-positive: var(--positive);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-positive-soft: var(--positive-soft);
+  --color-positive-soft-foreground: var(--positive-soft-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
 
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+
+  --color-negative: var(--negative);
+  --color-negative-foreground: var(--negative-foreground);
+  --color-negative-soft: var(--negative-soft);
+  --color-negative-soft-foreground: var(--negative-soft-foreground);
 
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-foreground: var(--info-soft-foreground);
+
+  --color-kind-fact: var(--kind-fact);
+  --color-kind-evidence: var(--kind-evidence);
+  --color-kind-interpretation: var(--kind-interpretation);
+  --color-kind-hypothesis: var(--kind-hypothesis);
+  --color-kind-recommendation: var(--kind-recommendation);
+  --color-kind-decision: var(--kind-decision);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-overlay: var(--shadow-overlay);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -48,7 +92,100 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Foco sempre visível para navegação por teclado. */
+  :where(a, button, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/*
+ * Escala tipográfica canônica. Cada papel tem UMA classe — cards e
+ * seções não inventam tamanhos próprios.
+ */
+@layer components {
+  .type-eyebrow {
+    font-size: var(--text-eyebrow);
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  .type-page-title {
+    font-size: var(--text-page);
+    line-height: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: var(--foreground);
+  }
+
+  .type-section-title {
+    font-size: var(--text-section);
+    line-height: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    color: var(--foreground);
+  }
+
+  .type-subsection-title {
+    font-size: var(--text-subsection);
+    line-height: 1.375rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .type-body {
+    font-size: var(--text-body);
+    line-height: 1.375rem;
+    color: var(--foreground-secondary);
+  }
+
+  .type-label {
+    font-size: var(--text-label);
+    line-height: 1.125rem;
+    font-weight: 500;
+    color: var(--foreground-secondary);
+  }
+
+  .type-meta {
+    font-size: var(--text-meta);
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+
+  .type-metric {
+    font-size: var(--text-display);
+    line-height: 2.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--foreground);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Valores financeiros: algarismos tabulares e alinhados. */
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum", "lnum";
   }
 }

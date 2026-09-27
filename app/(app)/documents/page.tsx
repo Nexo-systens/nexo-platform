@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { DocumentsCompanySelect } from "@/modules/documents/components/DocumentsCompanySelect";
 import { DocumentsSection } from "@/modules/documents/components/DocumentsSection";
@@ -46,12 +47,11 @@ export default async function DocumentsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Documentos</h1>
-        <p className="text-sm text-muted-foreground">
-          Envie e organize os documentos financeiros das suas empresas.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Dados"
+        title="Documentos"
+        description="Os demonstrativos de cada empresa: DRE, Balanço/Balancete ou extrato com transações, em PDF ou CSV. São a base de toda análise."
+      />
 
       {companies.length === 0 ? (
         <EmptyState
@@ -66,8 +66,8 @@ export default async function DocumentsPage({
         />
       ) : (
         <>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">
+          <div className="flex max-w-md flex-col gap-1.5">
+            <span className="type-label" id="documentos-empresa">
               Empresa
             </span>
             <DocumentsCompanySelect companies={companies} companyId={companyId} />

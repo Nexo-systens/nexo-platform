@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import type { Knowledge, LearningRecord } from "@/efos/domain";
 import { formKnowledgeAction, formGovernedKnowledgeAction } from "@/modules/decisions/actions/knowledge-formation.actions";
@@ -162,16 +162,16 @@ export function KnowledgeFormationPanel({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+      <CardHeader>
         <CardTitle className="text-sm">Padrões recorrentes entre decisões independentes</CardTitle>
-        <div className="flex gap-2">
+        <CardAction className="flex gap-2">
           <Button size="sm" variant="outline" onClick={handleFormKnowledge} disabled={forming}>
             {forming ? "Formando..." : "Formar conhecimento"}
           </Button>
           <Button size="sm" variant="outline" onClick={handleEvaluateKnowledge} disabled={evaluating || knowledge.length === 0}>
             {evaluating ? "Avaliando..." : "Avaliar conhecimento"}
           </Button>
-        </div>
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-xs text-muted-foreground">

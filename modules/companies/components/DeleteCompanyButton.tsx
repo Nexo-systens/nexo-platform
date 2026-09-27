@@ -29,7 +29,7 @@ export function DeleteCompanyButton({
   return (
     <AlertDialog>
       <AlertDialogTrigger
-        render={<Button type="button" variant="outline" size="sm" />}
+        render={<Button type="button" variant="destructive" size="sm" />}
       >
         <Trash2 className="size-4" aria-hidden="true" />
         Encerrar

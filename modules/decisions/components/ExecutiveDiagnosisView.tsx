@@ -68,8 +68,8 @@ function Section({ title, count, children }: { title: string; count: number; chi
 
 export function ExecutiveDiagnosisView({ diagnosis }: { diagnosis: ExecutiveDiagnosis }) {
   return (
-    <div className="flex flex-col gap-5 rounded-xl border-2 border-dashed border-amber-400/60 bg-amber-50/40 p-4 dark:bg-amber-950/10">
-      <div className="flex items-start gap-2 rounded-lg bg-amber-100/80 p-3 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+    <div className="flex flex-col gap-5 rounded-xl border-2 border-dashed border-warning/45 bg-warning-soft/30 p-4">
+      <div className="flex items-start gap-2 rounded-lg bg-warning-soft p-3 text-warning-soft-foreground">
         <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <p className="text-xs leading-relaxed">
           <strong>Interpretação da Executive AI — não é Financial Truth.</strong> Tudo abaixo é uma leitura

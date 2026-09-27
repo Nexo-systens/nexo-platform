@@ -15,7 +15,9 @@ export default function ResetPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Definir nova senha</CardTitle>
+        <CardTitle>
+          <h1 className="text-lg font-semibold tracking-tight">Definir nova senha</h1>
+        </CardTitle>
         <CardDescription>
           Escolha uma nova senha para acessar sua conta.
         </CardDescription>

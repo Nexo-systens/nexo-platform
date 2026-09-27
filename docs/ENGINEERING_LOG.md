@@ -10107,3 +10107,49 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Regressão.** Type-check/lint/build limpos, 18 rotas · 257/257 no CI · migration parity 18/18 · varreduras de segredo e PII limpas.
 
 **Origem.** Mission 202B — Pre-Activation Commit + Pilot Activation Gate.
+
+## Mission 203 — Premium Product Experience & Design System
+
+**Status.** `MISSION_203_NOT_CLOSED` — a implementação está completa e todos os gates automatizados estão verdes. Falta a revisão visual, com dados sintéticos, de 8 rotas autenticadas: o Supabase local não sobe porque o Docker Desktop não inicia nesta máquina (detalhe em "Limitações"). Esta missão só muda a apresentação: nenhuma alteração em modelos financeiros, Engines, semântica de evidência/recomendação/decisão, persistência, tenancy, RLS ou migrations. As rotas continuam as mesmas (18). Nenhuma ADR nova: as escolhas visuais estão em `docs/DESIGN_SYSTEM.md`.
+
+**Auditoria (antes).**
+- A sidebar seguia os módulos técnicos e o Dashboard era uma grade de contadores genéricos com "atividade recente". O Dashboard não dizia em que estágio cada empresa estava nem qual era o próximo passo.
+- A página da empresa abria pela grade cadastral.
+- O relatório não distinguia o que é dado/cálculo/evidência do que é inferência.
+- Enums do domínio apareciam crus (`cash`, `sale`, `high`, `critical`).
+- Mensagens de validação dos Engines e do provedor de IA chegavam cruas ao executivo.
+- Havia cores soltas (âmbar/esmeralda) sem significado fixo.
+- Não havia cabeçalho de página canônico, e os estados vazio, erro e carregando eram inconsistentes.
+
+**Entregue.**
+- **Design system:** `styles/tokens.css` reescrito com os tokens canônicos (superfícies, texto, bordas, identidade azul-noite, 4 status com versões soft, 6 cores de natureza da informação, sombras, escala tipográfica e layout, tema escuro). `app/globals.css` mapeia os tokens (`@theme inline`) e define as classes `type-*` e `num`.
+- **Componentes compartilhados:** `PageHeader`, `SectionShell`, `Callout`, `SemanticBadge`, `KindMarker`, `UnavailableValue` e `TechnicalDetail`; `EmptyState`, `ErrorState` e `PlaceholderPage` foram refeitos.
+- **Shell:** navegação por função executiva (Visão executiva · Empresas · Decisão · conta), com as mesmas rotas. O header ganhou contexto de rota. Skip link → `main#conteudo`; item ativo com `aria-current`.
+- **Visão executiva (`/dashboard`):** estágio real de cada empresa (resolvedor canônico da Mission 195), última análise, sinais do `summary` persistido (evidências, interpretações, recomendações, propostas) e próximo passo; painel "requer atenção"; cadeia EFOS. Sem análise → "nenhuma análise". Análise sem `summary` → sinais **indisponíveis**, nunca zero. Um zero medido continua zero. O builder é puro (`modules/dashboard/lib/executive-overview.ts`), e o serviço antigo de contadores foi removido.
+- **Workspace da empresa:** cabeçalho executivo (estado, CNPJ, última análise, documentos) e navegação fixa entre seções. O próximo passo aparece como callout. A ordem segue a cadeia EFOS (análise → diagnóstico e decisões → linha do tempo → Scenario Lab → Executive Chat → documentos → dados cadastrais).
+- **Hierarquia do relatório:** camadas "O que sabemos" e "O que o EFOS infere" (`insight-semantics.ts`). O marcador de natureza é um ponto cheio para o que é conhecido e um anel vazado para o que é inferido. Indicadores usam números tabulares e mostram "Indisponível" com o motivo. A ordem das seções continua exatamente a do `DefaultReportService`, e um teste lê essa ordem do código-fonte.
+- **Linguagem:** rótulos em português para severidade, confiança, prioridade, recursos e eventos (mapeamento exaustivo, garantido pelo compilador). A validação de Engine vira orientação sobre o documento; a falha do provedor de IA (diagnóstico e Executive Chat) vira "indisponível no momento". Em todos os casos o texto original fica recolhido em "Detalhe técnico para o suporte", nunca descartado. Causas que não são indisponibilidade do provedor continuam visíveis (Mission 128).
+- **Autenticação:** layout dividido, com painel de marca à esquerda e formulário à direita; um `h1` por tela.
+- **Ações destrutivas:** "Encerrar" passou a `variant="destructive"`. O diálogo da Mission 202 e as frases digitadas da 202B ficaram intactos e protegidos por teste.
+- **Cores soltas:** as últimas foram migradas para tokens (diagnóstico da IA, selo de governança de documento, confirmações de sucesso com `role="status"`). Um teste impede que voltem.
+
+**Erro pós-login do `/dashboard` (`Error: {"message":""}`).**
+- **Provado:** essa assinatura é a de um `HEAD` não-2xx do PostgREST. O postgrest-js transforma o corpo vazio em `{ message: "" }` e descarta o status. Uma sonda local reproduziu a assinatura exatamente com um JWT recusado pelo PostgREST (`iat` futuro além da tolerância → 401 `PGRST303`; JWT expirado dá o mesmo).
+- **No Pilot (só leitura, só horários e contagens):** as duas falhas coincidem com a criação de sessões novas da conta DEV_USER. Não houve refresh nem refresh token revogado, o que descarta cookie velho e corrida de refresh. `auth.audit_log_entries` está vazio.
+- **Local:** um login limpo não reproduz o erro.
+- **Causa raiz: não provada.** Nenhuma correção especulativa. Em vez disso, as consultas do caminho do dashboard lançam `QueryError` (`lib/supabase/query-error.ts`) com contexto, status HTTP e código do PostgREST — sem ids, parâmetros ou dados. A próxima ocorrência fica diagnosticável no log do servidor.
+- **Defeito separado, provado, não corrigido:** em `lib/supabase/proxy.ts`, os ramos de redirect (`NextResponse.redirect(url)`) descartam os cookies gravados por `supabase.auth.getUser()` (refresh ou remoção), contra a orientação do `@supabase/ssr`. Não é a causa deste erro e mexe em comportamento de autenticação — fica para uma missão própria.
+
+**Revisão visual (Supabase local, conta de teste local, empresas sintéticas).**
+- **Revisado:** `/dashboard` vazio e populado; workspace da empresa (cabeçalho, navegação de seções, próximo passo, documentos, análise em camadas, indicadores com "Indisponível", estado de erro do diagnóstico, Scenario Lab); telas de autenticação em desktop e em 375px (sem rolagem horizontal, gutter de 16px, labels vinculados, sem erro de console), servidas sem sessão.
+- **Corrigido na revisão:** pluralização ("decisãoões"), ações de cabeçalho de card (slot `CardAction`), `SectionShell` sem `useId` (seguro em server component) e mensagem executiva para CSV sintético mal formado.
+- **Aviso de hidratação:** o `SheetTrigger`/`Button` (`data-slot`) já existia antes desta missão (P3).
+
+**Limitações.**
+- **Revisão visual incompleta:** faltam Executive Chat (novo mapeamento de erro), `/companies`, `/companies/closed`, `/operator/offboarding`, `/documents`, `/diagnostics`, `/reports` e `/settings`. O Docker Desktop cai na inicialização (`sailor-ingest.sock` não pode ser renomeado porque um `.stale` de uma queda anterior está inacessível ao sistema). Precisa de reinício do Windows ou ação humana no Docker Desktop; não foi usado "Reset to factory defaults".
+- **Central de Decisões e Executive Chat com conteúdo:** não observáveis localmente, porque a chave de IA local é inválida. Só os estados de erro foram vistos.
+- **Nenhuma rota foi revisada contra o NEXO Pilot:** só dados sintéticos.
+
+**Regressão.** Type-check e lint limpos · build com **18 rotas** · 287/287 testes (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 146 · release-candidate 5; 30 novos em `premium-experience.test.ts`) · varredura de segredos e PII limpa no diff (o único UUID é o fixture sintético `11111111-…`).
+
+**Origem.** Mission 203 — Premium Product Experience & Design System.

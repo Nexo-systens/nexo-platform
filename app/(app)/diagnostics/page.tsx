@@ -3,6 +3,7 @@ import { Stethoscope } from "lucide-react";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { CompanyStatusBadge } from "@/modules/companies/components/CompanyStatusBadge";
 import { listCompanies } from "@/modules/companies/services/company.service";
@@ -72,13 +73,11 @@ export default async function DiagnosticsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Central de Decisões</h1>
-        <p className="text-sm text-muted-foreground">
-          Escolha uma empresa para ver o que requer sua decisão agora, o que já foi decidido e o que
-          aconteceu depois.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Decisão"
+        title="Central de Decisões"
+        description="Escolha uma empresa para ver o que requer sua decisão agora, o que já foi decidido e o que aconteceu depois."
+      />
 
       {companies.length === 0 ? (
         <EmptyState
@@ -92,17 +91,16 @@ export default async function DiagnosticsPage({
             {companies.map((company) => (
               <div
                 key={company.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 shadow-xs"
               >
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground">{company.razao_social}</span>
+                    <span className="type-subsection-title">{company.razao_social}</span>
                     <CompanyStatusBadge status={company.status} />
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatCnpj(company.cnpj)}</span>
+                  <span className="type-meta num">CNPJ {formatCnpj(company.cnpj)}</span>
                 </div>
                 <Button
-                  variant="outline"
                   size="sm"
                   render={<Link href={`/companies/${company.id}#diagnostico-executivo`} />}
                   nativeButton={false}

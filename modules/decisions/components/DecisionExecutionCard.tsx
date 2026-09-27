@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -453,11 +453,13 @@ export function DecisionExecutionCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+      <CardHeader>
         <CardTitle className="text-sm">{decision.decision.title}</CardTitle>
-        <Badge variant={state.status === "COMPLETED" ? "default" : state.status === "CANCELLED" ? "destructive" : "secondary"}>
-          {STATUS_LABELS[state.status]}
-        </Badge>
+        <CardAction>
+          <Badge variant={state.status === "COMPLETED" ? "default" : state.status === "CANCELLED" ? "destructive" : "secondary"}>
+            {STATUS_LABELS[state.status]}
+          </Badge>
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {(() => {

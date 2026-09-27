@@ -1,11 +1,17 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SemanticBadge } from "@/components/shared/SemanticBadge";
+import { cn } from "@/lib/utils";
+import {
+  INSIGHT_KIND_META,
+  type InsightKind,
+  type SemanticTag,
+} from "@/modules/analysis/lib/insight-semantics";
 
 export interface InsightItem {
   readonly id: string;
   readonly title: string;
   readonly description: string;
-  readonly badges: readonly string[];
+  /** Rótulos já traduzidos (severidade, confiança, prioridade) — nunca o enum cru. */
+  readonly tags: readonly SemanticTag[];
   // "Ver origem" (Mission 109) — opcional: só Evidence passa isso hoje.
   // Ausente para Context/Reasoning/Recommendation/Decision (nenhum
   // deles carrega `EvidenceSource[]` rastreável).
@@ -13,52 +19,74 @@ export interface InsightItem {
 }
 
 interface InsightListProps {
+  kind: InsightKind;
   items: readonly InsightItem[];
   emptyMessage: string;
 }
 
-// Lista de cartoes de insight (Evidencia/Contexto/Raciocinio/
-// Recomendacao/Decisao) — apenas exibe campos ja existentes na
-// entidade (title/description/severity/confidence/priority), nenhuma
-// interpretacao nova e feita aqui.
-export function InsightList({ items, emptyMessage }: InsightListProps) {
+const KIND_VAR: Readonly<Record<InsightKind, string>> = {
+  statement: "--kind-fact",
+  indicator: "--kind-fact",
+  evidence: "--kind-evidence",
+  interpretation: "--kind-interpretation",
+  hypothesis: "--kind-hypothesis",
+  recommendation: "--kind-recommendation",
+  decision: "--kind-decision",
+};
+
+/**
+ * Lista de insights de UMA natureza (Mission 203). Apenas exibe campos
+ * já existentes na entidade — nenhuma interpretação nova. A marca
+ * lateral separa visualmente o que é sabido (traço cheio: evidência)
+ * do que é inferido (traço pontilhado: interpretação, hipótese,
+ * recomendação, proposta de decisão).
+ */
+export function InsightList({ kind, items, emptyMessage }: InsightListProps) {
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
+    return <p className="type-meta">{emptyMessage}</p>;
   }
 
+  const inferred = INSIGHT_KIND_META[kind].layer === "inferred";
+  const color = `var(${KIND_VAR[kind]})`;
+  const accent = inferred
+    ? { backgroundImage: `repeating-linear-gradient(to bottom, ${color} 0 4px, transparent 4px 7px)` }
+    : { backgroundColor: color };
+
   return (
-    <div className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-2.5">
       {items.map((item) => (
-        <div
+        <li
           key={item.id}
-          className="flex flex-col gap-2 rounded-lg border border-border p-3"
+          className={cn(
+            "relative flex flex-col gap-2 overflow-hidden rounded-lg border border-border py-3 pr-4 pl-5",
+            inferred ? "bg-surface-subtle" : "bg-surface"
+          )}
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-medium text-foreground">
-              {item.title}
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {item.badges.map((badge) => (
-                <Badge key={badge} variant="outline">
-                  {badge}
-                </Badge>
-              ))}
-            </div>
+          <span aria-hidden="true" className="absolute inset-y-3 left-2 w-0.5 rounded-full" style={accent} />
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-sm font-medium text-foreground">{item.title}</p>
+            {item.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {item.tags.map((tag) => (
+                  <SemanticBadge key={tag.label} tone={tag.tone}>
+                    {tag.label}
+                  </SemanticBadge>
+                ))}
+              </div>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground">{item.description}</p>
+          <p className="type-body text-pretty">{item.description}</p>
           {item.onViewSource && (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              className="h-auto self-start px-0 text-xs font-normal text-muted-foreground underline-offset-2 hover:underline"
+              className="self-start text-[0.75rem] font-medium text-primary underline-offset-4 hover:underline"
               onClick={item.onViewSource}
             >
               Ver origem
-            </Button>
+            </button>
           )}
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

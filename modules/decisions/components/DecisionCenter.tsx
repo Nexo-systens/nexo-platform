@@ -114,7 +114,7 @@ export async function DecisionCenter({ companyId }: { companyId: string }) {
 
   return (
     <div id="decision-center" className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-foreground">Central de Decisões</h2>
+      <h3 className="type-subsection-title">Central de Decisões</h3>
 
       <Card>
         <CardHeader>

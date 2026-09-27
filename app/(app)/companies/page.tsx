@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { CompaniesFilters } from "@/modules/companies/components/CompaniesFilters";
 import { CompaniesTable } from "@/modules/companies/components/CompaniesTable";
@@ -39,15 +40,16 @@ export default async function CompaniesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Empresas</h1>
-        <p className="text-sm text-muted-foreground">
-          Cadastre e gerencie as empresas vinculadas à sua conta.{" "}
-          <Link href="/companies/closed" className="underline underline-offset-4 hover:text-foreground">
-            Empresas encerradas
+      <PageHeader
+        eyebrow="Empresas"
+        title="Empresas"
+        description="As empresas acompanhadas pela sua conta. Abra uma empresa para ver a análise, o diagnóstico e as decisões."
+        meta={
+          <Link href="/companies/closed" className="underline-offset-4 hover:underline">
+            Ver empresas encerradas
           </Link>
-        </p>
-      </div>
+        }
+      />
 
       <CompaniesFilters current={rawParams} status={filters.status} />
 
@@ -79,7 +81,7 @@ export default async function CompaniesPage({
         />
       ) : (
         <>
-          <div className="rounded-xl border border-border">
+          <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-xs">
             <CompaniesTable
               companies={companies}
               filters={filters}

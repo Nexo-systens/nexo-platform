@@ -87,7 +87,7 @@ export async function DecisionExecutionSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="text-base font-semibold text-foreground">Execução & Resultado (Decision Execution)</h3>
+      <h3 className="type-subsection-title">Execução e resultado</h3>
       <div className="flex flex-col gap-4">
         {cards.map(({ decision, state, outcomes, financialObservations, learningRecords }) => (
           <DecisionExecutionCard

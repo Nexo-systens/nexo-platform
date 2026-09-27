@@ -1,4 +1,5 @@
 import { isUuid } from "@/lib/identifiers";
+import { queryFailure } from "@/lib/supabase/query-error";
 import { createClient } from "@/lib/supabase/server";
 import { ANALYZABLE_FILE_EXTENSIONS, STORAGE_BUCKET } from "@/modules/documents/constants";
 import type {
@@ -404,13 +405,13 @@ export async function updateDocumentGovernance(
 export async function countDocumentsByCompany(companyId: string): Promise<number> {
   const supabase = await createClient();
 
-  const { count, error } = await supabase
+  const { count, error, status } = await supabase
     .from("documents")
     .select("id", { count: "exact", head: true })
     .eq("company_id", companyId)
     .is("deleted_at", null);
 
-  if (error) throw error;
+  if (error) throw queryFailure("countDocumentsByCompany", { error, status });
   return count ?? 0;
 }
 

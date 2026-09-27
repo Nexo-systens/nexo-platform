@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import type { ExecutiveReport, ExecutiveReportSection } from "@/efos/application/report";
 import type { NormalizedFinancialRecord } from "@/efos/engines/data";
@@ -11,6 +11,16 @@ import {
   type SourceDetails,
 } from "@/modules/analysis/lib/sourceDetails";
 
+import { KindMarker } from "@/components/shared/KindMarker";
+import {
+  confidenceTag,
+  INSIGHT_LAYER_LABELS,
+  priorityTag,
+  sectionKind,
+  sectionLayer,
+  severityTag,
+  type InsightLayer,
+} from "@/modules/analysis/lib/insight-semantics";
 import { derivePeriodLabel } from "@/modules/analysis/lib/report-view";
 
 import { FinancialRecordsTable } from "./FinancialRecordsTable";
@@ -132,11 +142,11 @@ function renderSection(
         id: evidence.id,
         title: evidence.title,
         description: evidence.description,
-        badges: [evidence.severity, evidence.confidence],
+        tags: [severityTag(evidence.severity), confidenceTag(evidence.confidence)],
         onViewSource: () => onViewEvidenceSource(evidence),
       }));
       return (
-        <InsightList items={items} emptyMessage="Nenhuma evidência nesta seção." />
+        <InsightList kind="evidence" items={items} emptyMessage="Nenhuma evidência nesta seção." />
       );
     }
     case "context": {
@@ -144,10 +154,10 @@ function renderSection(
         id: context.id,
         title: context.title,
         description: context.description,
-        badges: [context.severity, context.confidence],
+        tags: [severityTag(context.severity), confidenceTag(context.confidence)],
       }));
       return (
-        <InsightList items={items} emptyMessage="Nenhum contexto nesta seção." />
+        <InsightList kind="interpretation" items={items} emptyMessage="Nenhuma interpretação nesta seção." />
       );
     }
     case "reasoning": {
@@ -155,10 +165,10 @@ function renderSection(
         id: reasoning.id,
         title: reasoning.title,
         description: reasoning.description,
-        badges: [reasoning.confidence],
+        tags: [confidenceTag(reasoning.confidence)],
       }));
       return (
-        <InsightList items={items} emptyMessage="Nenhum raciocínio nesta seção." />
+        <InsightList kind="hypothesis" items={items} emptyMessage="Nenhuma hipótese nesta seção." />
       );
     }
     case "recommendation": {
@@ -167,11 +177,12 @@ function renderSection(
           id: recommendation.id,
           title: recommendation.title,
           description: `${recommendation.description} ${recommendation.expectedImpact}`,
-          badges: [recommendation.priority, recommendation.confidence],
+          tags: [priorityTag(recommendation.priority), confidenceTag(recommendation.confidence)],
         })
       );
       return (
         <InsightList
+          kind="recommendation"
           items={items}
           emptyMessage="Nenhuma recomendação nesta seção."
         />
@@ -182,10 +193,10 @@ function renderSection(
         id: decision.id,
         title: decision.title,
         description: `${decision.description} ${decision.rationale}`,
-        badges: [decision.priority, decision.confidence],
+        tags: [priorityTag(decision.priority), confidenceTag(decision.confidence)],
       }));
       return (
-        <InsightList items={items} emptyMessage="Nenhuma decisão nesta seção." />
+        <InsightList kind="decision" items={items} emptyMessage="Nenhuma proposta de decisão nesta seção." />
       );
     }
   }
@@ -208,6 +219,17 @@ function sectionPeriodLabel(section: ExecutiveReportSection): string | undefined
     default:
       return undefined;
   }
+}
+
+/** Divisor entre o que é sabido e o que é inferido (Mission 203). */
+function LayerDivider({ layer }: { layer: InsightLayer }) {
+  const meta = INSIGHT_LAYER_LABELS[layer];
+  return (
+    <div className="flex flex-col gap-1 border-t border-border-strong pt-4">
+      <p className="type-section-title">{meta.title}</p>
+      <p className="type-meta">{meta.description}</p>
+    </div>
+  );
 }
 
 /**
@@ -247,28 +269,32 @@ export function ExecutiveReportView({ report }: ExecutiveReportViewProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-end text-xs text-muted-foreground">
-        <span>
-          Análise executada em{" "}
-          {new Date(report.metadata.generatedAt).toLocaleString("pt-BR")}
-        </span>
-      </div>
+    <div className="flex flex-col gap-7">
+      <p className="type-meta num text-right">
+        Análise executada em {new Date(report.metadata.generatedAt).toLocaleString("pt-BR")}
+      </p>
 
       {report.sections.map((section, index) => {
         const periodLabel = sectionPeriodLabel(section);
+        const layer = sectionLayer(section.type);
+        // Mission 203: a ordem continua exatamente a de `report.sections`
+        // (Mission 065, já monotônica: fatos → inferências); só um
+        // divisor aparece quando a natureza da informação muda.
+        const startsLayer = index === 0 || sectionLayer(report.sections[index - 1].type) !== layer;
         return (
-          <div key={`${section.type}-${index}`} className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h3 className="text-sm font-semibold text-foreground">
-                {section.title}
-              </h3>
-              {periodLabel && (
-                <span className="text-xs text-muted-foreground">{periodLabel}</span>
-              )}
+          <Fragment key={`${section.type}-${index}`}>
+            {startsLayer && <LayerDivider layer={layer} />}
+            <div className="flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                <div className="flex flex-col gap-1">
+                  <KindMarker kind={sectionKind(section.type)} />
+                  <h3 className="type-subsection-title">{section.title}</h3>
+                </div>
+                {periodLabel && <span className="type-meta num">{periodLabel}</span>}
+              </div>
+              {renderSection(section, handleViewIndicatorSource, handleViewEvidenceSource)}
             </div>
-            {renderSection(section, handleViewIndicatorSource, handleViewEvidenceSource)}
-          </div>
+          </Fragment>
         );
       })}
 

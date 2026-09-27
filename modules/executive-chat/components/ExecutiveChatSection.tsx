@@ -1,3 +1,5 @@
+import { SectionShell } from "@/components/shared/SectionShell";
+
 import { ExecutiveChatPanel } from "./ExecutiveChatPanel";
 
 /**
@@ -12,9 +14,13 @@ import { ExecutiveChatPanel } from "./ExecutiveChatPanel";
  */
 export function ExecutiveChatSection({ companyId }: { companyId: string }) {
   return (
-    <div id="executive-chat" className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-foreground">Executive Chat</h2>
+    <SectionShell
+      id="executive-chat"
+      eyebrow="Conversa executiva"
+      title="Executive Chat"
+      description="Pergunte sobre esta empresa. As respostas se apoiam na análise e nas evidências da própria empresa; ações só acontecem com a sua confirmação."
+    >
       <ExecutiveChatPanel companyId={companyId} />
-    </div>
+    </SectionShell>
   );
 }

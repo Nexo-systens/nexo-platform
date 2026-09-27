@@ -15,7 +15,9 @@ export default function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recuperar senha</CardTitle>
+        <CardTitle>
+          <h1 className="text-lg font-semibold tracking-tight">Recuperar senha</h1>
+        </CardTitle>
         <CardDescription>
           Informe seu e-mail para receber um link de recuperação.
         </CardDescription>

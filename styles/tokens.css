@@ -1,74 +1,179 @@
 /**
- * Tokens de Design System da NEXO (docs/04_DESIGN_SYSTEM.md, Capitulos 3, 6 e 7).
- * Cores em oklch, seguindo a paleta neutra (baseColor "neutral" em components.json)
- * mais um accent tecnico/sobrio para Primary. Cores semanticas (Success/Warning/
- * Error/Info) nunca sao usadas fora do seu significado funcional.
+ * NEXO — tokens canônicos do Design System (docs/DESIGN_SYSTEM.md).
+ *
+ * Fonte ÚNICA de cor, superfície, borda, raio, elevação, foco e
+ * tipografia. Componentes nunca usam valores de cor soltos (ex.:
+ * `amber-500`): usam os tokens semânticos abaixo, mapeados para
+ * utilitários do Tailwind em `app/globals.css` (`@theme inline`).
+ *
+ * Paleta: neutros levemente quentes (papel executivo) + tinta azul-noite
+ * como identidade NEXO (a mesma família de matiz 265 do Primary
+ * original) + quatro cores de status com significado funcional fixo.
+ * Cor nunca substitui hierarquia: ela sinaliza estado e natureza da
+ * informação, não decora.
  */
 
 :root {
-  --radius: 0.5rem;
+  /* ---------- Raio ---------- */
+  --radius: 0.625rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* ---------- Superfícies ---------- */
+  --background: oklch(0.982 0.003 85);          /* página: papel quente */
+  --surface: oklch(1 0 0);                       /* cartões e painéis */
+  --surface-subtle: oklch(0.967 0.004 85);       /* faixas, cabeçalhos, zonas secundárias */
+  --surface-sunken: oklch(0.948 0.005 85);       /* trilhas, trilhos de progresso, código */
+  --surface-inverse: oklch(0.225 0.03 262);      /* painel de marca (autenticação) */
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  /* ---------- Texto ---------- */
+  --foreground: oklch(0.2 0.018 262);            /* tinta principal */
+  --foreground-secondary: oklch(0.38 0.016 262); /* texto de apoio legível */
+  --muted-foreground: oklch(0.52 0.012 262);     /* metadados, rótulos */
+  --foreground-inverse: oklch(0.975 0.004 85);
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* ---------- Bordas ---------- */
+  --border: oklch(0.905 0.006 85);
+  --border-strong: oklch(0.84 0.008 85);
+  --input: oklch(0.88 0.007 85);
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* ---------- Identidade NEXO ---------- */
+  --primary: oklch(0.33 0.075 262);              /* azul-noite */
+  --primary-foreground: oklch(0.985 0.003 85);
+  --primary-soft: oklch(0.95 0.018 262);
+  --primary-soft-foreground: oklch(0.33 0.075 262);
 
-  --primary: oklch(0.32 0.08 265);
-  --primary-foreground: oklch(0.985 0 0);
+  /* ---------- Neutros de interação ---------- */
+  --muted: oklch(0.955 0.005 85);
+  --secondary: oklch(0.955 0.005 85);
+  --secondary-foreground: oklch(0.24 0.018 262);
+  --accent: oklch(0.945 0.012 262);
+  --accent-foreground: oklch(0.24 0.04 262);
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  /* ---------- Status (significado funcional fixo) ---------- */
+  --positive: oklch(0.5 0.115 158);
+  --positive-foreground: oklch(0.985 0.003 85);
+  --positive-soft: oklch(0.955 0.03 158);
+  --positive-soft-foreground: oklch(0.38 0.09 158);
 
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.63 0.13 68);
+  --warning-foreground: oklch(0.2 0.02 68);
+  --warning-soft: oklch(0.965 0.035 80);
+  --warning-soft-foreground: oklch(0.45 0.1 60);
 
-  --success: oklch(0.6 0.15 145);
-  --success-foreground: oklch(0.985 0 0);
+  --negative: oklch(0.53 0.17 28);
+  --negative-foreground: oklch(0.985 0.003 85);
+  --negative-soft: oklch(0.96 0.025 28);
+  --negative-soft-foreground: oklch(0.45 0.15 28);
 
-  --warning: oklch(0.75 0.15 80);
-  --warning-foreground: oklch(0.205 0 0);
+  --info: oklch(0.52 0.09 245);
+  --info-foreground: oklch(0.985 0.003 85);
+  --info-soft: oklch(0.955 0.02 245);
+  --info-soft-foreground: oklch(0.4 0.08 245);
 
-  --info: oklch(0.6 0.13 250);
-  --info-foreground: oklch(0.985 0 0);
+  /* Aliases de compatibilidade (componentes shadcn existentes). */
+  --destructive: var(--negative);
+  --destructive-foreground: var(--negative-foreground);
+  --success: var(--positive);
+  --success-foreground: var(--positive-foreground);
+
+  /* ---------- Natureza da informação (EFOS) ----------
+   * Fato/indicador, evidência, interpretação, hipótese, recomendação e
+   * decisão NUNCA parecem iguais: cada natureza tem um marcador próprio
+   * (cor discreta + rótulo), usado só no marcador, nunca como fundo de
+   * bloco inteiro. */
+  --kind-fact: oklch(0.45 0.015 262);
+  --kind-evidence: oklch(0.5 0.09 245);
+  --kind-interpretation: oklch(0.5 0.08 195);
+  --kind-hypothesis: oklch(0.58 0.11 70);
+  --kind-recommendation: oklch(0.36 0.08 262);
+  --kind-decision: oklch(0.47 0.1 158);
+
+  /* ---------- Foco ---------- */
+  --ring: oklch(0.55 0.1 262);
+
+  /* ---------- Elevação ---------- */
+  --shadow-xs: 0 1px 2px oklch(0.2 0.02 262 / 0.05);
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 262 / 0.05), 0 1px 3px oklch(0.2 0.02 262 / 0.06);
+  --shadow-md: 0 2px 4px oklch(0.2 0.02 262 / 0.05), 0 6px 16px oklch(0.2 0.02 262 / 0.07);
+  --shadow-overlay: 0 12px 40px oklch(0.2 0.02 262 / 0.16);
+
+  /* ---------- Compatibilidade shadcn ---------- */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+
+  /* ---------- Tipografia ----------
+   * Escala fixa: cada papel tem um tamanho. Cards não inventam
+   * tipografia própria. */
+  --text-display: 1.75rem;     /* número executivo de destaque */
+  --text-page: 1.5rem;         /* título de página */
+  --text-section: 1.0625rem;   /* título de seção */
+  --text-subsection: 0.9375rem;
+  --text-body: 0.875rem;
+  --text-label: 0.8125rem;
+  --text-meta: 0.75rem;
+  --text-eyebrow: 0.6875rem;
+
+  /* ---------- Layout ---------- */
+  --content-max: 76rem;
+  --sidebar-width: 15rem;
+  --header-height: 3.5rem;
 }
 
+/* Tema escuro coerente (não é um alvo desta fase; mantido consistente). */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
+  --background: oklch(0.17 0.012 262);
+  --surface: oklch(0.205 0.014 262);
+  --surface-subtle: oklch(0.225 0.014 262);
+  --surface-sunken: oklch(0.155 0.012 262);
+  --surface-inverse: oklch(0.12 0.02 262);
 
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  --foreground: oklch(0.96 0.004 85);
+  --foreground-secondary: oklch(0.82 0.008 262);
+  --muted-foreground: oklch(0.7 0.01 262);
+  --foreground-inverse: oklch(0.975 0.004 85);
 
   --border: oklch(1 0 0 / 10%);
+  --border-strong: oklch(1 0 0 / 16%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
 
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --primary: oklch(0.74 0.09 262);
+  --primary-foreground: oklch(0.17 0.012 262);
+  --primary-soft: oklch(0.28 0.04 262);
+  --primary-soft-foreground: oklch(0.86 0.06 262);
 
-  --primary: oklch(0.7 0.1 265);
-  --primary-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.25 0.014 262);
+  --secondary: oklch(0.25 0.014 262);
+  --secondary-foreground: oklch(0.96 0.004 85);
+  --accent: oklch(0.27 0.03 262);
+  --accent-foreground: oklch(0.9 0.04 262);
 
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
+  --positive: oklch(0.72 0.13 158);
+  --positive-foreground: oklch(0.17 0.012 262);
+  --positive-soft: oklch(0.27 0.05 158);
+  --positive-soft-foreground: oklch(0.85 0.1 158);
 
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.8 0.13 75);
+  --warning-foreground: oklch(0.17 0.012 262);
+  --warning-soft: oklch(0.29 0.05 70);
+  --warning-soft-foreground: oklch(0.88 0.1 80);
 
-  --success: oklch(0.7 0.15 145);
-  --success-foreground: oklch(0.145 0 0);
+  --negative: oklch(0.7 0.16 25);
+  --negative-foreground: oklch(0.17 0.012 262);
+  --negative-soft: oklch(0.28 0.06 25);
+  --negative-soft-foreground: oklch(0.86 0.1 25);
 
-  --warning: oklch(0.8 0.15 80);
-  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.72 0.1 245);
+  --info-foreground: oklch(0.17 0.012 262);
+  --info-soft: oklch(0.27 0.04 245);
+  --info-soft-foreground: oklch(0.86 0.07 245);
 
-  --info: oklch(0.7 0.13 250);
-  --info-foreground: oklch(0.145 0 0);
+  --kind-fact: oklch(0.78 0.015 262);
+  --kind-evidence: oklch(0.74 0.09 245);
+  --kind-interpretation: oklch(0.74 0.08 195);
+  --kind-hypothesis: oklch(0.8 0.11 75);
+  --kind-recommendation: oklch(0.8 0.08 262);
+  --kind-decision: oklch(0.76 0.11 158);
+
+  --ring: oklch(0.7 0.1 262);
 }

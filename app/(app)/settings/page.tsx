@@ -9,8 +9,10 @@ export default function SettingsPage() {
   return (
     <PlaceholderPage
       icon={Settings}
+      eyebrow="Conta"
       title="Configurações"
-      description="Gerencie sua conta, preferências e usuários."
+      description="Conta, preferências e usuários."
+      availableToday="As configurações da conta ainda não estão disponíveis nesta fase. Para trocar a senha, use “Esqueceu a senha?” na tela de entrada."
     />
   );
 }

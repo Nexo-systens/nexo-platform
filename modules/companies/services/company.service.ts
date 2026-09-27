@@ -1,4 +1,5 @@
 import { isUuid } from "@/lib/identifiers";
+import { queryFailure } from "@/lib/supabase/query-error";
 import { createClient } from "@/lib/supabase/server";
 import type {
   CompanySize,
@@ -241,9 +242,10 @@ export async function getCompanyCounts(): Promise<CompanyCounts> {
       .eq("status", "archived"),
   ]);
 
-  if (totalResult.error) throw totalResult.error;
-  if (activeResult.error) throw activeResult.error;
-  if (archivedResult.error) throw archivedResult.error;
+  // Mission 203: o erro carrega status HTTP/código (antes: `{"message":""}` anônimo).
+  if (totalResult.error) throw queryFailure("getCompanyCounts.total", totalResult);
+  if (activeResult.error) throw queryFailure("getCompanyCounts.active", activeResult);
+  if (archivedResult.error) throw queryFailure("getCompanyCounts.archived", archivedResult);
 
   return {
     total: totalResult.count ?? 0,

@@ -134,7 +134,7 @@ export function HistoricalAnalysisPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Histórico de Análises</CardTitle>
+        <CardTitle>Histórico e comparação</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {status === "loading" && (

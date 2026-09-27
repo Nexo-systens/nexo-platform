@@ -219,7 +219,7 @@ export function ScenarioDecisionForm({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
         {success && (
-          <p className="text-sm text-emerald-600">Decisão registrada com sucesso — veja a Central de Decisões.</p>
+          <p role="status" className="text-sm text-positive">Decisão registrada com sucesso — veja a Central de Decisões.</p>
         )}
 
         <Button onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-fit">

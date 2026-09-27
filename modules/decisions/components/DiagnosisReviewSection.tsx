@@ -146,7 +146,7 @@ export function DiagnosisReviewSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Revisão humana (Human Review)</CardTitle>
+        <CardTitle className="text-base">Revisão humana</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {history.length === 0 ? (
@@ -235,7 +235,7 @@ export function DiagnosisReviewSection({
             )}
           </p>
         )}
-        {success && <p className="text-sm text-emerald-600">Revisão registrada com sucesso.</p>}
+        {success && <p role="status" className="text-sm text-positive">Revisão registrada com sucesso.</p>}
 
         <Button onClick={handleSubmit} disabled={!status || submitting} className="w-fit">
           {submitting ? "Enviando revisão..." : "Enviar revisão"}

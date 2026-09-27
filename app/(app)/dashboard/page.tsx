@@ -1,74 +1,93 @@
+import { Building2 } from "lucide-react";
 import type { Metadata } from "next";
-import {
-  Archive,
-  BarChart3,
-  Building2,
-  CheckCircle2,
-  ClipboardList,
-  FileText,
-} from "lucide-react";
+import Link from "next/link";
 
-import { RecentActivity } from "@/modules/dashboard/components/RecentActivity";
-import { StatCard } from "@/modules/dashboard/components/StatCard";
-import { getDashboardSummary } from "@/modules/dashboard/services/dashboard.service";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { Button } from "@/components/ui/button";
+import { AttentionPanel } from "@/modules/dashboard/components/AttentionPanel";
+import { CompanyOverviewCard } from "@/modules/dashboard/components/CompanyOverviewCard";
+import { EfosChainPanel } from "@/modules/dashboard/components/EfosChainPanel";
+import { getExecutiveOverview } from "@/modules/dashboard/services/executive-overview.service";
 
-export const metadata: Metadata = { title: "Dashboard — NEXO" };
+export const metadata: Metadata = { title: "Visão executiva — NEXO" };
 
+function plural(count: number, singular: string, pluralForm: string) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+/**
+ * Mission 203 — Visão executiva. Responde, por empresa: em que estágio
+ * está, o que a última análise produziu e qual é o próximo passo; e,
+ * no conjunto, o que exige atenção. Só dados reais: nenhuma contagem
+ * "em breve" nem zero no lugar de "não disponível".
+ */
 export default async function DashboardPage() {
-  const summary = await getDashboardSummary();
+  const overview = await getExecutiveOverview();
+  const { portfolio } = overview;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Visão consolidada da saúde financeira das suas empresas.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Visão executiva"
+        title="Suas empresas, do dado à decisão"
+        description="Onde cada empresa está na cadeia EFOS, o que a última análise produziu e o que exige sua atenção agora."
+        meta={
+          <>
+            <span className="num">{plural(portfolio.activeCount, "empresa ativa", "empresas ativas")}</span>
+            <span aria-hidden="true">·</span>
+            <span className="num">{plural(portfolio.archivedCount, "arquivada", "arquivadas")}</span>
+            <span aria-hidden="true">·</span>
+            <Link href="/companies/closed" className="num underline-offset-4 hover:underline">
+              {plural(portfolio.closedCount, "encerrada", "encerradas")}
+            </Link>
+          </>
+        }
+        actions={
+          <Button variant="outline" render={<Link href="/companies" />} nativeButton={false}>
+            <Building2 aria-hidden="true" />
+            Gerenciar empresas
+          </Button>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Empresas"
-          value={summary.companiesCount}
+      {overview.companies.length === 0 ? (
+        <EmptyState
           icon={Building2}
-          href="/companies"
+          title="Nenhuma empresa ativa"
+          description="Cadastre a primeira empresa e envie seus demonstrativos para receber a primeira leitura executiva."
+          action={
+            <Button render={<Link href="/companies" />} nativeButton={false}>
+              Cadastrar empresa
+            </Button>
+          }
         />
-        <StatCard
-          label="Empresas ativas"
-          value={summary.activeCompaniesCount}
-          icon={CheckCircle2}
-          href="/companies?status=active"
-        />
-        <StatCard
-          label="Empresas arquivadas"
-          value={summary.archivedCompaniesCount}
-          icon={Archive}
-          href="/companies?status=archived"
-        />
-        <StatCard
-          label="Diagnósticos"
-          value={summary.diagnosticsCount}
-          icon={ClipboardList}
-          href="/diagnostics"
-          placeholder
-        />
-        <StatCard
-          label="Documentos"
-          value={summary.documentsCount}
-          icon={FileText}
-          href="/documents"
-          placeholder
-        />
-        <StatCard
-          label="Relatórios"
-          value={summary.reportsCount}
-          icon={BarChart3}
-          href="/reports"
-          placeholder
-        />
-      </div>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <section aria-labelledby="empresas-titulo" className="flex flex-col gap-4">
+            <div className="flex items-end justify-between gap-3">
+              <h2 id="empresas-titulo" className="type-section-title">
+                Empresas
+              </h2>
+              {overview.hiddenActiveCount > 0 && (
+                <Link href="/companies" className="type-meta underline-offset-4 hover:underline">
+                  + {plural(overview.hiddenActiveCount, "empresa ativa", "empresas ativas")} — ver todas
+                </Link>
+              )}
+            </div>
+            <div className="flex flex-col gap-4">
+              {overview.companies.map((company) => (
+                <CompanyOverviewCard key={company.id} company={company} />
+              ))}
+            </div>
+          </section>
 
-      <RecentActivity items={summary.recentActivity} />
+          <div className="flex flex-col gap-6">
+            <AttentionPanel items={overview.attention} />
+            <EfosChainPanel />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

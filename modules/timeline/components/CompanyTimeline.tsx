@@ -11,7 +11,7 @@ import {
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
@@ -131,9 +131,6 @@ export async function CompanyTimeline({ companyId }: { companyId: string }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Linha do Tempo</CardTitle>
-      </CardHeader>
       <CardContent>
         {entries.length === 0 && (
           <EmptyState

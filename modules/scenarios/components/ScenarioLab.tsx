@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { SectionShell } from "@/components/shared/SectionShell";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { CollectionPeriodScenarioLab } from "@/modules/scenarios/components/CollectionPeriodScenarioLab";
@@ -35,25 +35,46 @@ export function ScenarioLab({ companyId }: { companyId: string }) {
   const [selected, setSelected] = useState<SupportedScenario>("operating_cost");
 
   return (
-    <Card id="scenario-lab">
-      <div className="flex flex-wrap gap-2 px-4 pt-4">
-        {SUPPORTED_SCENARIOS.map((scenario) => (
-          <Button
-            key={scenario.value}
-            type="button"
-            size="sm"
-            variant={selected === scenario.value ? "default" : "outline"}
-            className={cn(selected !== scenario.value && "text-muted-foreground")}
-            onClick={() => setSelected(scenario.value)}
-          >
-            {scenario.label}
-          </Button>
-        ))}
-      </div>
+    <SectionShell
+      id="scenario-lab"
+      eyebrow="Cenários"
+      title="Scenario Lab"
+      description="Explore alternativas a partir da última análise: a base, o cenário e a diferença — antes de levar uma escolha para decisão."
+    >
+      <Card className="gap-0 py-0">
+        <div
+          role="tablist"
+          aria-label="Tipo de simulação"
+          className="flex flex-wrap gap-1 border-b border-border bg-surface-subtle px-3 py-2"
+        >
+          {SUPPORTED_SCENARIOS.map((scenario) => {
+            const isSelected = selected === scenario.value;
+            return (
+              <button
+                key={scenario.value}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setSelected(scenario.value)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-[0.8125rem] transition-colors duration-150",
+                  isSelected
+                    ? "bg-surface font-medium text-foreground shadow-xs ring-1 ring-border"
+                    : "text-foreground-secondary hover:bg-surface hover:text-foreground"
+                )}
+              >
+                {scenario.label}
+              </button>
+            );
+          })}
+        </div>
 
-      {selected === "operating_cost" && <OperatingCostScenarioLab companyId={companyId} />}
-      {selected === "collection_period" && <CollectionPeriodScenarioLab companyId={companyId} />}
-      {selected === "compare" && <ScenarioComparisonLab companyId={companyId} />}
-    </Card>
+        <div className="flex flex-col gap-4 py-5" role="tabpanel">
+          {selected === "operating_cost" && <OperatingCostScenarioLab companyId={companyId} />}
+          {selected === "collection_period" && <CollectionPeriodScenarioLab companyId={companyId} />}
+          {selected === "compare" && <ScenarioComparisonLab companyId={companyId} />}
+        </div>
+      </Card>
+    </SectionShell>
   );
 }

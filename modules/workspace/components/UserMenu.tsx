@@ -31,12 +31,17 @@ export function UserMenu({ user }: { user: User | null }) {
         render={
           <button
             type="button"
-            className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex items-center gap-2 rounded-full py-0.5 pr-0.5 pl-2.5 outline-none hover:bg-surface-subtle focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         }
       >
-        <Avatar>
-          <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
+        <span className="hidden max-w-40 truncate text-[0.8125rem] text-foreground-secondary sm:inline">
+          {fullName || "Usuário"}
+        </span>
+        <Avatar className="size-7">
+          <AvatarFallback className="bg-primary-soft text-[0.6875rem] font-semibold text-primary-soft-foreground">
+            {getInitials(fullName)}
+          </AvatarFallback>
         </Avatar>
         <span className="sr-only">Abrir menu do usuário</span>
       </DropdownMenuTrigger>
