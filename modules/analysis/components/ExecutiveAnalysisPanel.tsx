@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FileWarning, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -8,7 +9,6 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { TechnicalDetail } from "@/components/shared/TechnicalDetail";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocumentGovernanceResult } from "@/app/api/efos/_shared/documentGovernance";
 import { DOCUMENT_GOVERNANCE_LABELS } from "@/app/api/efos/_shared/documentGovernance";
@@ -24,6 +24,8 @@ import { hasNoSections } from "@/modules/analysis/lib/report-view";
 
 import { ExecutiveReportView } from "./ExecutiveReportView";
 import { ExecutiveTrajectoryPanel } from "./ExecutiveTrajectoryPanel";
+
+import { companyWorkspaceHref } from "@/modules/companies/lib/workspace-views";
 
 type Status = "idle" | "loading" | "error" | "empty" | "success";
 
@@ -200,20 +202,20 @@ export function ExecutiveAnalysisPanel({
     : undefined;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Última análise</CardTitle>
-        <CardAction>
-          <Button
-            size="sm"
-            onClick={runAnalysis}
-            disabled={status === "loading" || !hasDocuments}
-          >
-            {status === "loading" ? "Processando análise..." : "Executar análise"}
-          </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <p className="type-meta num">
+          {status === "success" && report
+            ? `Última análise executada em ${new Date(report.metadata.generatedAt).toLocaleString("pt-BR")}`
+            : status === "loading"
+              ? "Processando a análise…"
+              : "Execute a análise sempre que houver documentos novos."}
+        </p>
+        <Button size="sm" onClick={runAnalysis} disabled={status === "loading" || !hasDocuments}>
+          {status === "loading" ? "Processando análise..." : "Executar análise"}
+        </Button>
+      </div>
+      <div>
         {status !== "idle" && status !== "loading" && documentGovernance.length > 0 && (
           <div className="mb-4 flex flex-col gap-3">
             {/* Mission 193, Seção 17: resumo compacto, nunca uma
@@ -221,11 +223,13 @@ export function ExecutiveAnalysisPanel({
                 `documentGovernance`, o mesmo vocabulário
                 server-autoritativo devolvido pela rota. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              <span>{documentGovernance.length} documento(s) analisado(s)</span>
+              <span className="num">
+                {documentGovernance.length} {documentGovernance.length === 1 ? "documento analisado" : "documentos analisados"}
+              </span>
               {(Object.keys(governanceSummary) as (keyof typeof governanceSummary)[]).map(
                 (outcome) => (
                   <span key={outcome}>
-                    · {governanceSummary[outcome]} {DOCUMENT_GOVERNANCE_LABELS[outcome].toLowerCase()}
+                    · {DOCUMENT_GOVERNANCE_LABELS[outcome]}: <span className="num">{governanceSummary[outcome]}</span>
                   </span>
                 )
               )}
@@ -296,7 +300,7 @@ export function ExecutiveAnalysisPanel({
         )}
 
         {status === "success" && report && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-10">
             <ExecutiveTrajectoryPanel
               financialEpisodes={executiveContext?.financialEpisodes}
             />
@@ -311,16 +315,18 @@ export function ExecutiveAnalysisPanel({
               </Callout>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-subtle px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-subtle px-5 py-4">
               <span className="text-sm text-muted-foreground">
-                {report.summary.recommendationCount > 0
-                  ? `${report.summary.recommendationCount} recomendação(ões) determinística(s) identificada(s) nesta análise.`
+                {report.summary.recommendationCount === 1
+                  ? "1 recomendação determinística identificada nesta análise."
+                  : report.summary.recommendationCount > 1
+                  ? `${report.summary.recommendationCount} recomendações determinísticas identificadas nesta análise.`
                   : "Nenhuma recomendação determinística identificada nesta análise."}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                render={<a href="#diagnostico-executivo" />}
+                render={<Link href={companyWorkspaceHref(companyId, "decisoes")} />}
                 nativeButton={false}
               >
                 Ver diagnóstico executivo e decisões
@@ -328,7 +334,7 @@ export function ExecutiveAnalysisPanel({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

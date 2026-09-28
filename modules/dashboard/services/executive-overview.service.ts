@@ -1,4 +1,8 @@
+import { buildExecutiveSituation } from "@/modules/analysis/lib/executive-situation";
 import { getLatestAnalysisSummary, countExecutionsByCompany } from "@/modules/analysis/services/analysis.service";
+import { getExecutiveHistory } from "@/modules/analysis/services/executive-history.service";
+import { buildPortfolioCommand, type CompanyCommandInput, type PortfolioCommand } from "@/modules/dashboard/lib/portfolio-command";
+import { getDecisionCenterSummary } from "@/modules/decisions/services/decision-center.service";
 import {
   getCompanyCounts,
   listClosedCompanies,
@@ -45,6 +49,28 @@ async function loadCompany(company: { id: string; razao_social: string }): Promi
     decisionsCount: decisions.length,
     latestAnalysis,
   };
+}
+
+/**
+ * Mission 204 — além da visão por empresa, carrega a situação da última
+ * análise (histórico canônico) e a fila de decisões de cada empresa
+ * exibida, para a superfície de comando. Só para empresas que já têm
+ * análise/diagnóstico — nenhuma leitura inútil para as demais.
+ */
+export async function getExecutiveCommand(): Promise<{ overview: ExecutiveOverview; command: PortfolioCommand }> {
+  const overview = await getExecutiveOverview();
+  const inputs: CompanyCommandInput[] = await Promise.all(
+    overview.companies.map(async (company) => {
+      const [history, decisions] = await Promise.all([
+        company.lastAnalysisAt ? getExecutiveHistory(company.id) : Promise.resolve([]),
+        company.stage === "diagnosis_available" || company.decisionsCount > 0
+          ? getDecisionCenterSummary(company.id)
+          : Promise.resolve(null),
+      ]);
+      return { company, situation: buildExecutiveSituation(history), decisions };
+    })
+  );
+  return { overview, command: buildPortfolioCommand(inputs, overview.portfolio.activeCount) };
 }
 
 export async function getExecutiveOverview(): Promise<ExecutiveOverview> {

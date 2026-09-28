@@ -30,7 +30,7 @@ export function AnalysisAndHistorySection({
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   return (
-    <>
+    <div className="flex flex-col gap-14">
       <ExecutiveAnalysisPanel
         companyId={companyId}
         hasDocuments={hasDocuments}
@@ -40,6 +40,6 @@ export function AnalysisAndHistorySection({
       />
 
       <HistoricalAnalysisPanel companyId={companyId} refreshKey={historyRefreshKey} />
-    </>
+    </div>
   );
 }

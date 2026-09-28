@@ -10190,3 +10190,77 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 - A causa raiz do erro pós-login no Pilot continua não provada; agora é observável.
 
 **Origem.** Mission 203 — continuação após o Docker voltar.
+
+## Mission 204 — Premium Experience & Visual Excellence
+
+**Status.** Fechada (`MISSION_204_CLOSED`), com uma ressalva explícita: a mitigação do primeiro carregamento não foi observada contra uma ocorrência real (abaixo). Mission de experiência: nenhuma mudança em Engines, semântica financeira, de evidência, de decisão ou de cenário, persistência, RLS, tenancy ou migrations. Exceções previstas pela missão, todas na camada app/auth: aviso de hidratação, cookies de sessão nos redirects do proxy e primeiro carregamento autenticado. As rotas continuam 18.
+
+**Auditoria (antes, com conteúdo sintético rico e capturas nativas a 1440px).**
+- A página da empresa era uma rolagem única de ~13.800px.
+- O Dashboard era uma grade de cards repetidos, sem "o que mudou" e sem "o que exige decisão".
+- A análise empilhava card dentro de card e mostrava seções inferidas vazias.
+- O histórico repetia a data de execução, sem o período analisado.
+- O diagnóstico exibia ids técnicos como base e enums crus (`medium`, `CONSIDER`).
+- A Central de Decisões tinha cara de CRUD aninhado e status crus (`PENDING —`).
+- O Chat era de balões; o Conhecimento, um card vazio com jargão ("LearningRecords").
+- O texto dos Engines vinha com carimbos ISO e decimais com ponto.
+
+**Bugs de qualidade (§3).**
+- **Hidratação.** Causa real: `CompaniesFilters`/`DocumentsSection` (server components) criavam `<Button>` para o `render` de um `SheetTrigger` client. Como `components/ui/button.tsx` não era client, o elemento chegava já avaliado, como o `Button` do Base UI com `data-slot="button"`, e o `mergeProps` do `render` divergia entre SSR e cliente. Correção: `"use client"` em `button.tsx`. Verificado sem aviso em `/companies` e `/documents`; teste fixa.
+- **Cookies nos redirects do proxy (bug comprovado).**
+  - Os três redirects de `lib/supabase/proxy.ts` eram respostas novas e descartavam os cookies gravados por `getUser()`: sessão renovada (refresh token rotacionado) ou removida (sessão morta).
+  - Também não aplicavam os cabeçalhos anti-cache que o `@supabase/ssr` exige.
+  - Correção: todo redirect copia os cookies e os cabeçalhos. As decisões de rota não mudaram.
+  - Regressão com Auth simulado (`fetch` falso): 2 dos 3 testes falham no código antigo e passam no novo.
+  - Relação com o erro do dashboard: nenhuma prova de causalidade. O login é server action; o redirect dela não passa pelo proxy.
+- **Primeiro carregamento autenticado** — `Error: {"message":""}`:
+  - **Reproduzido localmente.** Mission 203 registrou HTTP 401 do PostgREST num HEAD. Com o log novo (motivo do PostgREST + iat relativo ao relógio do servidor): `JWT issued at future`, com o token **1,3s no PASSADO** pelo relógio do servidor. Relógios do host e dos contêineres (db, auth, kong) sincronizados no mesmo segundo.
+  - Mecanismo provado: o PostgREST (v14.5) valida `iat` contra um relógio interno atrasado; uma repetição 250ms depois ainda falhou.
+  - Não é bug do app, e a causa interna exata no PostgREST não foi provada. Intermitente: 1 em ~14 logins pela UI e 2 sessões novas do harness; 0 em mais de 300 requisições diretas; não reproduziu com ociosidade forçada (120s) nem em um laço de 6 carregamentos com 75s de ociosidade entre eles e 3 sessões novas.
+  - Mitigação limitada e observável (`lib/supabase/rest-read-retry.ts`): só GET/HEAD em `/rest/v1`, **uma** repetição; 1,1s quando o motivo é "issued at future", 250ms nos demais; sessão realmente inválida continua falhando. Toda ocorrência vai ao log com o motivo do PostgREST e o iat/exp relativos ao relógio do servidor (nunca token, query ou id).
+  - A mitigação de 1,1s **não foi observada** numa ocorrência real depois de aplicada (a condição não voltou a ocorrer nas tentativas). No Pilot, a próxima ocorrência fica provada pelo log.
+
+**Fixtures visuais sintéticas (§4).**
+- `scripts/visual-fixtures/seed-local.ts`, só local (recusa host ≠ 127.0.0.1/localhost), cria GAMA (margens caindo por 4 meses, prejuízo, caixa operacional negativo), DELTA (melhorando) e ÔMEGA (sem documentos). Os documentos seguem o formato real da ingestão, em cadência mensal (`FIXTURE_THROUGH`); análise pelo app, pipeline real.
+- `NEXO_LOCAL_SYNTHETIC_AI=1` (só `NODE_ENV≠production` + Supabase local) troca a Anthropic pelos stand-ins determinísticos da Mission 160 (`lib/ai/executive-ai-providers.ts`); o `providerName` persistido identifica o conteúdo sintético.
+- Resultado local:
+  - 4 análises reais: 5 evidências, 3 deteriorações sustentadas, contexto, hipótese, recomendação e proposta;
+  - diagnóstico persistido;
+  - 2 decisões com ciclo completo pela UI (revisão, decisão, execução, resultado, aprendizado);
+  - conhecimento formado a partir de 2 decisões independentes;
+  - consulta ao Chat respondida.
+  - Nenhuma chamada à Anthropic, nada no Pilot.
+
+**Experiência.**
+- **Workspace em visões** (`?secao=`): Visão geral · Análise · Decisões · Cenários · Executive Chat · Conhecimento · Documentos · Cadastro. Só a visão ativa é renderizada; a página da empresa caiu de ~13.800px para ~1.400px na Visão geral. Links antigos por âncora foram migrados para visões.
+- **Visão geral:** situação do período (frase só de contagens do EFOS), 4 métricas de manchete com variação, sinais do EFOS, recomendação determinística, decisões pendentes e atividade recente (linha do tempo com o período analisado).
+- **Dashboard (comando):** situação do portfólio, prioridades (evidências mais graves entre empresas), tabela de movimento (período, margem líquida e liquidez com variação, tendência, decisões, próximo passo) e o que exige atenção.
+- **Análise:** sem cards aninhados; trajetória compacta com período curto; indicadores secundários e demonstrações em `<details>` (divulgação progressiva, mesma ordem); seção inferida vazia vira uma linha; histórico nomeado por período; comparação em tabela com variação; texto dos Engines em pt-BR (`formatEngineText`).
+- **Decisões:** a Central vem primeiro, com o ciclo (aguardando/decididas/concluídas) e os passos numerados; cada decisão tem trilha Decidida → Em execução → Concluída → Resultado → Aprendizado. Status traduzidos; ids de usuário fora da UX primária, mas no `title` (rastreabilidade mantida). A leitura da Executive AI tem proveniência por nomes.
+- **Cenários:** tabela base × cenário × diferença com o impacto do próprio Scenario Engine em palavra.
+- **Chat:** superfície de consulta — pergunta primeiro, registro por consulta, resposta em camadas.
+- **Conhecimento:** memória (o que foi aprendido, de qual decisão, interpretação do executivo, força da evidência) + conhecimento formado.
+- **Sistema de números:** `describeMetricChange`/`ChangeIndicator`. "Melhora/piora" só para métricas que o EFOS classifica (D-087); direção sempre em texto; ausência nunca é zero.
+- **Acessibilidade:** todos os `SelectTrigger` com nome acessível.
+
+**Revisão visual final (capturas nativas a 1440px, régua "software financeiro premium").**
+- Corrigido na revisão:
+  - Dashboard: a tabela de movimento saiu da coluna estreita e ocupa a largura toda (nomes quebravam em 4 linhas e o próximo passo era cortado); cabeçalhos sem quebra; o painel lateral não estica mais até a altura da linha e deixou de repetir "Prioridades" (agora "Próximos passos").
+  - Visão geral: "7 métricas pioraram e 0 melhoraram" → "e nenhuma melhorou".
+  - Variação sem direção (ex.: "passou a estar disponível") não mostra mais um "·" solto.
+  - Trajetória: "4 períodos · jul/2026 – ago/2026" misturava a contagem de períodos examinados com o intervalo do episódio → "Observado em jul/2026 – ago/2026 · 4 períodos analisados".
+  - Plurais por parênteses ("avaliação(ões)", "recomendação(ões)", "arquivo(s)") → plural real; teste impede a volta.
+  - Execução: com resultado já registrado, o formulário de novo resultado fica recolhido em "Registrar outro resultado" (mesma ação e mesmas validações); rótulos de metadados no estilo eyebrow.
+  - Conhecimento: a decisão de origem não é repetida quando o título do aprendizado já a nomeia (o vínculo continua no registro).
+  - Navegação do workspace: borda direita esmaecida quando as visões não cabem (abaixo de `xl`).
+- Conteúdo em inglês nas capturas do diagnóstico e do Chat: é o texto dos stand-ins sintéticos da Mission 160 (fixture local), não da UI. O prompt da Anthropic não fixa idioma de saída; garantir pt-BR no conteúdo gerado muda a camada de IA (§23) e fica como pendência.
+
+**Validação.**
+- type-check e lint limpos; build limpo com **18 rotas**.
+- 321 testes: financial-ingestion 65, executive-report 30, activation 41, production-surface 180 (23 em `mission-204-experience.test.ts`, 3 em `session-cookie-redirects.test.ts`, 5 em `rest-read-retry.test.ts`), release-candidate 5.
+- Capturas nativas a 1440px de login, Visão executiva, workspace (Visão geral), Análise (fatos, trajetória, inferido), Central de Decisões, execução, leitura da IA, Scenario Lab com resultado, Executive Chat com consulta respondida, Conhecimento e Empresas.
+- Responsivo: 28 capturas (1280, 1024, 768, 576 × 7 visões), nenhuma com rolagem horizontal da página.
+- Console: 13 rotas/visões com 0 erros, 0 avisos e 0 exceções, incluindo hidratação; o coletor foi conferido com uma sonda proposital. Log do servidor sem erros.
+- Varredura do diff: nenhum JWT, chave ou credencial; só e-mail de domínio reservado de teste e o UUID sintético já usado nos testes; CNPJs do seed são sintéticos (dígitos calculados).
+
+**Origem.** Mission 204 — Premium Experience & Visual Excellence.

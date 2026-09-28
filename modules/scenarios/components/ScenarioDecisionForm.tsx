@@ -150,7 +150,7 @@ export function ScenarioDecisionForm({
           <div className="flex flex-col gap-1.5">
             <Label>Tipo</Label>
             <Select items={DECISION_TYPE_LABELS} value={type} onValueChange={(value) => setType(value as DecisionType)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Tipo de decisão" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -165,7 +165,7 @@ export function ScenarioDecisionForm({
           <div className="flex flex-col gap-1.5">
             <Label>Prioridade</Label>
             <Select items={DECISION_PRIORITY_LABELS} value={priority} onValueChange={(value) => setPriority(value as RecommendationPriority)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Prioridade" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -180,7 +180,7 @@ export function ScenarioDecisionForm({
           <div className="flex flex-col gap-1.5">
             <Label>Confiança</Label>
             <Select items={DECISION_CONFIDENCE_LABELS} value={confidence} onValueChange={(value) => setConfidence(value as RecommendationConfidence)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Confiança" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>

@@ -8,7 +8,7 @@ import { getCompanyById } from "@/modules/companies/services/company.service";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
-import { AnthropicExecutiveAIProvider } from "@/efos/infrastructure/executive-ai";
+import { createExecutiveAIProvider } from "@/lib/ai/executive-ai-providers";
 import { buildExecutiveFinancialContext } from "@/efos/application/executive-context";
 import { executeExecutiveAnalysis } from "@/efos/application/executive-ai";
 import { buildExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
@@ -248,7 +248,7 @@ export async function activateExecutiveDiagnosisAction(input: {
     evaluationsByKnowledge
   );
 
-  const provider = new AnthropicExecutiveAIProvider();
+  const provider = createExecutiveAIProvider();
   const analysis = await executeExecutiveAnalysis(provider, context, randomUUID(), knowledgeContext);
 
   if (!analysis.success) {

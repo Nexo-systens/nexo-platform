@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -12,9 +13,11 @@ import { cn } from "@/lib/utils";
 import { simulateScenarioAction } from "@/modules/scenarios/actions/scenario-simulation.actions";
 import { PRIMARY_SCENARIO_METRIC_KEYS, SCENARIO_IMPACT_TONE_CLASSNAME, formatScenarioMetricDelta } from "@/modules/scenarios/lib/scenario-language";
 
-import { EXECUTIVE_CHAT_NAVIGATION_ANCHORS, EXECUTIVE_CHAT_NAVIGATION_TITLES, describeChatScenarioAction } from "../lib/chatActionPresentation";
+import { EXECUTIVE_CHAT_NAVIGATION_VIEWS, EXECUTIVE_CHAT_NAVIGATION_TITLES, describeChatScenarioAction } from "../lib/chatActionPresentation";
 import { toScenarioRequest } from "../lib/toScenarioRequest";
 import { ExecutiveChatComparisonCard } from "./ExecutiveChatComparisonCard";
+
+import { companyWorkspaceHref } from "@/modules/companies/lib/workspace-views";
 
 /**
  * Missions 189/190 — Governed Executive Chat Actions / Conversational
@@ -49,7 +52,7 @@ export function ExecutiveChatActionCard({ companyId, action }: { companyId: stri
   const [projection, setProjection] = useState<ScenarioProjection | undefined>();
 
   if (action.kind === "navigation") {
-    const anchor = EXECUTIVE_CHAT_NAVIGATION_ANCHORS[action.type];
+    const view = EXECUTIVE_CHAT_NAVIGATION_VIEWS[action.type];
     return (
       <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
         <p className="text-xs text-muted-foreground">{action.reason}</p>
@@ -57,7 +60,7 @@ export function ExecutiveChatActionCard({ companyId, action }: { companyId: stri
           variant="outline"
           size="sm"
           className="w-fit gap-1.5"
-          render={<a href={`#${anchor}`} />}
+          render={<Link href={companyWorkspaceHref(companyId, view)} />}
           nativeButton={false}
         >
           {EXECUTIVE_CHAT_NAVIGATION_TITLES[action.type]}
@@ -139,7 +142,7 @@ export function ExecutiveChatActionCard({ companyId, action }: { companyId: stri
             );
           })}
           <p className="text-xs text-muted-foreground">{projection.disclaimer}</p>
-          <Button variant="ghost" size="sm" className="w-fit gap-1" render={<a href="#scenario-lab" />} nativeButton={false}>
+          <Button variant="ghost" size="sm" className="w-fit gap-1" render={<Link href={companyWorkspaceHref(companyId, "cenarios")} />} nativeButton={false}>
             Ver no Scenario Lab completo
             <ArrowRight className="size-3.5" aria-hidden="true" />
           </Button>

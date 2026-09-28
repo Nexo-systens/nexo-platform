@@ -1,22 +1,17 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SemanticBadge } from "@/components/shared/SemanticBadge";
 import type { FinancialEpisodeStateResult } from "@/efos/application/financial-episodes";
-import { cn } from "@/lib/utils";
+import { formatPeriodLabel } from "@/modules/analysis/lib/period-label";
 import {
   episodeStateTone,
-  formatPeriod,
   translateDeterminabilityReason,
   translateEpisodeState,
   translateMetricKey,
 } from "@/modules/analysis/lib/executive-language";
 
-const TONE_BADGE_CLASSNAME: Record<
-  ReturnType<typeof episodeStateTone>,
-  string
-> = {
-  positive: "border-success/30 bg-success/10 text-success",
-  negative: "border-destructive/30 bg-destructive/10 text-destructive",
-  neutral: "border-warning/30 bg-warning/10 text-warning",
+const TONE: Record<ReturnType<typeof episodeStateTone>, "positive" | "negative" | "neutral"> = {
+  positive: "positive",
+  negative: "negative",
+  neutral: "neutral",
 };
 
 interface ExecutiveTrajectoryPanelProps {
@@ -33,90 +28,68 @@ interface ExecutiveTrajectoryPanelProps {
 
 /**
  * Mission 177 — Executive Intelligence Experience. Primeira superfície
- * de UI para `financialEpisodes` (D-087/Mission 171/172) — até esta
- * missão, essa inteligência só alcançava o prompt da Executive AI
- * (`activateExecutiveDiagnosisAction()`), nunca um humano diretamente.
- * Responde "O que está mudando?" (Seção 7 da missão): apresenta,
- * exatamente na ordem em que `financialEpisodes` já chega (nunca
- * reordenado/filtrado aqui), cada uma das 8 métricas temporais (D-087)
- * com seu estado, contagem de observações e período observado.
+ * de UI para `financialEpisodes` (D-087/Mission 171/172). Responde "O que
+ * está mudando?": apresenta, exatamente na ordem em que
+ * `financialEpisodes` já chega (nunca reordenado/filtrado aqui), cada
+ * métrica temporal com seu estado, número de observações e período.
  *
- * `NOT_DETERMINABLE` é sempre mostrado, nunca ocultado (Seção 9 da
- * missão) — com o motivo traduzido para linguagem executiva — mas
- * nunca estilizado como erro (tom neutro/`warning`, não
- * `destructive`), para não sugerir que o painel está quebrado.
+ * `NOT_DETERMINABLE` é sempre mostrado, nunca ocultado — com o motivo
+ * traduzido — mas nunca estilizado como erro.
  *
- * Puramente apresentacional: nenhum estado é recalculado/reclassificado
- * aqui — apenas traduzido via `executive-language.ts`.
+ * Mission 204 — lista compacta (uma linha por métrica, divisores em vez
+ * de caixas) e período curto ("mai/2026 – ago/2026"). Puramente
+ * apresentacional: nenhum estado é recalculado aqui.
  */
-export function ExecutiveTrajectoryPanel({
-  financialEpisodes,
-}: ExecutiveTrajectoryPanelProps) {
+export function ExecutiveTrajectoryPanel({ financialEpisodes }: ExecutiveTrajectoryPanelProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Trajetória Financeira</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!financialEpisodes && (
-          <p className="text-sm text-muted-foreground">
-            A trajetória financeira exige indicadores, evidências, contexto,
-            raciocínio e recomendação completos nesta execução — uma ou mais
-            etapas não foi alcançada, então nenhuma tendência é apresentada
-            aqui.
-          </p>
-        )}
+    <section aria-labelledby="trajetoria-titulo" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <p className="type-eyebrow">O que está mudando</p>
+        <h3 id="trajetoria-titulo" className="type-section-title">
+          Trajetória financeira
+        </h3>
+      </div>
 
-        {financialEpisodes && financialEpisodes.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Nenhuma métrica temporal aplicável nesta execução.
-          </p>
-        )}
+      {!financialEpisodes && (
+        <p className="type-body">
+          A trajetória financeira exige indicadores, evidências, contexto, raciocínio e recomendação completos nesta
+          execução — uma ou mais etapas não foi alcançada, então nenhuma tendência é apresentada aqui.
+        </p>
+      )}
 
-        {financialEpisodes && financialEpisodes.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {financialEpisodes.map((episode) => (
+      {financialEpisodes && financialEpisodes.length === 0 && (
+        <p className="type-body">Nenhuma métrica temporal aplicável nesta execução.</p>
+      )}
+
+      {financialEpisodes && financialEpisodes.length > 0 && (
+        <ul className="flex flex-col divide-y divide-border border-y border-border">
+          {financialEpisodes.map((episode) => {
+            const range =
+              episode.firstObservedPeriod && episode.lastObservedPeriod
+                ? `${formatPeriodLabel(episode.firstObservedPeriod).short} – ${formatPeriodLabel(episode.lastObservedPeriod).short}`
+                : undefined;
+            return (
               <li
                 key={episode.episodeKey}
-                className="flex flex-col gap-1 rounded-md border border-border px-3 py-2"
+                className="grid grid-cols-1 gap-x-6 gap-y-1 py-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:items-center"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {translateMetricKey(episode.metricKey)}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={cn(TONE_BADGE_CLASSNAME[episodeStateTone(episode.state)])}
-                  >
-                    {translateEpisodeState(episode.state)}
-                  </Badge>
-                </div>
-
-                {episode.state === "NOT_DETERMINABLE" && episode.determinabilityReason && (
-                  <p className="text-xs text-muted-foreground">
-                    {translateDeterminabilityReason(episode.determinabilityReason)}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                  <span>
-                    {episode.observationCount}{" "}
-                    {episode.observationCount === 1
-                      ? "período observado"
-                      : "períodos observados"}
-                  </span>
-                  {episode.firstObservedPeriod && episode.lastObservedPeriod && (
-                    <span>
-                      {formatPeriod(episode.firstObservedPeriod)} até{" "}
-                      {formatPeriod(episode.lastObservedPeriod)}
-                    </span>
-                  )}
-                </div>
+                <span className="text-sm font-medium text-foreground">{translateMetricKey(episode.metricKey)}</span>
+                <span className="type-meta num">
+                  {/* O intervalo é o do episódio; a contagem é de todos os períodos examinados — rótulos distintos para não parecerem a mesma coisa. */}
+                  {range ? `Observado em ${range} · ` : ""}
+                  {episode.observationCount} {episode.observationCount === 1 ? "período analisado" : "períodos analisados"}
+                  {episode.state === "NOT_DETERMINABLE" && episode.determinabilityReason
+                    ? ` · ${translateDeterminabilityReason(episode.determinabilityReason)}`
+                    : ""}
+                </span>
+                <SemanticBadge tone={TONE[episodeStateTone(episode.state)]} className="justify-self-start sm:justify-self-end">
+                  {translateEpisodeState(episode.state)}
+                </SemanticBadge>
               </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

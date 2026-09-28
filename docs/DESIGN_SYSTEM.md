@@ -52,10 +52,12 @@ Geist (texto) e Geist Mono (detalhe técnico). A escala é fixa, com classes em 
 | `UnavailableValue` | valor que não pôde ser calculado, sempre com o motivo |
 | `TechnicalDetail` | texto técnico original recolhido ("Detalhe técnico para o suporte") |
 | `EmptyState` (`compact`), `ErrorState`, `PlaceholderPage` | estados vazio, erro e "em breve" |
+| `ChangeIndicator` | variação de uma métrica entre análises: símbolo, valor com sinal e "melhora/piora" |
 
 **Formulários.**
 - Todo `Select` recebe `items` (os mesmos rótulos das opções). Sem isso, o Base UI mostra no gatilho o valor cru: `lucro_presumido`, o UUID da empresa.
 - A frase de confirmação de uma ação destrutiva aparece na própria instrução (`Label` com `block`), em fonte mono, para ser digitada exatamente.
+- Todo `SelectTrigger` tem nome acessível (`id` ligado ao `Label` ou `aria-label`).
 
 Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (natureza, camada, severidade, confiança e prioridade) e em `modules/analysis/lib/recordTypeLabels.ts` (tipos de recurso e evento, com mapeamento exaustivo). As mensagens de erro executivas ficam em `modules/analysis/lib/analysis-error-message.ts`.
 
@@ -65,7 +67,35 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 - Os grupos seguem a função executiva: Visão executiva, Empresas (Empresas e Documentos), Decisão (Central de Decisões) e conta (itens "em breve").
 - As rotas não mudaram.
 - O layout autenticado tem skip link ("Pular para o conteúdo") → `main#conteudo`. A navegação é rotulada, o item ativo usa `aria-current="page"` e o foco é visível em todos os controles.
-- A página da empresa segue a cadeia EFOS: cabeçalho executivo → próximo passo → Análise (O que sabemos / O que o EFOS infere) → Diagnóstico e decisões → Linha do tempo → Scenario Lab → Executive Chat → Documentos → Dados cadastrais. `CompanySectionNav` fixa a navegação entre essas seções.
+- A página da empresa é um **workspace em visões** (`?secao=`, `modules/companies/lib/workspace-views.ts`): Visão geral · Análise · Decisões · Cenários · Executive Chat · Conhecimento · Documentos · Cadastro. Só a visão ativa é renderizada; cada uma tem URL própria. `CompanyWorkspaceNav` é a navegação (links reais, `aria-current="page"`, contador de decisões pendentes). Antes da primeira análise só existem Documentos, Análise, Decisões e Cadastro.
+- Links internos apontam para visões (`companyWorkspaceHref(id, view)`), nunca para âncoras.
+- Abaixo de `xl` a lista de visões pode não caber: ela rola na horizontal e a borda direita esmaece para indicar que continua.
+
+## Números financeiros (Mission 204)
+
+- **Variação:** `describeMetricChange` (`modules/analysis/lib/metric-change.ts`) + `ChangeIndicator`. Direção sempre em símbolo e texto (↑ subiu, ↓ caiu); a cor só reforça.
+- **Melhora/piora:** só para as métricas que o EFOS classifica em `TEMPORAL_METRIC_DEFINITIONS` (D-087: margens, liquidezes, prazo de recebimento, fluxo operacional). As demais ficam neutras — a UI não inventa juízo financeiro.
+- **Unidades:** percentual como "27,35%", diferença em pontos percentuais ("-3,85 p.p."), moeda "R$ 460.000", dias "13 dias"; variação em dias abaixo de 1 mantém uma casa ("+0,3 dia").
+- **Ausência:** "—" ou `UnavailableValue`, nunca 0.
+- **Período:** `formatPeriodLabel` ("agosto de 2026", "ago/2026"). Análises são nomeadas pelo período analisado; a data de execução é detalhe.
+- **Texto dos Engines:** `formatEngineText` converte só a forma de carimbos ISO e decimais com ponto; a redação não muda.
+- **Tabelas numéricas:** colunas alinhadas à direita, `num` + `whitespace-nowrap`; rolagem horizontal dentro do próprio contêiner, nunca da página.
+
+## Composição (Mission 204)
+
+- **Menos caixas:** listas com divisores (`divide-y`) em vez de um card por item; card só para objetos (ex.: uma decisão em execução).
+- **Divulgação progressiva:** a primeira seção de indicadores fica aberta; as demais seções de indicadores e as demonstrações ficam em `<details>` com resumo (título · contagem · período), na ordem do relatório. Seção inferida vazia vira uma linha discreta, nunca título + lista vazia.
+- **Decisão como objeto:** ciclo (aguardando → decididas → concluídas) no topo; passos numerados (revisar a leitura da IA, registrar a decisão); por decisão, uma trilha Decidida → Em execução → Concluída → Resultado → Aprendizado.
+- **Proveniência:** ids técnicos nunca são UX primária. O diagnóstico mostra a base pelos nomes da análise de origem (`modules/decisions/lib/diagnosis-references.ts`); id de usuário vira "Conta da empresa" com o id no `title`.
+- **Ação já exercida fica recolhida:** quando o objeto já tem o registro (ex.: um resultado observado), o formulário para registrar outro continua disponível, mas atrás de um `<details>` ("Registrar outro resultado").
+- **Frases e contagens:** plural real ("1 avaliação", "2 avaliações"), nunca "avaliação(ões)"; contagem zero vira palavra ("e nenhuma melhorou"), nunca "e 0 melhoraram".
+- **Intervalo × contagem:** quando uma linha mostra o intervalo de um episódio e o número de períodos examinados, os dois têm rótulos distintos ("Observado em jul/2026 – ago/2026 · 4 períodos analisados").
+- **Consulta executiva (Chat):** a pergunta vem primeiro; cada consulta é um registro (pergunta como título, resposta como documento em camadas), mais recente primeiro.
+
+## Inspeção visual local (Mission 204)
+
+- `scripts/visual-fixtures/seed-local.ts` cria três empresas fictícias com documentos no formato da ingestão real, em cadência mensal (`FIXTURE_THROUGH=AAAA-MM`). Recusa qualquer host que não seja 127.0.0.1/localhost.
+- Com `NEXO_LOCAL_SYNTHETIC_AI=1` num `.env.development.local` apontando para o Supabase local, diagnóstico e Executive Chat usam os stand-ins determinísticos da Mission 160 (`lib/ai/executive-ai-providers.ts`) — nunca a Anthropic. Desliga sozinho em produção e contra qualquer host remoto; o `providerName` persistido identifica o conteúdo sintético.
 
 ## Estados
 
@@ -80,7 +110,7 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 
 ## Testes
 
-`tests/production-surface/premium-experience.test.ts` fixa:
+`tests/production-surface/premium-experience.test.ts` (Mission 203) e `mission-204-experience.test.ts` (Mission 204) fixam:
 
 - as rotas da navegação;
 - a camada de cada seção do relatório, na ordem real do `DefaultReportService`;
@@ -92,4 +122,5 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 - que todo `Select` mostre o rótulo, nunca o valor cru;
 - que o 404 próprio e a rota do operador não revelem a existência da rota;
 - a acessibilidade do shell;
-- a integridade das confirmações destrutivas.
+- a integridade das confirmações destrutivas;
+- visões do workspace, sistema de números, situação sem dado fabricado, proveniência legível, comando do portfólio, IA sintética só local e nomes acessíveis dos selects (Mission 204).

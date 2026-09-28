@@ -56,7 +56,7 @@ function buildDiagnosticsHref(
  * que a Seção 8 desta missão proíbe quando a arquitetura atual não
  * suporta isso com segurança. A fila real, completa e correta, com
  * ação real, vive exclusivamente na página da empresa (`<DecisionCenter />`,
- * `/companies/{id}#diagnostico-executivo`) — esta página apenas leva o
+ * `/companies/{id}?secao=decisoes`) — esta página apenas leva o
  * usuário até lá, reaproveitando o mesmo `listCompanies()`/paginação já
  * usados por `/companies` (nenhuma consulta nova).
  */
@@ -102,7 +102,7 @@ export default async function DiagnosticsPage({
                 </div>
                 <Button
                   size="sm"
-                  render={<Link href={`/companies/${company.id}#diagnostico-executivo`} />}
+                  render={<Link href={`/companies/${company.id}?secao=decisoes`} />}
                   nativeButton={false}
                 >
                   Ver Central de Decisões

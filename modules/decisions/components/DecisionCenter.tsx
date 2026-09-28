@@ -1,18 +1,11 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { CheckCircle2 } from "lucide-react";
 
-import { getExecutiveDiagnosesByCompany } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
-import { getDiagnosisReviewsByDiagnosis } from "@/modules/decisions/services/diagnosis-review-persistence.service";
-import { getDecisionsByCompany } from "@/modules/decisions/services/decision-persistence.service";
-import {
-  getDecisionExecutionEventsByDecision,
-  getOutcomesByDecision,
-} from "@/modules/decisions/services/decision-execution-persistence.service";
-import { getFinancialObservationsByDecision } from "@/modules/decisions/services/financial-observation-persistence.service";
-import { getLearningRecordsByCompany } from "@/modules/decisions/services/learning-record-persistence.service";
-import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { KindMarker } from "@/components/shared/KindMarker";
+import { SemanticBadge } from "@/components/shared/SemanticBadge";
+import { cn } from "@/lib/utils";
+
+import { loadDecisionCenter } from "@/modules/decisions/services/decision-center.service";
 import { listRecommendationReferences } from "@/efos/application/executive-diagnosis";
 import { DecisionExecutionSection } from "@/modules/decisions/components/DecisionExecutionSection";
 import { DiagnosisReviewSection } from "@/modules/decisions/components/DiagnosisReviewSection";
@@ -21,7 +14,7 @@ import {
   GOVERNANCE_LIFECYCLE_LABELS,
   RECOMMENDATION_CATEGORY_LABELS,
 } from "@/modules/decisions/lib/governanceLabels";
-import { buildDecisionCenterQueue, type ExecutiveDecisionWorkItem } from "@/modules/decisions/lib/buildDecisionCenterQueue";
+import type { ExecutiveDecisionWorkItem } from "@/modules/decisions/lib/buildDecisionCenterQueue";
 
 /**
  * Mission 179 — Executive Decision Center. Responde às 3 perguntas
@@ -65,44 +58,11 @@ import { buildDecisionCenterQueue, type ExecutiveDecisionWorkItem } from "@/modu
  * permanece byte a byte idêntico (`null`).
  */
 export async function DecisionCenter({ companyId }: { companyId: string }) {
-  const [diagnoses, decisions] = await Promise.all([
-    getExecutiveDiagnosesByCompany(companyId),
-    getDecisionsByCompany(companyId),
-  ]);
-
-  if (diagnoses.length === 0 && decisions.length === 0) {
+  const center = await loadDecisionCenter(companyId);
+  if (!center) {
     return null;
   }
-
-  const [reviewsPerDiagnosis, learningRecords, knowledgeRecords] = await Promise.all([
-    Promise.all(diagnoses.map((diagnosis) => getDiagnosisReviewsByDiagnosis(diagnosis.id))),
-    getLearningRecordsByCompany(companyId),
-    getKnowledgeByCompany(companyId),
-  ]);
-  const reviewsByDiagnosis = Object.fromEntries(
-    diagnoses.map((diagnosis, index) => [diagnosis.id, reviewsPerDiagnosis[index]])
-  );
-
-  const [executionEventsByDecision, outcomesByDecision, financialObservationsByDecision] = await Promise.all([
-    Promise.all(decisions.map((decision) => getDecisionExecutionEventsByDecision(decision.id))),
-    Promise.all(decisions.map((decision) => getOutcomesByDecision(decision.id))),
-    Promise.all(decisions.map((decision) => getFinancialObservationsByDecision(decision.id))),
-  ]);
-  const allExecutionEvents = executionEventsByDecision.flat();
-  const allOutcomes = outcomesByDecision.flat();
-  const allFinancialObservations = financialObservationsByDecision.flat();
-
-  const queue = buildDecisionCenterQueue({
-    companyId,
-    diagnoses,
-    reviewsByDiagnosis,
-    decisions,
-    executionEvents: allExecutionEvents,
-    outcomes: allOutcomes,
-    learningRecords,
-    knowledgeRecords,
-    financialObservations: allFinancialObservations,
-  });
+  const { diagnoses, decisions, reviewsByDiagnosis, queue } = center;
 
   const requiresDecision = queue.filter((item) => item.bucket === "requires-decision");
   const decided = queue.filter((item) => item.bucket === "decided");
@@ -112,136 +72,157 @@ export async function DecisionCenter({ companyId }: { companyId: string }) {
     requiresDecision.some((item) => item.diagnosisId === diagnosis.id)
   );
 
+  // Mission 204 — a decisão como objeto principal: o ciclo inteiro
+  // (aguardando → decidido/em execução → concluído) visível de uma vez,
+  // depois o que exige ação agora, em passos numerados (revisar a leitura
+  // da IA, registrar a decisão). Mesmos dados, mesma fila canônica e os
+  // mesmos formulários — só a apresentação muda.
+  const stages = [
+    { label: "Aguardando decisão", count: requiresDecision.length },
+    { label: "Decididas / em execução", count: decided.length },
+    { label: "Concluídas", count: concluded.length },
+  ];
+
   return (
-    <div id="decision-center" className="flex flex-col gap-4">
-      <h3 className="type-subsection-title">Central de Decisões</h3>
+    <div id="decision-center" className="flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <KindMarker kind="decision" />
+        <ol aria-label="Ciclo das decisões" className="grid grid-cols-3 border-y border-border">
+          {stages.map((stage, index) => (
+            <li key={stage.label} className={cn("flex flex-col gap-1 py-4", index > 0 && "border-l border-border pl-5")}>
+              <span className="num text-[1.75rem] leading-none font-semibold tracking-tight text-foreground">{stage.count}</span>
+              <span className="type-meta">{stage.label}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">O que requer decisão agora</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {requiresDecision.length === 0 ? (
-            <EmptyState
-              icon={CheckCircle2}
-              title="Nenhum item aguardando decisão"
-              description="Toda proposta da Executive AI já foi revisada ou decidida — novos itens aparecem aqui assim que um diagnóstico executivo é gerado ou revisado."
-            />
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {requiresDecision.length} {requiresDecision.length === 1 ? "item aguarda" : "itens aguardam"} revisão ou decisão, entre {diagnosesRequiringAction.length}{" "}
-              {diagnosesRequiringAction.length === 1 ? "diagnóstico" : "diagnósticos"}.
-            </p>
-          )}
+      <section aria-labelledby="decisao-agora-titulo" className="flex flex-col gap-4">
+        <h4 id="decisao-agora-titulo" className="type-subsection-title">
+          O que requer sua decisão agora
+        </h4>
+        {requiresDecision.length === 0 ? (
+          <EmptyState
+            compact
+            icon={CheckCircle2}
+            title="Nenhum item aguardando decisão"
+            description="Toda proposta da Executive AI já foi revisada ou decidida — novos itens aparecem aqui assim que um diagnóstico executivo é gerado ou revisado."
+          />
+        ) : null}
 
-          {diagnosesRequiringAction.map((diagnosis) => {
-            const itemsForDiagnosis = requiresDecision.filter((item) => item.diagnosisId === diagnosis.id);
-            const review = reviewsByDiagnosis[diagnosis.id]?.[0];
-            const relatedDecisions = decisions.filter((decision) => decision.diagnosisId === diagnosis.id);
-            const governanceByRecommendationId = new Map(
-              queue
-                .filter((item) => item.diagnosisId === diagnosis.id)
-                .map((item) => [item.recommendationId, item.governance] as const)
-            );
-            const reconciliationByRecommendationId = new Map(
-              queue
-                .filter((item) => item.diagnosisId === diagnosis.id)
-                .map((item) => [item.recommendationId, item.reconciliation] as const)
-            );
+        {diagnosesRequiringAction.map((diagnosis) => {
+          const itemsForDiagnosis = requiresDecision.filter((item) => item.diagnosisId === diagnosis.id);
+          const review = reviewsByDiagnosis[diagnosis.id]?.[0];
+          const relatedDecisions = decisions.filter((decision) => decision.diagnosisId === diagnosis.id);
+          const governanceByRecommendationId = new Map(
+            queue
+              .filter((item) => item.diagnosisId === diagnosis.id)
+              .map((item) => [item.recommendationId, item.governance] as const)
+          );
+          const reconciliationByRecommendationId = new Map(
+            queue
+              .filter((item) => item.diagnosisId === diagnosis.id)
+              .map((item) => [item.recommendationId, item.reconciliation] as const)
+          );
 
-            return (
-              <div key={diagnosis.id} className="flex flex-col gap-3 rounded-lg border border-dashed border-border p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    Diagnóstico de {new Date(diagnosis.createdAt).toLocaleDateString("pt-BR")}
-                  </span>
-                  <Badge variant="outline" className="text-[10px]">
-                    {itemsForDiagnosis.length} {itemsForDiagnosis.length === 1 ? "item pendente" : "itens pendentes"}
-                  </Badge>
-                </div>
-                <ul className="flex flex-col gap-1">
+          return (
+            <div key={diagnosis.id} className="flex flex-col gap-6">
+              <div className="flex flex-col gap-2">
+                <p className="type-meta">
+                  Do diagnóstico de {new Date(diagnosis.createdAt).toLocaleDateString("pt-BR")} ·{" "}
+                  <span className="num">{itemsForDiagnosis.length}</span>{" "}
+                  {itemsForDiagnosis.length === 1 ? "item pendente" : "itens pendentes"}
+                </p>
+                <ul className="flex flex-col divide-y divide-border border-y border-border">
                   {itemsForDiagnosis.map((item) => (
-                    <li key={item.recommendationId} className="flex flex-wrap items-center gap-2 text-sm">
-                      <Badge variant="outline" className="text-[10px]">
-                        {RECOMMENDATION_CATEGORY_LABELS[item.category]}
-                      </Badge>
-                      <span className="text-foreground">{item.statement}</span>
+                    <li key={item.recommendationId} className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4 py-3">
+                      <span className="type-eyebrow text-[0.625rem]">{RECOMMENDATION_CATEGORY_LABELS[item.category]}</span>
+                      <span className="text-sm text-pretty text-foreground">{item.statement}</span>
                     </li>
                   ))}
                 </ul>
-                <DiagnosisReviewSection
-                  companyId={companyId}
-                  diagnosis={diagnosis.diagnosis}
-                  history={reviewsByDiagnosis[diagnosis.id] ?? []}
-                />
-                <HumanDecisionSection
-                  companyId={companyId}
-                  diagnosisId={diagnosis.id}
-                  reviewId={review?.id}
-                  recommendationOptions={listRecommendationReferences(diagnosis.diagnosis)}
-                  latestReview={review?.review}
-                  governanceByRecommendationId={governanceByRecommendationId}
-                  reconciliationByRecommendationId={reconciliationByRecommendationId}
-                  history={relatedDecisions}
-                />
               </div>
-            );
-          })}
-        </CardContent>
-      </Card>
 
-      <DecisionSummaryCard title="Já decididas / em execução" items={decided} emptyMessage="Nenhuma recomendação decidida ainda." />
-      <DecisionSummaryCard title="Concluídas recentemente" items={concluded} emptyMessage="Nenhum ciclo concluído ainda." />
+              <div className="grid gap-8 xl:grid-cols-2">
+                <DecisionStep number={1} title="Revisar a leitura da IA">
+                  <DiagnosisReviewSection
+                    companyId={companyId}
+                    diagnosis={diagnosis.diagnosis}
+                    history={reviewsByDiagnosis[diagnosis.id] ?? []}
+                  />
+                </DecisionStep>
+                <DecisionStep number={2} title="Registrar a decisão">
+                  <HumanDecisionSection
+                    companyId={companyId}
+                    diagnosisId={diagnosis.id}
+                    reviewId={review?.id}
+                    recommendationOptions={listRecommendationReferences(diagnosis.diagnosis)}
+                    latestReview={review?.review}
+                    governanceByRecommendationId={governanceByRecommendationId}
+                    reconciliationByRecommendationId={reconciliationByRecommendationId}
+                    history={relatedDecisions}
+                  />
+                </DecisionStep>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      <DecisionSummaryList title="Decididas / em execução" items={decided} />
+      <DecisionSummaryList title="Concluídas recentemente" items={concluded} />
 
       <DecisionExecutionSection companyId={companyId} decisions={decisions} />
     </div>
   );
 }
 
-function DecisionSummaryCard({
-  title,
-  items,
-  emptyMessage,
-}: {
-  title: string;
-  items: readonly ExecutiveDecisionWorkItem[];
-  emptyMessage: string;
-}) {
+function DecisionStep({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4">
+      <h5 className="flex items-center gap-2.5 text-sm font-semibold text-foreground">
+        <span
+          aria-hidden="true"
+          className="num flex size-6 items-center justify-center rounded-full bg-primary text-[0.75rem] text-primary-foreground"
+        >
+          {number}
+        </span>
+        <span>
+          <span className="sr-only">Passo {number}: </span>
+          {title}
+        </span>
+      </h5>
+      {children}
+    </section>
+  );
+}
+
+function DecisionSummaryList({ title, items }: { title: string; items: readonly ExecutiveDecisionWorkItem[] }) {
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {items.map((item) => (
-              <li
-                key={`${item.diagnosisId}-${item.recommendationId}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="text-[10px]">
-                    {RECOMMENDATION_CATEGORY_LABELS[item.category]}
-                  </Badge>
-                  <span className="text-foreground">{item.statement}</span>
-                </div>
-                {item.governance.lifecycleState && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {GOVERNANCE_LIFECYCLE_LABELS[item.governance.lifecycleState]}
-                  </Badge>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <section className="flex flex-col gap-3">
+      <h4 className="type-subsection-title">
+        {title} <span className="num font-normal text-muted-foreground">· {items.length}</span>
+      </h4>
+      <ul className="flex flex-col divide-y divide-border border-y border-border">
+        {items.map((item) => (
+          <li
+            key={`${item.diagnosisId}-${item.recommendationId}`}
+            className="grid grid-cols-[8rem_minmax(0,1fr)_auto] items-baseline gap-4 py-3"
+          >
+            <span className="type-eyebrow text-[0.625rem]">{RECOMMENDATION_CATEGORY_LABELS[item.category]}</span>
+            <span className="text-sm text-foreground">{item.statement}</span>
+            {item.governance.lifecycleState ? (
+              <SemanticBadge tone="info">{GOVERNANCE_LIFECYCLE_LABELS[item.governance.lifecycleState]}</SemanticBadge>
+            ) : (
+              <span />
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

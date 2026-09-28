@@ -11,7 +11,7 @@ import { DefaultHistoricalExecutionService, compareExecutions } from "@/efos/app
 import { buildExecutiveFinancialContext } from "@/efos/application/executive-context";
 import { buildExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
 import { executeExecutiveChatAnalysis, type ExecutiveChatAnswer } from "@/efos/application/executive-chat";
-import { AnthropicExecutiveChatProvider } from "@/efos/infrastructure/executive-chat";
+import { createExecutiveChatProvider } from "@/lib/ai/executive-ai-providers";
 import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
 import { getKnowledgeEvaluationsGroupedByKnowledge } from "@/modules/decisions/services/knowledge-evaluation-persistence.service";
 import {
@@ -171,7 +171,7 @@ export async function askExecutiveChatQuestionAction(
     evaluationsByKnowledge
   );
 
-  const provider = new AnthropicExecutiveChatProvider();
+  const provider = createExecutiveChatProvider();
   const result = await executeExecutiveChatAnalysis(
     provider,
     context,

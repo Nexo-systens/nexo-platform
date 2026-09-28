@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { AnalysisAndHistorySection } from "@/modules/analysis/components/AnalysisAndHistorySection";
 import { ArchiveCompanyButton } from "@/modules/companies/components/ArchiveCompanyButton";
 import { CompanyFormSheet } from "@/modules/companies/components/CompanyFormSheet";
-import { CompanySectionNav, type CompanySectionLink } from "@/modules/companies/components/CompanySectionNav";
+import { CompanyOverview } from "@/modules/companies/components/CompanyOverview";
+import { CompanyWorkspaceNav, type WorkspaceNavItem } from "@/modules/companies/components/CompanyWorkspaceNav";
+import { availableWorkspaceViews, resolveWorkspaceView } from "@/modules/companies/lib/workspace-views";
+import { buildExecutiveSituation } from "@/modules/analysis/lib/executive-situation";
+import { getExecutiveHistory } from "@/modules/analysis/services/executive-history.service";
+import { KnowledgeSection } from "@/modules/decisions/components/KnowledgeSection";
+import { getDecisionCenterSummary } from "@/modules/decisions/services/decision-center.service";
 import { CompanyStatusBadge } from "@/modules/companies/components/CompanyStatusBadge";
 import { DeleteCompanyButton } from "@/modules/companies/components/DeleteCompanyButton";
 import {
@@ -26,7 +32,6 @@ import {
 } from "@/modules/documents/services/document.service";
 import { ExecutiveDiagnosisSection } from "@/modules/decisions/components/ExecutiveDiagnosisSection";
 import { getExecutiveDiagnosesByCompany } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
-import { CompanyTimeline } from "@/modules/timeline/components/CompanyTimeline";
 import { ScenarioLab } from "@/modules/scenarios/components/ScenarioLab";
 import { ExecutiveChatSection } from "@/modules/executive-chat/components/ExecutiveChatSection";
 import {
@@ -62,6 +67,12 @@ export async function generateMetadata({
 }
 
 /**
+ * Mission 204 — workspace em VISÕES (`?secao=`, ver
+ * modules/companies/lib/workspace-views.ts): cabeçalho, ações e navegação
+ * comuns; só a visão ativa é renderizada. A visão padrão, depois da
+ * primeira análise, é a Visão geral (situação, sinais, decisões,
+ * atividade). Antes dela, Documentos.
+ *
  * Mission 203 — workspace executivo da empresa. Cabeçalho com o que
  * importa (situação, última análise, documentos), navegação por seção e
  * ordem progressiva: antes da primeira análise, o caminho começa pelos
@@ -119,23 +130,20 @@ export default async function CompanyProfilePage({
     },
   ];
 
-  const sections: CompanySectionLink[] = [
-    ...(showSecondaryCapabilities
-      ? [
-          { id: "analise", label: "Análise" },
-          { id: "diagnostico-executivo", label: "Diagnóstico e decisões" },
-          { id: "linha-do-tempo", label: "Linha do tempo" },
-          { id: "scenario-lab", label: "Cenários" },
-          { id: "executive-chat", label: "Executive Chat" },
-          { id: "documentos", label: "Documentos" },
-        ]
-      : [
-          { id: "documentos", label: "Documentos" },
-          { id: "analise", label: "Análise" },
-          { id: "diagnostico-executivo", label: "Diagnóstico e decisões" },
-        ]),
-    { id: "cadastro", label: "Cadastro" },
-  ];
+  const view = resolveWorkspaceView(rawSearchParams.secao, showSecondaryCapabilities);
+  const [situationHistory, decisionSummary] = await Promise.all([
+    view === "visao-geral" ? getExecutiveHistory(company.id) : Promise.resolve([]),
+    showSecondaryCapabilities ? getDecisionCenterSummary(company.id) : Promise.resolve(null),
+  ]);
+  const navItems: WorkspaceNavItem[] = availableWorkspaceViews(showSecondaryCapabilities).map((item) =>
+    item.id === "decisoes" && decisionSummary && decisionSummary.pending > 0
+      ? {
+          ...item,
+          count: decisionSummary.pending,
+          countLabel: `${decisionSummary.pending} ${decisionSummary.pending === 1 ? "item aguarda" : "itens aguardam"} decisão`,
+        }
+      : item
+  );
 
   const documentsSection = (
     <SectionShell
@@ -207,53 +215,49 @@ export default async function CompanyProfilePage({
         />
       </div>
 
-      <CompanySectionNav sections={sections} />
+      <CompanyWorkspaceNav companyId={company.id} items={navItems} active={view} />
 
-      <ActivationGuidanceCard
-        state={activation.state}
-        description={activation.description}
-        primaryAction={activation.primaryAction}
-      />
+      {(view === "visao-geral" || view === "documentos") && (
+        <ActivationGuidanceCard
+          state={activation.state}
+          description={activation.description}
+          primaryAction={activation.primaryAction}
+        />
+      )}
 
-      <div className="flex flex-col gap-12">
-        {showSecondaryCapabilities ? (
-          <>
-            {analysisSection}
-            <ExecutiveDiagnosisSection companyId={company.id} />
-            {/*
-              Mission 195, Seção 1/28: capacidades secundárias (trajetória,
-              Scenario Lab, Executive Chat) só aparecem depois da primeira
-              análise real — antes disso nenhuma delas tem verdade
-              financeira sobre a qual operar.
-            */}
-            <SectionShell
-              id="linha-do-tempo"
-              eyebrow="Acompanhamento"
-              title="Linha do tempo"
-              description="Análises, diagnósticos, decisões, resultados e conhecimento formado, em ordem."
-            >
-              <CompanyTimeline companyId={company.id} />
-            </SectionShell>
-            <ScenarioLab companyId={company.id} />
-            <ExecutiveChatSection companyId={company.id} />
-            {documentsSection}
-          </>
-        ) : (
-          <>
-            {documentsSection}
-            {analysisSection}
-            <ExecutiveDiagnosisSection companyId={company.id} />
-          </>
+      <div className="pt-2">
+        {view === "visao-geral" && (
+          <CompanyOverview
+            companyId={company.id}
+            situation={buildExecutiveSituation(situationHistory)}
+            decisions={decisionSummary}
+            hasDiagnosis={diagnoses.length > 0}
+            fullTimeline={rawSearchParams.linha === "completa"}
+          />
         )}
-
-        <SectionShell
-          id="cadastro"
-          eyebrow="Cadastro"
-          title="Dados cadastrais"
-          description="Identificação da empresa na NEXO. Editar não altera nenhuma análise já feita."
-        >
-          <div className="rounded-xl border border-border bg-surface">
-            <dl className="grid grid-cols-1 gap-x-8 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+        {view === "analise" && analysisSection}
+        {view === "decisoes" && <ExecutiveDiagnosisSection companyId={company.id} />}
+        {view === "cenarios" && <ScenarioLab companyId={company.id} />}
+        {view === "conversa" && <ExecutiveChatSection companyId={company.id} />}
+        {view === "conhecimento" && (
+          <SectionShell
+            id="conhecimento"
+            eyebrow="Memória financeira"
+            title="Conhecimento"
+            description="O que a NEXO aprendeu com as decisões desta empresa e seus resultados — de onde veio, quando se formou e quanto se confirmou."
+          >
+            <KnowledgeSection companyId={company.id} />
+          </SectionShell>
+        )}
+        {view === "documentos" && documentsSection}
+        {view === "cadastro" && (
+          <SectionShell
+            id="cadastro"
+            eyebrow="Cadastro"
+            title="Dados cadastrais"
+            description="Identificação da empresa na NEXO. Editar não altera nenhuma análise já feita."
+          >
+            <dl className="grid grid-cols-1 gap-x-10 gap-y-5 border-y border-border py-6 sm:grid-cols-2 lg:grid-cols-4">
               {fields.map((field) => (
                 <div key={field.label} className="flex flex-col gap-1">
                   <dt className="type-meta">{field.label}</dt>
@@ -262,13 +266,13 @@ export default async function CompanyProfilePage({
               ))}
             </dl>
             {company.observacoes && (
-              <div className="border-t border-border px-5 py-4">
+              <div className="flex flex-col gap-1">
                 <p className="type-meta">Observações</p>
-                <p className="mt-1 text-sm text-foreground">{company.observacoes}</p>
+                <p className="type-body text-foreground">{company.observacoes}</p>
               </div>
             )}
-          </div>
-        </SectionShell>
+          </SectionShell>
+        )}
       </div>
     </div>
   );

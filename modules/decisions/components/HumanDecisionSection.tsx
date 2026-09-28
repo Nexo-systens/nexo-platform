@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -216,12 +215,8 @@ export function HumanDecisionSection({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Decisão humana</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <p className="text-xs text-muted-foreground">
+    <div className="flex flex-col gap-4">
+        <p className="type-meta">
           Esta decisão pode concordar com o diagnóstico, concordar parcialmente, contrariá-lo
           completamente, ou existir sem nenhum diagnóstico associado — nenhuma divergência com a IA é
           bloqueada.
@@ -229,20 +224,15 @@ export function HumanDecisionSection({
 
         {history.length > 0 && (
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Histórico de decisões (mais recente primeiro)
-            </span>
+            <span className="type-eyebrow">Decisões já registradas</span>
             {history.map((decision) => (
-              <div key={decision.id} className="rounded-md border border-border p-3 text-sm">
+              <div key={decision.id} className="border-l-2 border-kind-decision/60 pl-3 text-sm" title={`Decidido por: ${decision.humanActorId ?? "—"}`}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-foreground">{decision.decision.title}</span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(decision.createdAt).toLocaleString("pt-BR")}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  decidido por: <span className="font-mono">{decision.humanActorId ?? "—"}</span>
-                </p>
                 <p className="mt-1 text-sm text-foreground">{decision.decision.description}</p>
                 {/*
                   Mission 153 — Etapa 21: sempre mostra explicitamente a
@@ -265,13 +255,13 @@ export function HumanDecisionSection({
                             [{RECOMMENDATION_CATEGORY_LABELS[recommendation.category]}] {recommendation.statement}
                           </>
                         ) : (
-                          <span className="font-mono">{decision.decision.basedOnRecommendationId}</span>
+                          <span title={decision.decision.basedOnRecommendationId}>proposta não localizada nos diagnósticos atuais</span>
                         )}
                       </p>
                     );
                   })()
                 ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">Sem Recommendation associada</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Sem recomendação da IA associada</p>
                 )}
               </div>
             ))}
@@ -301,7 +291,7 @@ export function HumanDecisionSection({
               }))}
               value={recommendationId}
               onValueChange={(value) => setRecommendationId(value ?? "")}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Recomendação da IA" className="w-full">
                 <SelectValue placeholder="Nenhuma recomendação específica" />
               </SelectTrigger>
               <SelectContent>
@@ -326,16 +316,16 @@ export function HumanDecisionSection({
           const governance = governanceByRecommendationId?.get(recommendationId);
           if (!governance || governance.outcome !== "GOVERNED" || !governance.lifecycleState) return null;
           return (
-            <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
-              <span className="font-medium uppercase tracking-wide text-foreground">Governança</span>
+            <div className="rounded-md bg-surface-subtle p-3 text-xs text-muted-foreground">
+              <span className="type-eyebrow">Governança</span>
               <p className="mt-1">
                 Ciclo de vida: <span className="font-medium text-foreground">{GOVERNANCE_LIFECYCLE_LABELS[governance.lifecycleState]}</span>
               </p>
-              <p className="mt-1">Review: {governance.reviewStatus ? REVIEW_STATUS_LABELS[governance.reviewStatus.status] : "não avaliada"}</p>
-              <p className="mt-1">Decision: {governance.decisionId ? "existe" : "nenhuma ainda"}</p>
-              <p className="mt-1">Execution: {governance.executionStatus ? EXECUTION_STATUS_LABELS[governance.executionStatus] : "nenhuma ainda"}</p>
-              <p className="mt-1">Outcome: {governance.outcomeStatus ? OUTCOME_STATUS_LABELS[governance.outcomeStatus] : "nenhum ainda"}</p>
-              <p className="mt-1">Learning: {governance.learningRecordId ? "registrado" : "nenhum ainda"}</p>
+              <p className="mt-1">Revisão: {governance.reviewStatus ? REVIEW_STATUS_LABELS[governance.reviewStatus.status] : "não avaliada"}</p>
+              <p className="mt-1">Decisão: {governance.decisionId ? "registrada" : "nenhuma ainda"}</p>
+              <p className="mt-1">Execução: {governance.executionStatus ? EXECUTION_STATUS_LABELS[governance.executionStatus] : "nenhuma ainda"}</p>
+              <p className="mt-1">Resultado: {governance.outcomeStatus ? OUTCOME_STATUS_LABELS[governance.outcomeStatus] : "nenhum ainda"}</p>
+              <p className="mt-1">Aprendizado: {governance.learningRecordId ? "registrado" : "nenhum ainda"}</p>
             </div>
           );
         })()}
@@ -344,8 +334,8 @@ export function HumanDecisionSection({
           const reconciliation = reconciliationByRecommendationId?.get(recommendationId);
           if (!reconciliation || reconciliation.outcome !== "RECONCILED" || !reconciliation.reconciliationState) return null;
           return (
-            <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
-              <span className="font-medium uppercase tracking-wide text-foreground">Reconciliação (proposta vs. observação)</span>
+            <div className="rounded-md bg-surface-subtle p-3 text-xs text-muted-foreground">
+              <span className="type-eyebrow">Reconciliação (proposta vs. observação)</span>
               <p className="mt-1">
                 Estágio: <span className="font-medium text-foreground">{RECONCILIATION_STATE_LABELS[reconciliation.reconciliationState]}</span>
               </p>
@@ -364,11 +354,11 @@ export function HumanDecisionSection({
           );
         })()}
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <Label>Tipo</Label>
             <Select items={TYPE_LABELS} value={type} onValueChange={(value) => setType(value as DecisionType)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Tipo de decisão" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -383,7 +373,7 @@ export function HumanDecisionSection({
           <div className="flex flex-col gap-1.5">
             <Label>Prioridade</Label>
             <Select items={PRIORITY_LABELS} value={priority} onValueChange={(value) => setPriority(value as RecommendationPriority)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Prioridade" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -398,7 +388,7 @@ export function HumanDecisionSection({
           <div className="flex flex-col gap-1.5">
             <Label>Confiança</Label>
             <Select items={CONFIDENCE_LABELS} value={confidence} onValueChange={(value) => setConfidence(value as RecommendationConfidence)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Confiança" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -440,7 +430,6 @@ export function HumanDecisionSection({
         <Button onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-fit">
           {submitting ? "Registrando decisão..." : "Registrar decisão"}
         </Button>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

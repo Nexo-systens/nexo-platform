@@ -1,3 +1,13 @@
+"use client"
+
+// Mission 204 — client component de propósito. Sem a diretiva, um
+// `<Button>` criado num Server Component (ex.: o gatilho passado a um
+// `SheetTrigger render={...}`) era avaliado no servidor e chegava ao
+// cliente já como o `Button` do Base UI com `data-slot="button"`; o
+// `mergeProps` do `render` do Base UI então divergia entre SSR e cliente
+// (`sheet-trigger` × `button`) — o aviso de hidratação das páginas de
+// Empresas e Documentos. Como client component, o elemento chega com as
+// props originais e as duas passagens produzem o mesmo HTML.
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 

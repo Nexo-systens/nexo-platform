@@ -171,7 +171,7 @@ export function CompanyFormSheet({ trigger, company }: CompanyFormSheetProps) {
                     value={field.value ?? ""}
                     onValueChange={field.onChange}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger aria-label="Regime tributário" className="w-full">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -197,7 +197,7 @@ export function CompanyFormSheet({ trigger, company }: CompanyFormSheetProps) {
                     value={field.value ?? ""}
                     onValueChange={field.onChange}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger aria-label="Porte" className="w-full">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>

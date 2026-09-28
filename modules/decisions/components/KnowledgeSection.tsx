@@ -1,63 +1,38 @@
-import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
-import { getKnowledgeEvaluationsGroupedByKnowledge } from "@/modules/decisions/services/knowledge-evaluation-persistence.service";
-import { getLearningRecordsByCompany } from "@/modules/decisions/services/learning-record-persistence.service";
-import { deriveKnowledgeState } from "@/efos/application/knowledge-lifecycle";
+import { SemanticBadge } from "@/components/shared/SemanticBadge";
 import { deriveKnowledgeCandidatePreviews } from "@/efos/application/knowledge-formation";
+import { deriveKnowledgeState } from "@/efos/application/knowledge-lifecycle";
 import { KnowledgeFormationPanel } from "@/modules/decisions/components/KnowledgeFormationPanel";
+import { getDecisionsByCompany } from "@/modules/decisions/services/decision-persistence.service";
+import { getKnowledgeEvaluationsGroupedByKnowledge } from "@/modules/decisions/services/knowledge-evaluation-persistence.service";
+import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
+import { getLearningRecordsByCompany } from "@/modules/decisions/services/learning-record-persistence.service";
+
+const EVIDENCE_CLASSIFICATION_LABELS: Readonly<Record<string, string>> = {
+  TEMPORAL_ASSOCIATION: "Associação temporal",
+  EVIDENCE_FAVORABLE: "Evidência favorável",
+  EVIDENCE_CONTRARY: "Evidência contrária",
+  INCONCLUSIVE: "Inconclusivo",
+};
+
+const CONFIDENCE_LABELS: Readonly<Record<string, string>> = {
+  low: "Confiança baixa",
+  medium: "Confiança média",
+  high: "Confiança alta",
+};
 
 /**
- * Mission 141 — Knowledge Formation & Cross-Decision Learning. Server
- * Component: lê o estado canônico direto do banco, mesmo padrão de
- * `DecisionExecutionSection` (Mission 138). Diferente das demais
- * seções desta família (`DiagnosisReviewSection`/`HumanDecisionSection`/
- * `DecisionExecutionSection`), esta seção é escopada à COMPANY inteira,
- * nunca a uma única `Decision` ou `ExecutiveDiagnosis` — `Knowledge` só
- * existe quando múltiplas `Decision`s independentes concordam num
- * padrão recorrente (`buildKnowledgeFromLearningRecords()`,
- * `efos/application/knowledge-formation/`). Renderizado como irmão de
- * `DecisionExecutionSection` em `ExecutiveDiagnosisSection.tsx`.
- *
- * **Mission 146 — Knowledge Lifecycle & Historical Intelligence
- * Maturity (Etapa 14)**: para cada `Knowledge`, deriva o estado de
- * ciclo de vida COMPLETO (`deriveKnowledgeState()`, agregando TODO o
- * histórico de avaliações — nunca só a mais recente, diferente da
- * versão Mission 145) a partir de
- * `getKnowledgeEvaluationsGroupedByKnowledge()` (1 única query,
- * agrupamento em memória). A derivação é pura e barata — feita aqui no
- * Server Component, nunca persistida (Etapa 12: sem tabela nova).
- * Resultado convertido para `Record` plano (nunca um `Map`) antes de
- * ser passado ao Client Component, mesma disciplina de serialização
- * RSC da Mission 145. Nenhum dashboard genérico novo — o estado é
- * exibido exatamente onde o Knowledge já era exibido desde a
- * Mission 141.
- *
- * **Mission 187 — Governed Learning → Organizational Knowledge (Seção
- * 25/26 da missão).** Busca também `getLearningRecordsByCompany()`
- * (mesma função já usada por `formKnowledgeAction()`, nenhuma consulta
- * nova) para que `KnowledgeFormationPanel` possa, sob demanda ("Ver
- * evidência", já existente desde a Mission 146), exibir a interpretação
- * executiva (`LearningRecord.humanStatement`, Mission 186 Closure) dos
- * registros que efetivamente formaram cada `Knowledge`
- * (`derivedFromLearningRecordIds`) — nunca reconstruída a partir do
- * `statement` do próprio `Knowledge`, sempre lida da fonte original.
- * Convertido para `Record<string, LearningRecord>` plano (mesma
- * disciplina de serialização RSC de `knowledgeStates` acima).
- *
- * **Mission 187 Closure — Governed Knowledge Synthesis (Seção 24 da
- * missão).** Computa também `pendingReview`
- * (`deriveKnowledgeCandidatePreviews()`, pura, nenhuma escrita) na
- * PRÓPRIA leitura desta seção — o revisor vê candidatos aguardando uma
- * interpretação executiva ANTES de clicar em qualquer botão, nunca
- * apenas como resultado de uma ação. `formKnowledgeAction()` (clique
- * "Formar conhecimento") continua recalculando a mesma lista de forma
- * independente para o resultado imediato do clique — nunca duas fontes
- * de verdade divergentes, a mesma função pura em ambos os lugares.
+ * Mission 204 — Conhecimento como memória financeira: primeiro o que já
+ * foi aprendido (cada aprendizado com a decisão de origem, a
+ * interpretação escrita pelo executivo e a força da evidência), depois o
+ * conhecimento formado a partir de aprendizados recorrentes. Mesmas
+ * leituras e mesma formação governada de antes — só a apresentação muda.
  */
 export async function KnowledgeSection({ companyId }: { companyId: string }) {
-  const [knowledge, evaluationsByKnowledge, learningRecords] = await Promise.all([
+  const [knowledge, evaluationsByKnowledge, learningRecords, decisions] = await Promise.all([
     getKnowledgeByCompany(companyId),
     getKnowledgeEvaluationsGroupedByKnowledge(companyId),
     getLearningRecordsByCompany(companyId),
+    getDecisionsByCompany(companyId),
   ]);
 
   const knowledgeStates = Object.fromEntries(
@@ -69,10 +44,61 @@ export async function KnowledgeSection({ companyId }: { companyId: string }) {
     new Set(knowledge.map((k) => k.id)),
     new Date().toISOString()
   );
+  const decisionTitle = new Map(decisions.map((decision) => [decision.id, decision.decision.title]));
 
   return (
-    <div id="knowledge" className="flex flex-col gap-4">
-      <h3 className="type-subsection-title">Conhecimento acumulado</h3>
+    <div id="knowledge" className="flex flex-col gap-12">
+      <section aria-labelledby="aprendizados-titulo" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <p className="type-eyebrow">Memória</p>
+          <h3 id="aprendizados-titulo" className="type-section-title">
+            O que já foi aprendido
+          </h3>
+          <p className="type-meta max-w-3xl">
+            Cada aprendizado nasce de uma decisão executada e do resultado que a empresa observou — com a interpretação
+            escrita por quem decidiu. Associação no tempo, nunca prova de causa.
+          </p>
+        </div>
+
+        {learningRecords.length === 0 ? (
+          <p className="type-body">
+            Nenhum aprendizado registrado ainda. Eles surgem na visão Decisões, depois que uma decisão é executada e seu
+            resultado é registrado.
+          </p>
+        ) : (
+          <ol className="flex flex-col divide-y divide-border border-y border-border">
+            {learningRecords.map((record) => {
+              // A origem só é repetida quando o título do aprendizado ainda não a nomeia.
+              const sources = record.decisions
+                .map((id) => decisionTitle.get(id))
+                .filter((title): title is string => Boolean(title) && !record.title.includes(title!));
+              return (
+                <li key={record.id} className="flex flex-col gap-2 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <p className="text-sm font-medium text-foreground">{record.title}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {record.evidenceClassification && (
+                        <SemanticBadge tone={record.evidenceClassification === "EVIDENCE_CONTRARY" ? "warning" : "info"}>
+                          {EVIDENCE_CLASSIFICATION_LABELS[record.evidenceClassification] ?? record.evidenceClassification}
+                        </SemanticBadge>
+                      )}
+                      <SemanticBadge>{CONFIDENCE_LABELS[record.confidence] ?? record.confidence}</SemanticBadge>
+                    </div>
+                  </div>
+                  {record.humanStatement && (
+                    <blockquote className="border-l-2 border-border-strong pl-3 text-[0.875rem] italic text-foreground-secondary">
+                      {record.humanStatement}
+                    </blockquote>
+                  )}
+                  <p className="type-meta">{record.description}</p>
+                  {sources.length > 0 && <p className="type-meta">Da decisão: {sources.join(" · ")}</p>}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+
       <KnowledgeFormationPanel
         companyId={companyId}
         knowledge={knowledge}

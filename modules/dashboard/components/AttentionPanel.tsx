@@ -17,9 +17,9 @@ const TONE_DOT: Readonly<Record<StageTone, string>> = {
  */
 export function AttentionPanel({ items }: { items: readonly AttentionItem[] }) {
   return (
-    <section aria-labelledby="atencao-titulo" className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 shadow-xs">
+    <section aria-labelledby="atencao-titulo" className="flex h-fit flex-col gap-3 rounded-xl border border-border bg-surface p-5 shadow-xs">
       <div className="flex flex-col gap-1">
-        <p className="type-eyebrow">Prioridades</p>
+        <p className="type-eyebrow">Próximos passos</p>
         <h2 id="atencao-titulo" className="type-section-title">
           O que exige atenção
         </h2>

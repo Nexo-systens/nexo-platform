@@ -35,7 +35,7 @@ export function DocumentsCompanySelect({
       value={companyId ?? ""}
       onValueChange={(value) => router.push(`/documents?companyId=${value}`)}
     >
-      <SelectTrigger className="w-full sm:w-72">
+      <SelectTrigger aria-label="Empresa" className="w-full sm:w-72">
         <SelectValue placeholder="Selecione uma empresa" />
       </SelectTrigger>
       <SelectContent>

@@ -18,7 +18,7 @@ export function ExecutiveChatSection({ companyId }: { companyId: string }) {
       id="executive-chat"
       eyebrow="Conversa executiva"
       title="Executive Chat"
-      description="Pergunte sobre esta empresa. As respostas se apoiam na análise e nas evidências da própria empresa; ações só acontecem com a sua confirmação."
+      description="Consultas em linguagem natural sobre esta empresa, respondidas a partir do que o EFOS já sabe dela."
     >
       <ExecutiveChatPanel companyId={companyId} />
     </SectionShell>

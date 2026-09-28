@@ -1,6 +1,7 @@
 import type { ExecutiveChatNavigationActionType } from "@/efos/application/executive-chat";
 import { describeScenarioAssumption } from "@/modules/scenarios/lib/scenario-language";
 import type { ExecutiveChatResolvedAction } from "@/efos/application/executive-chat";
+import type { WorkspaceViewId } from "@/modules/companies/lib/workspace-views";
 
 /**
  * Mission 189 — Governed Executive Chat Actions.
@@ -14,10 +15,12 @@ import type { ExecutiveChatResolvedAction } from "@/efos/application/executive-c
  * `#decision-center` (`DecisionCenter.tsx`), `#knowledge`
  * (`KnowledgeSection.tsx`).
  */
-export const EXECUTIVE_CHAT_NAVIGATION_ANCHORS: Readonly<Record<ExecutiveChatNavigationActionType, string>> = {
-  OPEN_SCENARIO_LAB: "scenario-lab",
-  OPEN_DECISION_CENTER: "decision-center",
-  OPEN_KNOWLEDGE: "knowledge",
+// Mission 204 — o workspace da empresa é organizado em visões (`?secao=`):
+// as ações de navegação do Chat abrem a visão correspondente.
+export const EXECUTIVE_CHAT_NAVIGATION_VIEWS: Readonly<Record<ExecutiveChatNavigationActionType, WorkspaceViewId>> = {
+  OPEN_SCENARIO_LAB: "cenarios",
+  OPEN_DECISION_CENTER: "decisoes",
+  OPEN_KNOWLEDGE: "conhecimento",
 };
 
 export const EXECUTIVE_CHAT_NAVIGATION_TITLES: Readonly<Record<ExecutiveChatNavigationActionType, string>> = {

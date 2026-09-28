@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,7 +59,7 @@ import {
  * `ExecutiveDiagnosisActivation` (Mission 128).
  */
 const OBSERVATION_ERROR_LABELS: Record<string, string> = {
-  EXECUTION_NOT_COMPLETED: "A execução desta decisão ainda não foi concluída — a observação financeira só pode ser calculada depois de COMPLETED.",
+  EXECUTION_NOT_COMPLETED: "A execução desta decisão ainda não foi concluída — a observação financeira só pode ser calculada depois de concluída.",
   NO_COMPARABLE_FINANCIAL_TRUTH: "Não há dados financeiros comparáveis (antes/depois) suficientes ainda — nenhum valor foi inventado ou estimado.",
 };
 
@@ -67,7 +68,7 @@ const OBSERVATION_ERROR_LABELS: Record<string, string> = {
  * mensagens honestas por código, nunca genéricas.
  */
 const LEARNING_ERROR_LABELS: Record<string, string> = {
-  INSUFFICIENT_EVIDENCE: "Nenhum Outcome humano e nenhuma observação financeira existem ainda para esta decisão — nenhum aprendizado pode ser derivado sem evidência real.",
+  INSUFFICIENT_EVIDENCE: "Nenhum resultado registrado e nenhuma observação financeira existem ainda para esta decisão — nenhum aprendizado pode ser derivado sem evidência real.",
   HUMAN_STATEMENT_REQUIRED: "Escreva sua interpretação sobre este resultado antes de registrar o aprendizado — o contexto financeiro sozinho não é uma conclusão.",
 };
 
@@ -77,6 +78,14 @@ const EVIDENCE_CLASSIFICATION_LABELS: Record<string, string> = {
   EVIDENCE_CONTRARY: "Evidência contrária",
   INCONCLUSIVE: "Inconclusivo",
 };
+
+const LEARNING_CONFIDENCE_LABELS: Record<string, string> = {
+  low: "Confiança baixa",
+  medium: "Confiança média",
+  high: "Confiança alta",
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUS_LABELS: Record<DecisionExecutionStatus, string> = {
   NOT_STARTED: "Não iniciada",
@@ -122,7 +131,7 @@ const NEXT_TRANSITIONS: Record<DecisionExecutionStatus, readonly DecisionExecuti
  */
 function ExpectedActualBlock({ title, comparison }: { title: string; comparison: ExpectedActualComparison }) {
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+    <div className="flex flex-col gap-2 border-t border-border pt-4">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs">{title}</Label>
         <Badge variant="outline" className="text-[10px]">
@@ -380,7 +389,7 @@ export function DecisionExecutionCard({
       setObservedDescription("");
       router.refresh();
     } catch {
-      setOutcomeError("Erro inesperado ao registrar o outcome. Tente novamente.");
+      setOutcomeError("Erro inesperado ao registrar o resultado. Tente novamente.");
     } finally {
       setOutcomeSubmitting(false);
     }
@@ -451,6 +460,53 @@ export function DecisionExecutionCard({
     }
   }
 
+  // Mission 204 — com resultado já registrado, o formulário fica recolhido (mesma ação, menos peso visual).
+  const outcomeForm = (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <Select items={OUTCOME_LABELS} value={outcomeStatus} onValueChange={(value) => setOutcomeStatus(value as OutcomeStatus)}>
+          <SelectTrigger aria-label="Avaliação do resultado" className="w-48">
+            <SelectValue placeholder="Avaliação" />
+          </SelectTrigger>
+          <SelectContent>
+            {OUTCOME_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {OUTCOME_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <Input
+        value={expectedResult}
+        onChange={(event) => setExpectedResult(event.target.value)}
+        placeholder="O que se esperava (opcional)"
+        className="text-sm"
+      />
+      <Textarea
+        value={observedDescription}
+        onChange={(event) => setObservedDescription(event.target.value)}
+        placeholder="O que de fato foi observado"
+        className="text-sm"
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-fit"
+        onClick={submitOutcome}
+        disabled={!outcomeStatus || !observedDescription.trim() || outcomeSubmitting}
+      >
+        {outcomeSubmitting ? "Registrando..." : "Registrar resultado"}
+      </Button>
+      {outcomeError && (
+        <p className="text-sm text-destructive">
+          {outcomeError}
+          {outcomeErrors && outcomeErrors.length > 0 && <span className="mt-1 block text-xs">{outcomeErrors.join(" — ")}</span>}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -462,11 +518,16 @@ export function DecisionExecutionCard({
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <DecisionLifecycle
+          status={state.status}
+          hasOutcome={outcomes.length > 0}
+          hasLearning={learningRecords.length > 0}
+        />
         {(() => {
           const scenarioContext = readScenarioDecisionContext(decision.decision.supportingData);
           if (!scenarioContext) return null;
           return (
-            <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs">Contexto do cenário (hipotético)</Label>
                 <Badge variant="outline" className="text-[10px]">
@@ -525,19 +586,22 @@ export function DecisionExecutionCard({
         {state.status !== "NOT_STARTED" && (
           <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
             <div>
-              <span className="block uppercase tracking-wide">Responsável</span>
-              <span className="font-mono text-foreground">{state.owner ?? "—"}</span>
+              <span className="type-eyebrow block">Responsável</span>
+              {/* Mission 204 — id de usuário não é UX primária; fica rastreável no title. */}
+              <span className="text-foreground" title={state.owner ?? undefined}>
+                {state.owner ? (UUID_PATTERN.test(state.owner) ? "Conta da empresa" : state.owner) : "—"}
+              </span>
             </div>
             <div>
-              <span className="block uppercase tracking-wide">Iniciada em</span>
+              <span className="type-eyebrow block">Iniciada em</span>
               <span className="text-foreground">{state.startedAt ? new Date(state.startedAt).toLocaleDateString("pt-BR") : "—"}</span>
             </div>
             <div>
-              <span className="block uppercase tracking-wide">Prazo alvo</span>
+              <span className="type-eyebrow block">Prazo alvo</span>
               <span className="text-foreground">{state.targetDate ? new Date(state.targetDate).toLocaleDateString("pt-BR") : "—"}</span>
             </div>
             <div>
-              <span className="block uppercase tracking-wide">Concluída em</span>
+              <span className="type-eyebrow block">Concluída em</span>
               <span className="text-foreground">{state.completedAt ? new Date(state.completedAt).toLocaleDateString("pt-BR") : "—"}</span>
             </div>
           </div>
@@ -545,12 +609,12 @@ export function DecisionExecutionCard({
         {state.notes && <p className="text-sm text-foreground">{state.notes}</p>}
 
         {!isTerminal && (
-          <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
             <Label className="text-xs">Registrar progresso</Label>
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex flex-col gap-1">
                 <Select items={STATUS_LABELS} value={nextStatus} onValueChange={(value) => setNextStatus(value as DecisionExecutionStatus)}>
-                  <SelectTrigger className="w-44">
+                  <SelectTrigger aria-label="Novo status da execução" className="w-44">
                     <SelectValue placeholder="Novo status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -588,8 +652,8 @@ export function DecisionExecutionCard({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-          <Label className="text-xs">Resultado observado (Outcome)</Label>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <Label className="text-xs">Resultado observado</Label>
           {outcomes.length > 0 && (
             <div className="flex flex-col gap-2">
               {outcomes.map((outcome) => (
@@ -610,52 +674,24 @@ export function DecisionExecutionCard({
               ))}
             </div>
           )}
-          <div className="flex flex-wrap items-end gap-2">
-            <Select items={OUTCOME_LABELS} value={outcomeStatus} onValueChange={(value) => setOutcomeStatus(value as OutcomeStatus)}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Avaliação" />
-              </SelectTrigger>
-              <SelectContent>
-                {OUTCOME_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {OUTCOME_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Input
-            value={expectedResult}
-            onChange={(event) => setExpectedResult(event.target.value)}
-            placeholder="O que se esperava (opcional)"
-            className="text-sm"
-          />
-          <Textarea
-            value={observedDescription}
-            onChange={(event) => setObservedDescription(event.target.value)}
-            placeholder="O que de fato foi observado"
-            className="text-sm"
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-fit"
-            onClick={submitOutcome}
-            disabled={!outcomeStatus || !observedDescription.trim() || outcomeSubmitting}
-          >
-            {outcomeSubmitting ? "Registrando..." : "Registrar outcome"}
-          </Button>
-          {outcomeError && (
-            <p className="text-sm text-destructive">
-              {outcomeError}
-              {outcomeErrors && outcomeErrors.length > 0 && <span className="mt-1 block text-xs">{outcomeErrors.join(" — ")}</span>}
-            </p>
+          {outcomes.length > 0 ? (
+            <details className="group">
+              <summary className="w-fit cursor-pointer list-none text-[0.8125rem] font-medium text-primary underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex items-center gap-1">
+                  <ChevronRight className="size-3.5 transition-transform duration-150 group-open:rotate-90" aria-hidden="true" />
+                  Registrar outro resultado
+                </span>
+              </summary>
+              <div className="mt-3">{outcomeForm}</div>
+            </details>
+          ) : (
+            outcomeForm
           )}
         </div>
 
-        <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-xs">Financial Truth — comparação antes/depois</Label>
+            <Label className="text-xs">Efeito nos números — antes e depois da execução</Label>
             <Button size="sm" variant="outline" onClick={handleComputeObservation} disabled={computingObservation}>
               {computingObservation ? "Calculando..." : "Calcular observação financeira"}
             </Button>
@@ -698,9 +734,9 @@ export function DecisionExecutionCard({
           {observationError && <p className="text-sm text-destructive">{observationError}</p>}
         </div>
 
-        <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-xs">Aprendizado (Learning Record)</Label>
+            <Label className="text-xs">Aprendizado</Label>
             {!learningEligibility?.eligible && (
               <Button size="sm" variant="outline" onClick={handleDeriveLearningRecord} disabled={computingLearning}>
                 {computingLearning ? "Derivando..." : "Derivar aprendizado"}
@@ -755,7 +791,7 @@ export function DecisionExecutionCard({
                   <Badge variant="outline">
                     {record.evidenceClassification ? EVIDENCE_CLASSIFICATION_LABELS[record.evidenceClassification] : "—"}
                   </Badge>
-                  <span className="text-muted-foreground">confiança: {record.confidence}</span>
+                  <span className="text-muted-foreground">{LEARNING_CONFIDENCE_LABELS[record.confidence] ?? record.confidence}</span>
                 </div>
                 <p className="mt-1 font-medium text-foreground">{record.title}</p>
                 <p className="mt-1 text-muted-foreground">{record.description}</p>
@@ -774,5 +810,43 @@ export function DecisionExecutionCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Mission 204 — o ciclo da decisão numa linha: decidida → em execução →
+ * concluída → resultado → aprendizado. Só lê o estado já derivado dos
+ * eventos (`deriveDecisionExecutionState`), dos resultados e dos
+ * aprendizados registrados; não muda nenhuma transição.
+ */
+function DecisionLifecycle({
+  status,
+  hasOutcome,
+  hasLearning,
+}: {
+  status: DecisionExecutionStatus;
+  hasOutcome: boolean;
+  hasLearning: boolean;
+}) {
+  const started = status !== "NOT_STARTED";
+  const steps = [
+    { label: "Decidida", done: true },
+    { label: status === "BLOCKED" ? "Bloqueada" : status === "CANCELLED" ? "Cancelada" : "Em execução", done: started },
+    { label: "Concluída", done: status === "COMPLETED" },
+    { label: "Resultado", done: hasOutcome },
+    { label: "Aprendizado", done: hasLearning },
+  ];
+  return (
+    <ol aria-label="Ciclo desta decisão" className="grid grid-cols-5 gap-1.5">
+      {steps.map((step) => (
+        <li key={step.label} className="flex flex-col gap-1.5">
+          <span aria-hidden="true" className={step.done ? "h-1 rounded-full bg-primary" : "h-1 rounded-full bg-surface-sunken"} />
+          <span className={step.done ? "text-[0.6875rem] text-foreground-secondary" : "text-[0.6875rem] text-muted-foreground"}>
+            {step.label}
+            <span className="sr-only">{step.done ? " — concluído" : " — pendente"}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

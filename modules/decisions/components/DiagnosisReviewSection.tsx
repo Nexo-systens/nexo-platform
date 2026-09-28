@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -19,6 +18,16 @@ import type { ExecutiveDiagnosis } from "@/efos/application/executive-diagnosis/
 import type { DiagnosisReviewStatus } from "@/efos/application/diagnosis-review/DiagnosisReview";
 import { submitDiagnosisReviewAction } from "@/modules/decisions/actions/human-review.actions";
 import type { PersistedDiagnosisReview } from "@/modules/decisions/services/diagnosis-review-persistence.service";
+
+// Mission 204 — rótulos do histórico de revisões (inclui PENDING, que
+// nunca é um registro real, e os status submetíveis abaixo).
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pendente",
+  ACCEPTED: "Aceita integralmente",
+  PARTIALLY_ACCEPTED: "Aceita parcialmente",
+  REJECTED: "Rejeitada",
+  SUPERSEDED: "Substituída",
+};
 
 const SUBMITTABLE_STATUSES: readonly { value: DiagnosisReviewStatus; label: string }[] = [
   { value: "ACCEPTED", label: "Aceitar integralmente" },
@@ -144,29 +153,18 @@ export function DiagnosisReviewSection({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Revisão humana</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
         {history.length === 0 ? (
-          <Badge variant="outline" className="w-fit">PENDING — ainda não revisado por nenhum humano</Badge>
+          <p className="type-meta">Esta leitura ainda não foi revisada por ninguém da empresa.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Histórico de revisões (mais recente primeiro)
-            </span>
+            <span className="type-eyebrow">Revisões anteriores</span>
             {history.map((review) => (
-              <div key={review.id} className="rounded-md border border-border p-3 text-sm">
+              <div key={review.id} className="border-l-2 border-border pl-3 text-sm" title={`Revisor: ${review.reviewerUserId}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <Badge variant="secondary">{review.review.status}</Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(review.createdAt).toLocaleString("pt-BR")}
-                  </span>
+                  <Badge variant="secondary">{REVIEW_STATUS_LABELS[review.review.status] ?? review.review.status}</Badge>
+                  <span className="type-meta num">{new Date(review.createdAt).toLocaleString("pt-BR")}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  revisado por: <span className="font-mono">{review.reviewerUserId}</span>
-                </p>
                 {review.review.notes && <p className="mt-1 text-sm text-foreground">{review.review.notes}</p>}
               </div>
             ))}
@@ -176,7 +174,7 @@ export function DiagnosisReviewSection({
         <div className="flex flex-col gap-1.5">
           <Label>Status da revisão</Label>
           <Select items={SUBMITTABLE_STATUSES} value={status} onValueChange={(value) => setStatus(value as DiagnosisReviewStatus)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger aria-label="Status da revisão" className="w-full">
               <SelectValue placeholder="Selecione o que você concluiu ao revisar" />
             </SelectTrigger>
             <SelectContent>
@@ -240,7 +238,6 @@ export function DiagnosisReviewSection({
         <Button onClick={handleSubmit} disabled={!status || submitting} className="w-fit">
           {submitting ? "Enviando revisão..." : "Enviar revisão"}
         </Button>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

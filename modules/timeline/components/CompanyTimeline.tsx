@@ -10,8 +10,10 @@ import {
 } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
+
+import { reportPeriod } from "@/modules/analysis/lib/executive-situation";
+import { formatPeriodLabel } from "@/modules/analysis/lib/period-label";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
@@ -47,7 +49,7 @@ const KIND_ICON: Record<TimelineEntry["kind"], typeof FileText> = {
   knowledge: Lightbulb,
 };
 
-function entryDescription(entry: TimelineEntry): string | undefined {
+function entryDescription(entry: TimelineEntry, periodByExecution: ReadonlyMap<string, string>): string | undefined {
   switch (entry.kind) {
     case "diagnosis":
       return entry.summary;
@@ -63,8 +65,11 @@ function entryDescription(entry: TimelineEntry): string | undefined {
       return entry.title;
     case "knowledge":
       return `${KNOWLEDGE_CATEGORY_LABELS[entry.category] ?? entry.category}: ${entry.statement}`;
-    case "execution":
-      return undefined;
+    case "execution": {
+      // Mission 204 — qual período a análise leu (mesmo dado dos indicadores dela).
+      const period = periodByExecution.get(entry.executionId);
+      return period ? `Período analisado: ${period}` : undefined;
+    }
   }
 }
 
@@ -88,7 +93,16 @@ function entryDescription(entry: TimelineEntry): string | undefined {
  * `getKnowledgeByCompany`/etc.), companyId já autorizado pela página
  * (`getCompanyById()`, RLS).
  */
-export async function CompanyTimeline({ companyId }: { companyId: string }) {
+export async function CompanyTimeline({
+  companyId,
+  limit,
+  moreHref,
+}: {
+  companyId: string;
+  /** Mostra só os N eventos mais recentes (visão geral). */
+  limit?: number;
+  moreHref?: string;
+}) {
   const supabaseClient = await createClient();
   const persistenceClient = new SupabasePersistenceClient(supabaseClient);
   const executionRepository = new SupabaseExecutionRepository(persistenceClient);
@@ -129,47 +143,58 @@ export async function CompanyTimeline({ companyId }: { companyId: string }) {
     knowledge,
   });
 
-  return (
-    <Card>
-      <CardContent>
-        {entries.length === 0 && (
-          <EmptyState
-            icon={History}
-            title="Nenhum evento registrado ainda"
-            description="A linha do tempo reúne análises, diagnósticos, decisões, resultados e conhecimento formado ao longo da vida desta empresa na NEXO — execute a primeira análise para começar."
-          />
-        )}
+  const periodByExecution = new Map(
+    executions.flatMap((execution) => {
+      const period = reportPeriod(execution.report);
+      return period ? [[execution.executionId, formatPeriodLabel(period).long] as const] : [];
+    })
+  );
+  const visible = limit ? entries.slice(0, limit) : entries;
 
-        {entries.length > 0 && (
-          <ol className="flex flex-col gap-3">
-            {entries.map((entry, index) => {
-              const Icon = KIND_ICON[entry.kind];
-              const description = entryDescription(entry);
-              return (
-                <li
-                  key={`${entry.kind}-${index}`}
-                  className="flex gap-3 rounded-md border border-border p-3"
-                >
-                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <div className="flex flex-1 flex-col gap-0.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {translateTimelineKind(entry.kind)}
-                      </span>
-                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-                        {formatTimelineDate(entry.date)}
-                      </Badge>
-                    </div>
-                    {description && (
-                      <p className="text-sm text-muted-foreground">{description}</p>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </CardContent>
-    </Card>
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        compact
+        icon={History}
+        title="Nenhum evento registrado ainda"
+        description="A linha do tempo reúne análises, diagnósticos, decisões, resultados e conhecimento formado ao longo da vida desta empresa na NEXO — execute a primeira análise para começar."
+      />
+    );
+  }
+
+  // Mission 204 — linha do tempo de verdade (trilho vertical e marcos),
+  // sem uma caixa por evento; data em coluna própria, mais recente primeiro.
+  return (
+    <div className="flex flex-col gap-3">
+      <ol className="relative flex flex-col">
+        {visible.map((entry, index) => {
+          const Icon = KIND_ICON[entry.kind];
+          const description = entryDescription(entry, periodByExecution);
+          const last = index === visible.length - 1;
+          return (
+            <li key={`${entry.kind}-${index}`} className="grid grid-cols-[7.5rem_1.75rem_minmax(0,1fr)] gap-x-3">
+              <time dateTime={entry.date} className="num pt-1 text-right type-meta">
+                {formatTimelineDate(entry.date)}
+              </time>
+              <span className="relative flex justify-center">
+                {!last && <span aria-hidden="true" className="absolute top-7 bottom-0 w-px bg-border" />}
+                <span className="relative mt-0.5 flex size-6 items-center justify-center rounded-full border border-border bg-surface">
+                  <Icon className="size-3.5 text-foreground-secondary" aria-hidden="true" />
+                </span>
+              </span>
+              <div className={last ? "pb-1" : "pb-5"}>
+                <p className="text-sm font-medium text-foreground">{translateTimelineKind(entry.kind)}</p>
+                {description && <p className="type-body mt-0.5 line-clamp-2 text-pretty">{description}</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {moreHref && entries.length > visible.length && (
+        <Link href={moreHref} className="self-start text-[0.8125rem] font-medium text-primary underline-offset-4 hover:underline">
+          Ver os {entries.length} eventos
+        </Link>
+      )}
+    </div>
   );
 }

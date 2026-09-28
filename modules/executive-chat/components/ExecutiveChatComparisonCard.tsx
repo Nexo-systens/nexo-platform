@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -14,6 +15,8 @@ import { SCENARIO_IMPACT_TONE_CLASSNAME, formatScenarioMetricDelta } from "@/mod
 
 import { describeChatComparisonAction } from "../lib/chatActionPresentation";
 import { toScenarioRequest } from "../lib/toScenarioRequest";
+
+import { companyWorkspaceHref } from "@/modules/companies/lib/workspace-views";
 
 /**
  * Mission 190 — Conversational Scenario Comparison.
@@ -133,7 +136,7 @@ export function ExecutiveChatComparisonCard({
           </Badge>
           <p className="text-xs text-muted-foreground">{comparison.disclaimer}</p>
 
-          <Button variant="ghost" size="sm" className="w-fit gap-1" render={<a href="#scenario-lab" />} nativeButton={false}>
+          <Button variant="ghost" size="sm" className="w-fit gap-1" render={<Link href={companyWorkspaceHref(companyId, "cenarios")} />} nativeButton={false}>
             Ver no Scenario Lab completo
             <ArrowRight className="size-3.5" aria-hidden="true" />
           </Button>

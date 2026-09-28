@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { SemanticBadge } from "@/components/shared/SemanticBadge";
+
 import { Button } from "@/components/ui/button";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,21 +15,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { INDICATOR_DEFINITIONS } from "@/efos/engines/indicators";
 import type { ScenarioMetricComparison, ScenarioProjection } from "@/efos/application/scenario-simulation";
-import { formatIndicatorValue } from "@/lib/format-indicator";
-import { cn } from "@/lib/utils";
 import { simulateScenarioAction, type ScenarioRequest } from "@/modules/scenarios/actions/scenario-simulation.actions";
 import { ScenarioDecisionForm } from "@/modules/scenarios/components/ScenarioDecisionForm";
+import { ScenarioImpactTable } from "@/modules/scenarios/components/ScenarioImpactTable";
 import type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 import {
   OPERATING_COST_DIRECTIONS,
   OPERATING_COST_DIRECTION_LABELS,
   PRIMARY_SCENARIO_METRIC_KEYS,
-  SCENARIO_IMPACT_TONE_CLASSNAME,
   SECONDARY_SCENARIO_METRIC_KEYS,
   describeScenarioAssumption,
-  formatScenarioMetricDelta,
   toSignedAmountForDirection,
   type OperatingCostDirection,
 } from "@/modules/scenarios/lib/scenario-language";
@@ -39,35 +36,6 @@ function comparisonByKey(
   return Object.fromEntries(comparison.map((entry) => [entry.metricKey, entry]));
 }
 
-function MetricComparisonRow({ metricKey, entry }: { metricKey: string; entry?: ScenarioMetricComparison }) {
-  const label = INDICATOR_DEFINITIONS[metricKey as keyof typeof INDICATOR_DEFINITIONS]?.name ?? metricKey;
-
-  if (!entry || entry.status === "unavailable") {
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        <span className="text-xs text-muted-foreground">Indisponível nesta empresa</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        <span className="text-xs text-muted-foreground">
-          {formatIndicatorValue(entry.baselineValue, entry.unit)} →{" "}
-          {formatIndicatorValue(entry.projectedValue, entry.unit)}
-        </span>
-      </div>
-      <span
-        className={cn("text-sm font-medium tabular-nums", SCENARIO_IMPACT_TONE_CLASSNAME[entry.impact])}
-      >
-        {formatScenarioMetricDelta(entry.delta, entry.unit)}
-      </span>
-    </div>
-  );
-}
 
 /**
  * Mission 181 — First Production Scenario Lab Experience.
@@ -220,40 +188,32 @@ export function OperatingCostScenarioLab({ companyId }: { companyId: string }) {
         {projection && comparison && (
           <div className="flex flex-col gap-4 border-t border-border pt-4">
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="type-eyebrow">
                 O que você está assumindo
               </span>
-              <p className="text-sm text-foreground">
+              <p className="text-[0.9375rem] leading-relaxed text-foreground">
                 {describeScenarioAssumption(projection.assumption)}, mantendo o restante do modelo
                 financeiro (receita, custos, balanço) inalterado.
               </p>
             </div>
 
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="type-eyebrow">
                 O que muda
               </span>
-              <div className="flex flex-col gap-2">
-                {PRIMARY_SCENARIO_METRIC_KEYS.map((key) => (
-                  <MetricComparisonRow key={key} metricKey={key} entry={comparison[key]} />
-                ))}
-              </div>
+              <ScenarioImpactTable metricKeys={PRIMARY_SCENARIO_METRIC_KEYS} comparison={comparison} caption="Indicadores principais: base atual, cenário e diferença" />
               <details className="mt-1">
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
                   Ver indicadores adicionais (retorno e cobertura de juros)
                 </summary>
-                <div className="mt-2 flex flex-col gap-2">
-                  {SECONDARY_SCENARIO_METRIC_KEYS.map((key) => (
-                    <MetricComparisonRow key={key} metricKey={key} entry={comparison[key]} />
-                  ))}
+                <div className="mt-2">
+                  <ScenarioImpactTable metricKeys={SECONDARY_SCENARIO_METRIC_KEYS} comparison={comparison} caption="Indicadores adicionais: base atual, cenário e diferença" />
                 </div>
               </details>
             </div>
 
             <div className="flex flex-col gap-1">
-              <Badge variant="outline" className="w-fit border-warning/30 bg-warning/10 text-warning">
-                Cenário hipotético — não é uma previsão
-              </Badge>
+              <SemanticBadge tone="warning" className="w-fit">Cenário hipotético — não é uma previsão</SemanticBadge>
               <p className="text-xs text-muted-foreground">{projection.disclaimer}</p>
             </div>
 

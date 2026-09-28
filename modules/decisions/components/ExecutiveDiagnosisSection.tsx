@@ -1,67 +1,30 @@
 import { SectionShell } from "@/components/shared/SectionShell";
-import { getExecutiveDiagnosesByCompany } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
-import { ExecutiveDiagnosisView } from "@/modules/decisions/components/ExecutiveDiagnosisView";
-import { ExecutiveDiagnosisActivation } from "@/modules/decisions/components/ExecutiveDiagnosisActivation";
+import { getExecutiveHistory } from "@/modules/analysis/services/executive-history.service";
+import { formatDateTime } from "@/modules/dashboard/lib/format";
 import { DecisionCenter } from "@/modules/decisions/components/DecisionCenter";
-import { KnowledgeSection } from "@/modules/decisions/components/KnowledgeSection";
+import { ExecutiveDiagnosisActivation } from "@/modules/decisions/components/ExecutiveDiagnosisActivation";
+import { ExecutiveDiagnosisView } from "@/modules/decisions/components/ExecutiveDiagnosisView";
+import { buildReferenceLabels } from "@/modules/decisions/lib/diagnosis-references";
+import { getExecutiveDiagnosesByCompany } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
+import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
 
 /**
- * Mission 127 — Executive Review & Decision Interface. Server
- * Component: lê o estado canônico direto do banco (Mission 126,
- * `modules/decisions/services/`) — nunca de estado local/cache.
- * `companyId` já chega autorizado pela própria página (`getCompanyById()`
- * já filtrado por RLS, `app/(app)/companies/[id]/page.tsx`), mesmo
- * padrão de `AnalysisAndHistorySection`/`DocumentsSection`.
- *
- * **Onde um diagnóstico persistido é carregado (auditoria, Etapa 2)**:
- * `getExecutiveDiagnosesByCompany(companyId)` — antes da Mission 128
- * sempre devolvia `[]` em uso real, porque nenhuma rota chamava
- * `saveExecutiveDiagnosis()`. A partir da Mission 128,
- * `ExecutiveDiagnosisActivation` (client) chama
- * `activateExecutiveDiagnosisAction()` (D-067 — composição
- * canônica única, `modules/decisions/actions/executive-diagnosis.actions.ts`)
- * quando não há diagnóstico ainda; esta seção continua mostrando
- * honestamente um estado vazio (agora com ativação explícita
- * disponível) até que um diagnóstico real exista, nunca inventa um.
- *
- * **Mission 179 — Executive Decision Center**: até esta missão, tudo
- * abaixo de `ExecutiveDiagnosisView` (revisão/decisão/execução) era
- * calculado exclusivamente para `diagnoses[0]` — uma escolha de
- * composição desta função, nunca um limite real de
- * `deriveRecommendationGovernanceState()`/`listRecommendationReferences()`
- * (auditoria desta missão provou isso; a classificação
- * ARCHITECTURALLY_BLOCKED da Mission 178 estava incorreta). Esse bloco
- * foi extraído para `<DecisionCenter />` (`modules/decisions/components/`),
- * que generaliza a MESMA composição para TODOS os diagnósticos da
- * empresa — nenhuma Server Action nova, nenhuma alteração de
- * `DiagnosisReviewSection`/`HumanDecisionSection`/`DecisionExecutionSection`.
- * `ExecutiveDiagnosisView` do diagnóstico mais recente permanece aqui
- * (mostrar "o que a IA concluiu por último" continua um propósito
- * legítimo e distinto de "o que precisa da minha decisão").
- *
- * **Correção real da Mission 184 (Scenario-to-Decision Governance
- * Bridge, Seção 22/39)**: até esta missão, o ramo "sem diagnóstico"
- * nunca montava `<DecisionCenter />` — uma empresa que só tivesse
- * simulado cenários (nenhum diagnóstico executivo gerado ainda) nunca
- * veria NENHUMA `Decision` sua, incluindo as originadas de Scenario
- * Lab (`createScenarioDecisionAction()`, que nunca exige diagnóstico).
- * Corrigido montando `<DecisionCenter />` nos dois ramos — o próprio
- * `DecisionCenter` já decide corretamente não renderizar nada quando
- * não há diagnósticos NEM decisões (ver correção irmã naquele
- * arquivo), preservando o comportamento visual exato de antes para
- * toda empresa que ainda não tem nenhuma Decision de nenhuma origem.
+ * Mission 204 — visão Decisões do workspace. A decisão é o objeto
+ * principal: a Central de Decisões vem primeiro (o que requer decisão →
+ * decidido/em execução → concluído); a leitura da Executive AI vem em
+ * seguida, como apoio, com a proveniência traduzida em nomes a partir da
+ * análise que a originou. Sem diagnóstico, o ponto de entrada é gerá-lo.
+ * O conhecimento formado ganhou visão própria (Conhecimento).
  */
 export async function ExecutiveDiagnosisSection({ companyId }: { companyId: string }) {
   const diagnoses = await getExecutiveDiagnosesByCompany(companyId);
 
-  // Mission 203: mesma moldura de seção do workspace da empresa; o
-  // conteúdo e a ordem continuam exatamente os mesmos.
   const shell = {
-    id: "diagnostico-executivo",
-    eyebrow: "Inteligência executiva",
-    title: "Diagnóstico e decisões",
+    id: "decisoes",
+    eyebrow: "Decisão",
+    title: "Decisões",
     description:
-      "O diagnóstico interpreta a análise; a Central de Decisões mostra o que precisa da sua decisão, o que já foi decidido e o que aconteceu depois. A decisão final é sempre da empresa.",
+      "O que precisa da sua decisão, o que já foi decidido e o que aconteceu depois — com a leitura da Executive AI como apoio. A decisão final é sempre da empresa.",
   } as const;
 
   if (diagnoses.length === 0) {
@@ -73,11 +36,20 @@ export async function ExecutiveDiagnosisSection({ companyId }: { companyId: stri
     );
   }
 
+  const latest = diagnoses[0];
+  const [history, knowledge] = await Promise.all([getExecutiveHistory(companyId), getKnowledgeByCompany(companyId)]);
+  const sourceReport = history.find((execution) => execution.executionId === latest.executionId)?.report;
+
   return (
     <SectionShell {...shell}>
-      <ExecutiveDiagnosisView diagnosis={diagnoses[0].diagnosis} />
-      <DecisionCenter companyId={companyId} />
-      <KnowledgeSection companyId={companyId} />
+      <div className="flex flex-col gap-12">
+        <DecisionCenter companyId={companyId} />
+        <ExecutiveDiagnosisView
+          diagnosis={latest.diagnosis}
+          references={buildReferenceLabels(sourceReport, knowledge)}
+          generatedAt={formatDateTime(latest.createdAt)}
+        />
+      </div>
     </SectionShell>
   );
 }

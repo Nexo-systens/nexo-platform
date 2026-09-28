@@ -104,7 +104,7 @@ function ScenarioSlotFields({
       <div className="flex flex-col gap-1.5">
         <Label>Tipo de simulação</Label>
         <Select items={SLOT_KIND_OPTIONS} value={slot.kind} onValueChange={(value) => onChange({ ...EMPTY_SLOT, kind: value as SlotKind })}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger aria-label="Tipo de simulação" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -126,7 +126,7 @@ function ScenarioSlotFields({
               value={slot.opexDirection}
               onValueChange={(value) => onChange({ ...slot, opexDirection: value as OperatingCostDirection })}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Direção" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -159,7 +159,7 @@ function ScenarioSlotFields({
                 onChange({ ...slot, collectionDirection: value as CollectionPeriodDirection })
               }
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Direção" className="w-full">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>

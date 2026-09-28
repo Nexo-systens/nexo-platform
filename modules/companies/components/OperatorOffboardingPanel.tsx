@@ -97,7 +97,7 @@ export function OperatorOffboardingPanel() {
       setPreview(null);
       setPurgePhrase("");
       setNotice(
-        `Empresa excluída definitivamente: ${result.storageObjectsRemoved} arquivo(s) e todos os dados removidos. A conta do dono não foi afetada. Registre o resultado no registro do operador.`
+        `Empresa excluída definitivamente: ${result.storageObjectsRemoved} ${result.storageObjectsRemoved === 1 ? "arquivo" : "arquivos"} e todos os dados removidos. A conta do dono não foi afetada. Registre o resultado no registro do operador.`
       );
     });
   }

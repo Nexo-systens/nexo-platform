@@ -38,7 +38,7 @@ export function IndicatorsGrid({ indicators, onViewSource }: IndicatorsGridProps
           {onViewSource && indicator.result.status === "available" && (
             <button
               type="button"
-              className="mt-auto self-start text-[0.75rem] font-medium text-primary underline-offset-4 hover:underline"
+              className="mt-auto self-start text-[0.6875rem] text-muted-foreground underline-offset-4 transition-colors duration-150 hover:text-primary hover:underline"
               onClick={() => onViewSource(indicator)}
             >
               Ver origem

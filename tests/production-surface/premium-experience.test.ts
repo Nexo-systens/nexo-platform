@@ -234,8 +234,8 @@ describe("Mission 203 — visão executiva: nada fabricado, ausência nunca é z
   test("estágio e próximo passo derivados do resolvedor canônico de ativação", () => {
     assert.equal(byId("c-empty").stageLabel, "Aguardando documentos");
     assert.deepEqual(byId("c-empty").nextStep, { label: "Enviar documentos", href: "/documents?companyId=c-empty" });
-    assert.deepEqual(byId("c-ready").nextStep, { label: "Executar análise", href: "/companies/c-ready#analise" });
-    assert.deepEqual(byId("c-legacy").nextStep, { label: "Gerar diagnóstico", href: "/companies/c-legacy#diagnostico-executivo" });
+    assert.deepEqual(byId("c-ready").nextStep, { label: "Executar análise", href: "/companies/c-ready?secao=analise" });
+    assert.deepEqual(byId("c-legacy").nextStep, { label: "Gerar diagnóstico", href: "/companies/c-legacy?secao=decisoes" });
     assert.equal(byId("c-diag").stageLabel, "Diagnóstico disponível");
   });
 

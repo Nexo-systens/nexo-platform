@@ -1,194 +1,250 @@
-import { AlertTriangle } from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
+import { KindMarker } from "@/components/shared/KindMarker";
+import { SemanticBadge } from "@/components/shared/SemanticBadge";
 import type { ExecutiveDiagnosis } from "@/efos/application/executive-diagnosis/ExecutiveDiagnosis";
 import type { InterpretationBasis } from "@/efos/application/executive-diagnosis/ExecutiveDiagnosis.types";
+import { cn } from "@/lib/utils";
+import {
+  ACTION_KIND_LABELS,
+  CONFIDENCE_LABELS,
+  QUESTION_ORIGIN_LABELS,
+  REFERENCE_KIND_LABELS,
+  resolveReference,
+  type ReferenceKind,
+  type ReferenceLabels,
+} from "@/modules/decisions/lib/diagnosis-references";
 
 /**
- * Mission 127 — Executive Review & Decision Interface. Renderiza um
- * `ExecutiveDiagnosis` real (D-059) — puramente apresentacional, nunca
- * calcula/interpreta/reclassifica nada.
+ * Mission 204 — leitura da Executive AI.
  *
- * **Separação visual obrigatória (Etapa 3)**: um aviso fixo no topo
- * afirma explicitamente que este conteúdo é interpretação da IA, não
- * Financial Truth — nunca omitido, nunca condicional. Cada item
- * interpretativo (`interpretations`/`hypotheses`/`risks`/`priorities`/
- * `possibleActions`/`conflictInterpretations`) exibe sua `basis`
- * (Etapa 4: "cada item interpretativo deve manter sua basis visível ou
- * acessível") — nunca apresentado como fato confirmado, sempre
- * rotulado como o que estruturalmente é.
+ * Continua inequívoco que é interpretação (camada "o que o EFOS infere",
+ * marcador vazado, aviso explícito), mas sem a moldura tracejada âmbar e
+ * sem ids técnicos: a base de cada afirmação aparece pelos nomes do que
+ * a análise de origem calculou ("Liquidez Corrente", "Margem Líquida
+ * negativa"). Conhecimento histórico tem aparência própria — nunca se
+ * confunde com fato financeiro atual (Mission 148). Perguntas e
+ * incertezas ficam recolhidas (divulgação progressiva).
  */
 
-function BasisBadges({ basis }: { basis: InterpretationBasis }) {
-  const currentTruth = [
-    ...(basis.indicatorIds ?? []).map((id) => ({ id, kind: "indicador" })),
-    ...(basis.evidenceIds ?? []).map((id) => ({ id, kind: "evidência" })),
-    ...(basis.contextIds ?? []).map((id) => ({ id, kind: "contexto" })),
-    ...(basis.conflictIds ?? []).map((id) => ({ id, kind: "conflito" })),
+function Basis({ basis, references }: { basis: InterpretationBasis; references: ReferenceLabels }) {
+  const current: { kind: ReferenceKind; id: string }[] = [
+    ...(basis.indicatorIds ?? []).map((id) => ({ kind: "indicator" as const, id })),
+    ...(basis.evidenceIds ?? []).map((id) => ({ kind: "evidence" as const, id })),
+    ...(basis.contextIds ?? []).map((id) => ({ kind: "context" as const, id })),
+    ...(basis.conflictIds ?? []).map((id) => ({ kind: "conflict" as const, id })),
   ];
-  // Mission 148 — Knowledge-Conditioned Executive Decision Intelligence
-  // (D-080/Etapa 19). Badges de conhecimento histórico renderizadas com
-  // uma variante visual DIFERENTE das 4 categorias de Financial Truth
-  // acima — nunca a mesma aparência, para que o executivo nunca confunda
-  // "conhecimento histórico citado" com "fato financeiro atual" só de
-  // olhar a UI.
-  const historicalKnowledge = (basis.knowledgeIds ?? []).map((id) => ({ id, kind: "conhecimento histórico" }));
+  const historical = (basis.knowledgeIds ?? []).map((id) => ({ kind: "knowledge" as const, id }));
 
-  if (currentTruth.length === 0 && historicalKnowledge.length === 0) {
-    return <span className="text-xs text-muted-foreground">Sem base rastreável</span>;
+  if (current.length === 0 && historical.length === 0) {
+    return <p className="type-meta">Sem base rastreável</p>;
   }
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {currentTruth.map((item, index) => (
-        <Badge key={`${item.kind}-${item.id}-${index}`} variant="outline" className="text-[10px]">
-          {item.kind}: {item.id}
-        </Badge>
-      ))}
-      {historicalKnowledge.map((item, index) => (
-        <Badge key={`${item.kind}-${item.id}-${index}`} variant="secondary" className="text-[10px]">
-          {item.kind}: {item.id}
-        </Badge>
-      ))}
-    </div>
+    <p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[0.75rem]">
+      <span className="text-muted-foreground">Base:</span>
+      {current.map((item, index) => {
+        const reference = resolveReference(references, item.kind, item.id);
+        return (
+          <span
+            key={`${item.kind}-${item.id}-${index}`}
+            title={`${REFERENCE_KIND_LABELS[item.kind]}${reference.resolved ? "" : ` — ${item.id}`}`}
+            className={cn(
+              "rounded-sm bg-surface-sunken px-1.5 py-0.5 text-foreground-secondary",
+              !reference.resolved && "italic text-muted-foreground"
+            )}
+          >
+            <span className="sr-only">{REFERENCE_KIND_LABELS[item.kind]}: </span>
+            {reference.label}
+          </span>
+        );
+      })}
+      {historical.map((item, index) => {
+        const reference = resolveReference(references, item.kind, item.id);
+        return (
+          <span
+            key={`knowledge-${item.id}-${index}`}
+            className="rounded-sm border border-dashed border-kind-hypothesis/60 px-1.5 py-0.5 text-foreground-secondary"
+          >
+            <span className="font-medium">Conhecimento histórico: </span>
+            {reference.label}
+          </span>
+        );
+      })}
+    </p>
   );
 }
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function Group({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   if (count === 0) return null;
   return (
-    <div className="flex flex-col gap-2">
-      <h4 className="text-sm font-medium text-foreground">
-        {title} <span className="text-xs font-normal text-muted-foreground">({count})</span>
+    <section className="flex flex-col gap-1">
+      <h4 className="type-eyebrow">
+        {title} <span className="num">· {count}</span>
       </h4>
-      <div className="flex flex-col gap-3">{children}</div>
-    </div>
+      <ul className="flex flex-col divide-y divide-border">{children}</ul>
+    </section>
   );
 }
 
-export function ExecutiveDiagnosisView({ diagnosis }: { diagnosis: ExecutiveDiagnosis }) {
+function Item({
+  statement,
+  aside,
+  detail,
+  basis,
+  references,
+}: {
+  statement: string;
+  aside?: React.ReactNode;
+  detail?: React.ReactNode;
+  basis?: InterpretationBasis;
+  references: ReferenceLabels;
+}) {
   return (
-    <div className="flex flex-col gap-5 rounded-xl border-2 border-dashed border-warning/45 bg-warning-soft/30 p-4">
-      <div className="flex items-start gap-2 rounded-lg bg-warning-soft p-3 text-warning-soft-foreground">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <p className="text-xs leading-relaxed">
-          <strong>Interpretação da Executive AI — não é Financial Truth.</strong> Tudo abaixo é uma leitura
-          gerada por IA sobre os dados financeiros já calculados pelo EFOS — nunca um fato confirmado,
-          nunca uma decisão, nunca uma execução. Cada afirmação precisa ser revisada por um humano antes de
-          qualquer ação.
+    <li className="flex flex-col gap-1.5 py-3">
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm text-pretty text-foreground">{statement}</p>
+        {aside}
+      </div>
+      {detail && <p className="type-meta">{detail}</p>}
+      {basis && <Basis basis={basis} references={references} />}
+    </li>
+  );
+}
+
+export function ExecutiveDiagnosisView({
+  diagnosis,
+  references = new Map(),
+  generatedAt,
+}: {
+  diagnosis: ExecutiveDiagnosis;
+  references?: ReferenceLabels;
+  generatedAt?: string;
+}) {
+  const followUps = diagnosis.questions.length + diagnosis.uncertainties.length;
+
+  return (
+    <article className="flex flex-col gap-6 border-l-2 border-dotted border-kind-interpretation pl-5">
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <KindMarker kind="interpretation" />
+          {generatedAt && <span className="type-meta">· gerada em {generatedAt}</span>}
+        </div>
+        <h3 className="type-section-title">Leitura da Executive AI</h3>
+        <p className="type-meta max-w-3xl">
+          <strong className="font-medium text-foreground-secondary">Interpretação, não fato contábil.</strong> Leitura gerada
+          por IA sobre o que o EFOS já calculou — nunca uma decisão nem uma execução. Revise cada afirmação antes de agir.
         </p>
+      </header>
+
+      <div className="flex flex-col gap-2">
+        <p className="type-eyebrow">Resumo executivo</p>
+        <p className="max-w-3xl text-[1.0625rem] leading-relaxed text-pretty text-foreground">
+          {diagnosis.executiveSummary.statement}
+        </p>
+        <Basis basis={diagnosis.executiveSummary.basis} references={references} />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Resumo executivo
-        </span>
-        <p className="text-sm text-foreground">{diagnosis.executiveSummary.statement}</p>
-        <BasisBadges basis={diagnosis.executiveSummary.basis} />
-      </div>
+      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
+        <Group title="Prioridades" count={diagnosis.priorities.length}>
+          {[...diagnosis.priorities]
+            .sort((a, b) => a.rank - b.rank)
+            .map((item) => (
+              <Item
+                key={item.id}
+                statement={`${item.rank}. ${item.statement}`}
+                detail={item.reason}
+                basis={item.basis}
+                references={references}
+              />
+            ))}
+        </Group>
 
-      <Section title="Interpretações" count={diagnosis.interpretations.length}>
-        {diagnosis.interpretations.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-foreground">{item.statement}</p>
-              <Badge variant="secondary" className="shrink-0 text-[10px]">{item.confidence}</Badge>
-            </div>
-            <div className="mt-2"><BasisBadges basis={item.basis} /></div>
-          </div>
-        ))}
-      </Section>
-
-      <Section title="Hipóteses" count={diagnosis.hypotheses.length}>
-        {diagnosis.hypotheses.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-foreground">{item.statement}</p>
-              <Badge variant="secondary" className="shrink-0 text-[10px]">{item.confidence}</Badge>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">Validação necessária: {item.validationNeeded}</p>
-            <div className="mt-2"><BasisBadges basis={item.basis} /></div>
-          </div>
-        ))}
-      </Section>
-
-      <Section title="Riscos" count={diagnosis.risks.length}>
-        {diagnosis.risks.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-foreground">{item.statement}</p>
-              <Badge
-                variant={item.type === "CONFIRMED_SIGNAL" ? "default" : "secondary"}
-                className="shrink-0 text-[10px]"
-              >
-                {item.type === "CONFIRMED_SIGNAL" ? "sinal confirmado" : "risco inferido"}
-              </Badge>
-            </div>
-            <div className="mt-2"><BasisBadges basis={item.basis} /></div>
-          </div>
-        ))}
-      </Section>
-
-      <Section title="Prioridades" count={diagnosis.priorities.length}>
-        {[...diagnosis.priorities]
-          .sort((a, b) => a.rank - b.rank)
-          .map((item) => (
-            <div key={item.id} className="rounded-md border border-border p-3">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px]">#{item.rank}</Badge>
-                <p className="text-sm text-foreground">{item.statement}</p>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
-              <div className="mt-2"><BasisBadges basis={item.basis} /></div>
-            </div>
+        <Group title="Riscos" count={diagnosis.risks.length}>
+          {diagnosis.risks.map((item) => (
+            <Item
+              key={item.id}
+              statement={item.statement}
+              aside={
+                <SemanticBadge tone={item.type === "CONFIRMED_SIGNAL" ? "negative" : "warning"}>
+                  {item.type === "CONFIRMED_SIGNAL" ? "Sinal confirmado" : "Risco inferido"}
+                </SemanticBadge>
+              }
+              basis={item.basis}
+              references={references}
+            />
           ))}
-      </Section>
+        </Group>
 
-      <Section title="Ações possíveis" count={diagnosis.possibleActions.length}>
-        {diagnosis.possibleActions.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-foreground">{item.statement}</p>
-              <Badge variant="secondary" className="shrink-0 text-[10px]">{item.kind}</Badge>
-            </div>
-            <div className="mt-2"><BasisBadges basis={item.basis} /></div>
-          </div>
-        ))}
-      </Section>
+        <Group title="Interpretações" count={diagnosis.interpretations.length}>
+          {diagnosis.interpretations.map((item) => (
+            <Item
+              key={item.id}
+              statement={item.statement}
+              aside={<SemanticBadge>{CONFIDENCE_LABELS[item.confidence] ?? item.confidence}</SemanticBadge>}
+              basis={item.basis}
+              references={references}
+            />
+          ))}
+        </Group>
 
-      <Section title="Perguntas" count={diagnosis.questions.length}>
-        {diagnosis.questions.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <p className="text-sm text-foreground">{item.question}</p>
-            <p className="mt-1 text-xs text-muted-foreground">origem: {item.raisedFrom}</p>
-          </div>
-        ))}
-      </Section>
+        <Group title="Hipóteses" count={diagnosis.hypotheses.length}>
+          {diagnosis.hypotheses.map((item) => (
+            <Item
+              key={item.id}
+              statement={item.statement}
+              aside={<SemanticBadge>{CONFIDENCE_LABELS[item.confidence] ?? item.confidence}</SemanticBadge>}
+              detail={`Validação necessária: ${item.validationNeeded}`}
+              basis={item.basis}
+              references={references}
+            />
+          ))}
+        </Group>
 
-      <Section title="Incertezas" count={diagnosis.uncertainties.length}>
-        {diagnosis.uncertainties.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <p className="text-sm text-foreground">{item.statement}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
-          </div>
-        ))}
-      </Section>
+        <Group title="Ações possíveis" count={diagnosis.possibleActions.length}>
+          {diagnosis.possibleActions.map((item) => (
+            <Item
+              key={item.id}
+              statement={item.statement}
+              aside={<SemanticBadge tone="info">{ACTION_KIND_LABELS[item.kind] ?? item.kind}</SemanticBadge>}
+              basis={item.basis}
+              references={references}
+            />
+          ))}
+        </Group>
 
-      <Section title="Interpretações de conflito" count={diagnosis.conflictInterpretations.length}>
-        {diagnosis.conflictInterpretations.map((item) => (
-          <div key={item.id} className="rounded-md border border-border p-3">
-            <p className="text-sm text-foreground">{item.statement}</p>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {item.conflictSignals.map((signal, index) => (
-                <Badge key={`${item.id}-signal-${index}`} variant="outline" className="text-[10px]">
-                  {signal}
-                </Badge>
-              ))}
-            </div>
-            <div className="mt-2"><BasisBadges basis={item.basis} /></div>
-          </div>
-        ))}
-      </Section>
-    </div>
+        <Group title="Interpretações de conflito" count={diagnosis.conflictInterpretations.length}>
+          {diagnosis.conflictInterpretations.map((item) => (
+            <Item
+              key={item.id}
+              statement={item.statement}
+              detail={item.conflictSignals.join(" · ")}
+              basis={item.basis}
+              references={references}
+            />
+          ))}
+        </Group>
+      </div>
+
+      {followUps > 0 && (
+        <details className="rounded-lg bg-surface-subtle px-4 py-3">
+          <summary className="cursor-pointer text-[0.8125rem] font-medium text-foreground select-none">
+            Perguntas em aberto e incertezas <span className="num text-muted-foreground">· {followUps}</span>
+          </summary>
+          <ul className="mt-2 flex flex-col divide-y divide-border">
+            {diagnosis.questions.map((item) => (
+              <li key={item.id} className="flex items-start justify-between gap-4 py-2.5">
+                <p className="text-sm text-foreground">{item.question}</p>
+                <SemanticBadge>{QUESTION_ORIGIN_LABELS[item.raisedFrom] ?? item.raisedFrom}</SemanticBadge>
+              </li>
+            ))}
+            {diagnosis.uncertainties.map((item) => (
+              <li key={item.id} className="flex flex-col gap-0.5 py-2.5">
+                <p className="text-sm text-foreground">{item.statement}</p>
+                <p className="type-meta">{item.reason}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </article>
   );
 }

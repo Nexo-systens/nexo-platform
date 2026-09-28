@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 
 import type { ExecutiveReport, ExecutiveReportSection } from "@/efos/application/report";
@@ -21,6 +22,7 @@ import {
   severityTag,
   type InsightLayer,
 } from "@/modules/analysis/lib/insight-semantics";
+import { formatEngineText } from "@/modules/analysis/lib/engine-text";
 import { derivePeriodLabel } from "@/modules/analysis/lib/report-view";
 
 import { FinancialRecordsTable } from "./FinancialRecordsTable";
@@ -140,8 +142,8 @@ function renderSection(
     case "evidence": {
       const items: InsightItem[] = section.evidence.evidences.map((evidence) => ({
         id: evidence.id,
-        title: evidence.title,
-        description: evidence.description,
+        title: formatEngineText(evidence.title),
+        description: formatEngineText(evidence.description),
         tags: [severityTag(evidence.severity), confidenceTag(evidence.confidence)],
         onViewSource: () => onViewEvidenceSource(evidence),
       }));
@@ -152,8 +154,8 @@ function renderSection(
     case "context": {
       const items: InsightItem[] = section.context.contexts.map((context) => ({
         id: context.id,
-        title: context.title,
-        description: context.description,
+        title: formatEngineText(context.title),
+        description: formatEngineText(context.description),
         tags: [severityTag(context.severity), confidenceTag(context.confidence)],
       }));
       return (
@@ -163,8 +165,8 @@ function renderSection(
     case "reasoning": {
       const items: InsightItem[] = section.reasoning.reasonings.map((reasoning) => ({
         id: reasoning.id,
-        title: reasoning.title,
-        description: reasoning.description,
+        title: formatEngineText(reasoning.title),
+        description: formatEngineText(reasoning.description),
         tags: [confidenceTag(reasoning.confidence)],
       }));
       return (
@@ -175,8 +177,8 @@ function renderSection(
       const items: InsightItem[] = section.recommendation.recommendations.map(
         (recommendation) => ({
           id: recommendation.id,
-          title: recommendation.title,
-          description: `${recommendation.description} ${recommendation.expectedImpact}`,
+          title: formatEngineText(recommendation.title),
+          description: formatEngineText(`${recommendation.description} ${recommendation.expectedImpact}`),
           tags: [priorityTag(recommendation.priority), confidenceTag(recommendation.confidence)],
         })
       );
@@ -191,8 +193,8 @@ function renderSection(
     case "decision": {
       const items: InsightItem[] = section.decision.decisions.map((decision) => ({
         id: decision.id,
-        title: decision.title,
-        description: `${decision.description} ${decision.rationale}`,
+        title: formatEngineText(decision.title),
+        description: formatEngineText(`${decision.description} ${decision.rationale}`),
         tags: [priorityTag(decision.priority), confidenceTag(decision.confidence)],
       }));
       return (
@@ -216,6 +218,45 @@ function sectionPeriodLabel(section: ExecutiveReportSection): string | undefined
       return derivePeriodLabel(section.balanceSheet);
     case "incomeStatement":
       return derivePeriodLabel(section.incomeStatement);
+    default:
+      return undefined;
+  }
+}
+
+const INDICATOR_SECTIONS = new Set<ExecutiveReportSection["type"]>(["financialHealth", "financialRisk", "kpi", "indicators"]);
+const STATEMENT_SECTIONS = new Set<ExecutiveReportSection["type"]>(["balanceSheet", "incomeStatement", "cashFlow"]);
+
+function sectionItemCount(section: ExecutiveReportSection): string {
+  const count =
+    section.type === "financialHealth"
+      ? section.financialHealth.length
+      : section.type === "financialRisk"
+        ? section.financialRisk.length
+        : section.type === "kpi"
+          ? section.kpi.length
+          : section.type === "indicators"
+            ? section.indicators.indicators.length
+            : section.type === "balanceSheet"
+              ? section.balanceSheet.filter(isBalanceSheetRecord).length
+              : section.type === "incomeStatement"
+                ? section.incomeStatement.length
+                : section.type === "cashFlow"
+                  ? section.cashFlow.length
+                  : 0;
+  const noun = INDICATOR_SECTIONS.has(section.type) ? ["indicador", "indicadores"] : ["lançamento", "lançamentos"];
+  return `${count} ${count === 1 ? noun[0] : noun[1]}`;
+}
+
+function insightCount(section: ExecutiveReportSection): number | undefined {
+  switch (section.type) {
+    case "context":
+      return section.context.contexts.length;
+    case "reasoning":
+      return section.reasoning.reasonings.length;
+    case "recommendation":
+      return section.recommendation.recommendations.length;
+    case "decision":
+      return section.decision.decisions.length;
     default:
       return undefined;
   }
@@ -270,10 +311,6 @@ export function ExecutiveReportView({ report }: ExecutiveReportViewProps) {
 
   return (
     <div className="flex flex-col gap-7">
-      <p className="type-meta num text-right">
-        Análise executada em {new Date(report.metadata.generatedAt).toLocaleString("pt-BR")}
-      </p>
-
       {report.sections.map((section, index) => {
         const periodLabel = sectionPeriodLabel(section);
         const layer = sectionLayer(section.type);
@@ -281,6 +318,43 @@ export function ExecutiveReportView({ report }: ExecutiveReportViewProps) {
         // (Mission 065, já monotônica: fatos → inferências); só um
         // divisor aparece quando a natureza da informação muda.
         const startsLayer = index === 0 || sectionLayer(report.sections[index - 1].type) !== layer;
+        // Mission 204 — seção inferida sem itens vira uma linha discreta,
+        // no mesmo lugar da ordem (nunca some): nada de título + lista vazia.
+        if (layer === "inferred" && insightCount(section) === 0) {
+          return (
+            <Fragment key={`${section.type}-${index}`}>
+              {startsLayer && <LayerDivider layer={layer} />}
+              <p className="flex items-center gap-3 border-b border-border pb-3 type-meta">
+                <KindMarker kind={sectionKind(section.type)} />
+                <span>Nenhum item nesta análise.</span>
+              </p>
+            </Fragment>
+          );
+        }
+        const firstIndicatorIndex = report.sections.findIndex((candidate) => INDICATOR_SECTIONS.has(candidate.type));
+        const collapsible =
+          (INDICATOR_SECTIONS.has(section.type) && index !== firstIndicatorIndex) || STATEMENT_SECTIONS.has(section.type);
+        if (collapsible) {
+          return (
+            <Fragment key={`${section.type}-${index}`}>
+              {startsLayer && <LayerDivider layer={layer} />}
+              <details className="group border-b border-border pb-3">
+                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-3 gap-y-1 select-none [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-3">
+                    <ChevronRight className="size-4 text-muted-foreground transition-transform duration-150 group-open:rotate-90" aria-hidden="true" />
+                    <span className="type-subsection-title">{section.title}</span>
+                    <KindMarker kind={sectionKind(section.type)} />
+                  </span>
+                  <span className="type-meta num">
+                    {sectionItemCount(section)}
+                    {periodLabel ? ` · ${periodLabel}` : ""}
+                  </span>
+                </summary>
+                <div className="pt-4">{renderSection(section, handleViewIndicatorSource, handleViewEvidenceSource)}</div>
+              </details>
+            </Fragment>
+          );
+        }
         return (
           <Fragment key={`${section.type}-${index}`}>
             {startsLayer && <LayerDivider layer={layer} />}

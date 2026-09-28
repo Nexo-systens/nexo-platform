@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import type { Knowledge, LearningRecord } from "@/efos/domain";
 import { formKnowledgeAction, formGovernedKnowledgeAction } from "@/modules/decisions/actions/knowledge-formation.actions";
@@ -23,7 +22,7 @@ import { KNOWLEDGE_CATEGORY_LABELS } from "@/modules/decisions/lib/knowledgeLabe
  */
 const KNOWLEDGE_ERROR_LABELS: Record<string, string> = {
   NO_SUFFICIENT_RECURRING_LEARNING:
-    "Ainda não há LearningRecords suficientemente recorrentes (mínimo 2 Decisions independentes com a mesma classificação de evidência) — nenhum Knowledge foi fabricado.",
+    "Ainda não há aprendizados recorrentes o bastante (mínimo de 2 decisões independentes com a mesma classificação de evidência) — nenhum conhecimento foi fabricado.",
 };
 
 /**
@@ -161,21 +160,26 @@ export function KnowledgeFormationPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Padrões recorrentes entre decisões independentes</CardTitle>
-        <CardAction className="flex gap-2">
+    <section aria-labelledby="conhecimento-formado-titulo" className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <p className="type-eyebrow">Padrões entre decisões independentes</p>
+          <h3 id="conhecimento-formado-titulo" className="type-section-title">
+            Conhecimento formado
+          </h3>
+        </div>
+        <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={handleFormKnowledge} disabled={forming}>
             {forming ? "Formando..." : "Formar conhecimento"}
           </Button>
           <Button size="sm" variant="outline" onClick={handleEvaluateKnowledge} disabled={evaluating || knowledge.length === 0}>
             {evaluating ? "Avaliando..." : "Avaliar conhecimento"}
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-xs text-muted-foreground">
-          Consolida LearningRecords recorrentes de múltiplas decisões independentes em conhecimento reutilizável — nunca a partir de uma única decisão, nunca por IA, nunca afirma causalidade.
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        <p className="type-meta max-w-3xl">
+          Consolida aprendizados que se repetem em decisões independentes em conhecimento reutilizável — nunca a partir de uma única decisão, nunca por IA, nunca afirma causalidade.
         </p>
 
         {/*
@@ -203,10 +207,10 @@ export function KnowledgeFormationPanel({
             )
           );
           return (
-            <div key={preview.candidateId} className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2 text-xs">
+            <div key={preview.candidateId} className="flex flex-col gap-3 rounded-xl bg-warning-soft/40 p-4 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <Badge variant="outline">{KNOWLEDGE_CATEGORY_LABELS[preview.category] ?? preview.category}</Badge>
-                <span className="text-muted-foreground">Aguardando revisão — {preview.decisionIds.length} Decisions, {preview.interpretations.length} interpretação(ões)</span>
+                <span className="text-muted-foreground">Aguardando sua revisão — {preview.decisionIds.length} {preview.decisionIds.length === 1 ? "decisão" : "decisões"}, {preview.interpretations.length} {preview.interpretations.length === 1 ? "interpretação" : "interpretações"}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-[10px] font-medium text-foreground">Interpretações registradas pelos executivos (fonte — nunca resumidas pela NEXO):</p>
@@ -225,7 +229,7 @@ export function KnowledgeFormationPanel({
                 </div>
               )}
               <div className="flex flex-col gap-1">
-                <p className="text-[10px] font-medium text-foreground">Statement organizacional (sugestão determinística — confirme ou edite antes de aprovar):</p>
+                <p className="text-[10px] font-medium text-foreground">Enunciado do conhecimento (sugestão determinística — confirme ou edite antes de aprovar):</p>
                 <Textarea
                   value={draft}
                   onChange={(event) => setStatementDrafts((prev) => ({ ...prev, [preview.candidateId]: event.target.value }))}
@@ -247,7 +251,7 @@ export function KnowledgeFormationPanel({
         })}
 
         {knowledge.length === 0 && (pendingReview ?? []).length === 0 && !error && !info && (
-          <p className="text-xs text-muted-foreground">Nenhum conhecimento formado ainda para esta empresa.</p>
+          <p className="type-body">Nenhum conhecimento formado ainda para esta empresa.</p>
         )}
 
         {knowledge.map((k) => {
@@ -264,12 +268,15 @@ export function KnowledgeFormationPanel({
           const canExpand = hasLifecycleEvidence || interpretedRecords.length > 0;
 
           return (
-            <div key={k.id} className="rounded-md bg-muted/40 p-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <Badge variant="outline">{KNOWLEDGE_CATEGORY_LABELS[k.category] ?? k.category}</Badge>
-                <span className="text-muted-foreground">{k.derivedFromLearningRecordIds?.length ?? 0} LearningRecord(s) de origem</span>
+            <div key={k.id} className="flex flex-col gap-1 border-l-2 border-kind-decision pl-4 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="type-eyebrow">{KNOWLEDGE_CATEGORY_LABELS[k.category] ?? k.category}</span>
+                <span className="text-muted-foreground">
+                  Formado a partir de {k.derivedFromLearningRecordIds?.length ?? 0}{" "}
+                  {(k.derivedFromLearningRecordIds?.length ?? 0) === 1 ? "aprendizado" : "aprendizados"}
+                </span>
               </div>
-              <p className="mt-1 text-foreground">{k.statement}</p>
+              <p className="text-[0.9375rem] leading-relaxed text-foreground">{k.statement}</p>
               {/* Mission 146 — Etapa 14: estado de ciclo de vida agregando TODO o histórico de avaliações (nunca só a mais recente), nunca fabricado na ausência de avaliações reais (EMERGING é o próprio estado honesto de "nenhuma avaliação ainda"). */}
               {hasLifecycleEvidence && (
                 <div className="mt-2 flex items-center gap-2">
@@ -277,8 +284,10 @@ export function KnowledgeFormationPanel({
                     {LIFECYCLE_STATE_LABELS[state.state] ?? state.state}
                   </Badge>
                   <span className="text-muted-foreground">
-                    {state.evaluationCount} avaliação(ões) · {state.supportingCount} a favor · {state.contradictingCount} contra
-                    {state.insufficientCount > 0 ? ` · ${state.insufficientCount} inconclusiva(s)` : ""}
+                    {state.evaluationCount} {state.evaluationCount === 1 ? "avaliação" : "avaliações"} · {state.supportingCount} a favor · {state.contradictingCount} contra
+                    {state.insufficientCount > 0
+                      ? ` · ${state.insufficientCount} ${state.insufficientCount === 1 ? "inconclusiva" : "inconclusivas"}`
+                      : ""}
                   </span>
                 </div>
               )}
@@ -316,7 +325,7 @@ export function KnowledgeFormationPanel({
 
         {info && <p className="text-sm text-muted-foreground">{info}</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

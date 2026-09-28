@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -16,7 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { HistoryResponse } from "@/app/api/efos/_shared/HistoryResponse";
 import type { ApplicationResult } from "@/efos/application/contracts";
-import { formatExecutedAt } from "@/modules/history/lib/formatExecutedAt";
+import { describeExecution } from "@/modules/history/lib/formatExecutedAt";
 import { resolveExecutionLabel } from "@/modules/history/lib/resolveExecutionLabel";
 
 import { ComparisonSummary } from "./ComparisonSummary";
@@ -132,11 +131,13 @@ export function HistoricalAnalysisPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Histórico e comparação</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
+    <section aria-labelledby="historico-titulo" className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1">
+        <p className="type-eyebrow">Análise após análise</p>
+        <h3 id="historico-titulo" className="type-section-title">
+          Histórico e comparação
+        </h3>
+      </div>
         {status === "loading" && (
           <div className="flex flex-col gap-3" aria-busy="true">
             <Skeleton className="h-4 w-1/3" />
@@ -168,6 +169,7 @@ export function HistoricalAnalysisPanel({
               currentExecutionId={data.currentExecution?.executionId}
             />
             <EmptyState
+              compact
               icon={Clock}
               title="Esta é a primeira análise"
               description="Ainda não existe período anterior para comparação."
@@ -182,25 +184,28 @@ export function HistoricalAnalysisPanel({
               currentExecutionId={data.currentExecution?.executionId}
             />
 
-            <div className="flex flex-col gap-3 border-t border-border pt-4">
+            <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-foreground">
+                <h4 className="type-subsection-title">
                   O que mudou
-                  {data.previousExecution &&
-                    ` — comparado com ${formatExecutedAt(data.previousExecution.executedAt)}`}
-                </h3>
+                  {data.currentExecution &&
+                    data.previousExecution &&
+                    ` — ${describeExecution(data.currentExecution).title} comparado com ${describeExecution(data.previousExecution).title}`}
+                </h4>
 
                 <Select
                   value={selectedPreviousId}
                   onValueChange={(value) => handlePreviousChange(String(value))}
                 >
-                  <SelectTrigger className="w-fit min-w-40" size="sm">
+                  <SelectTrigger aria-label="Comparar com a análise de" className="w-fit min-w-40" size="sm">
                     <SelectValue placeholder="Comparar com...">
                       {(value) =>
-                        resolveExecutionLabel(
-                          value as string | undefined,
-                          data.availableExecutions
-                        )
+                        (() => {
+                          const match = data.availableExecutions.find((execution) => execution.executionId === value);
+                          return match
+                            ? describeExecution(match).title
+                            : resolveExecutionLabel(value as string | undefined, data.availableExecutions);
+                        })()
                       }
                     </SelectValue>
                   </SelectTrigger>
@@ -215,7 +220,7 @@ export function HistoricalAnalysisPanel({
                           key={execution.executionId}
                           value={execution.executionId}
                         >
-                          {formatExecutedAt(execution.executedAt)}
+                          {describeExecution(execution).title}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -226,7 +231,6 @@ export function HistoricalAnalysisPanel({
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
+    </section>
   );
 }

@@ -1,5 +1,4 @@
 import { SemanticBadge } from "@/components/shared/SemanticBadge";
-import { cn } from "@/lib/utils";
 import {
   INSIGHT_KIND_META,
   type InsightKind,
@@ -53,16 +52,13 @@ export function InsightList({ kind, items, emptyMessage }: InsightListProps) {
     : { backgroundColor: color };
 
   return (
-    <ul className="flex flex-col gap-2.5">
+    <ul className="flex flex-col divide-y divide-border border-y border-border">
       {items.map((item) => (
         <li
           key={item.id}
-          className={cn(
-            "relative flex flex-col gap-2 overflow-hidden rounded-lg border border-border py-3 pr-4 pl-5",
-            inferred ? "bg-surface-subtle" : "bg-surface"
-          )}
+          className="relative flex flex-col gap-1.5 py-3.5 pr-1 pl-5"
         >
-          <span aria-hidden="true" className="absolute inset-y-3 left-2 w-0.5 rounded-full" style={accent} />
+          <span aria-hidden="true" className="absolute inset-y-4 left-1 w-0.5 rounded-full" style={accent} />
           <div className="flex flex-wrap items-start justify-between gap-2">
             <p className="text-sm font-medium text-foreground">{item.title}</p>
             {item.tags.length > 0 && (
@@ -79,7 +75,7 @@ export function InsightList({ kind, items, emptyMessage }: InsightListProps) {
           {item.onViewSource && (
             <button
               type="button"
-              className="self-start text-[0.75rem] font-medium text-primary underline-offset-4 hover:underline"
+              className="self-start text-[0.75rem] text-muted-foreground underline-offset-4 transition-colors duration-150 hover:text-primary hover:underline"
               onClick={item.onViewSource}
             >
               Ver origem

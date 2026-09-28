@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import { createRestReadRetryFetch } from "@/lib/supabase/rest-read-retry";
 import type { Database } from "@/types/database";
+
+// Mission 204 — leituras do PostgREST com repetição única e registrada em
+// caso de 401 transitório (ver lib/supabase/rest-read-retry.ts).
+const restReadRetryFetch = createRestReadRetryFetch();
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -10,6 +15,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: restReadRetryFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll();

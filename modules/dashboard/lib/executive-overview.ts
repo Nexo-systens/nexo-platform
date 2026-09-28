@@ -111,11 +111,11 @@ function nextStep(stage: ActivationState, companyId: string): { label: string; h
     case "documents_not_analyzable":
       return { label: "Enviar PDF ou CSV", href: `/documents?companyId=${companyId}` };
     case "ready_for_analysis":
-      return { label: "Executar análise", href: `${company}#analise` };
+      return { label: "Executar análise", href: `${company}?secao=analise` };
     case "analysis_available":
-      return { label: "Gerar diagnóstico", href: `${company}#diagnostico-executivo` };
+      return { label: "Gerar diagnóstico", href: `${company}?secao=decisoes` };
     case "diagnosis_available":
-      return { label: "Abrir inteligência executiva", href: `${company}#diagnostico-executivo` };
+      return { label: "Abrir decisões", href: `${company}?secao=decisoes` };
   }
 }
 

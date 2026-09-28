@@ -14,6 +14,12 @@ import { compareExecutions } from "@/efos/application/history";
 export interface HistoryExecutionSummary {
   readonly executionId: string;
   readonly executedAt: string;
+  /**
+   * Mission 204 — período analisado (o dos indicadores da própria
+   * execução), para rotular o histórico por "agosto de 2026" em vez da
+   * data de execução. Ausente quando a execução não calculou indicadores.
+   */
+  readonly period?: { readonly startDate: string; readonly endDate: string };
 }
 
 /**
@@ -34,7 +40,13 @@ export interface HistoryResponse {
 }
 
 function toSummary(execution: HistoricalExecution): HistoryExecutionSummary {
-  return { executionId: execution.executionId, executedAt: execution.executedAt };
+  const indicators = execution.report?.sections.find((section) => section.type === "indicators");
+  const period = indicators?.type === "indicators" ? indicators.indicators.indicators[0]?.period : undefined;
+  return {
+    executionId: execution.executionId,
+    executedAt: execution.executedAt,
+    ...(period ? { period: { startDate: period.startDate, endDate: period.endDate } } : {}),
+  };
 }
 
 /**
