@@ -79,11 +79,10 @@ export async function updateSession(request: NextRequest) {
   };
 
   const { pathname } = request.nextUrl;
-  const publicRoute = isPublicRoute(pathname);
-
-  if (!user && pathname === "/") {
-    return redirectTo("/login");
-  }
+  // Mission 205 — `/` é a página institucional, pública para visitantes.
+  // Usuário autenticado continua indo para o produto (mesma regra das
+  // demais rotas públicas), como antes.
+  const publicRoute = pathname === "/" || isPublicRoute(pathname);
 
   if (!user && !publicRoute) {
     return redirectTo("/login");

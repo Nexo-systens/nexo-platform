@@ -10264,3 +10264,42 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 - Varredura do diff: nenhum JWT, chave ou credencial; só e-mail de domínio reservado de teste e o UUID sintético já usado nos testes; CNPJs do seed são sintéticos (dígitos calculados).
 
 **Origem.** Mission 204 — Premium Experience & Visual Excellence.
+
+## Mission 205 — NEXO Institutional & Sales Experience
+
+**Status.** Fechada (`MISSION_205_CLOSED`). Página institucional e comercial em `/`. Nenhuma mudança em Engines, semântica de IA, RLS, migrations, persistência, tenancy, modelo de auth, offboarding ou ciclo de decisão. Nenhum domínio, DNS, deploy ou URL de redirect do Supabase foi tocado.
+
+**Auditoria de rotas (antes).**
+- `/` não tinha conteúdo: o proxy mandava visitante para `/login` e a página mandava usuário autenticado para `/dashboard`.
+- Dependiam de `/`: o logo da tela de entrada, o "início" do `not-found` e um teste do proxy (`/` anônimo → `/login`).
+- Login, signup, recuperação e `/auth/confirm` não dependem de `/`. O destino padrão pós-confirmação é `/dashboard`.
+- Conclusão: nenhum risco arquitetural; a mudança mínima é tornar `/` pública.
+
+**Arquitetura escolhida.**
+- `app/page.tsx` removido; `app/(site)/page.tsx` (grupo próprio, com layout que carrega só a fonte de título e o CSS do site).
+- `lib/supabase/proxy.ts`: `/` (exato) entra como rota pública. Visitante fica na página; usuário autenticado continua indo para `/dashboard` pela mesma regra das outras rotas públicas, como antes. `/dashboard-publico` e afins continuam protegidos.
+- Página estática (`○ /` no build): não lê sessão, cookies nem cabeçalhos. Server Components do início ao fim; a única ilha client é o menu móvel (4 KB gzip).
+- Pronta para `nexoefos.com.br` (landing) × `app.nexoefos.com.br` (produto) sem roteamento por host agora.
+
+**Conteúdo.** Hero (tese canônica + quadro da Visão geral) → problema → categoria EFOS (camadas ERP/contabilidade/BI/EFOS e o ciclo evidência → aprendizado) → mapa do produto → como funciona (Visão executiva, Executive Analysis, Scenario Lab, Decision Center, Resultado e Knowledge) → fato × inferência → Executive Chat → segurança → Founding Company → conversa → rodapé.
+
+**Quadros de produto.** Recortes das telas reais com os componentes do próprio produto e os números que a NEXO calculou sobre a fixture sintética da Mission 204. Empresas genéricas ("Distribuidora Exemplo"), selo "Dados fictícios" em todo quadro, nenhum id, CNPJ ou documento. No celular, o cenário vira lista (a tabela do produto pede 32rem).
+
+**Truth audit (afirmações comerciais).**
+- **Suportado pelo produto:** lê demonstrativos (DRE, balanço/balancete, extratos) em PDF/CSV; compara com a análise anterior; evidência por regra com origem; indisponível nunca vira zero; Scenario Lab de despesas operacionais, prazo de recebimento e comparação; revisão da leitura da IA; decisão que concorda, diverge ou existe sem a IA; execução com responsável e prazo; resultado, antes/depois e aprendizado; conhecimento de decisões independentes; Chat fundamentado com ações só sob confirmação; login obrigatório; isolamento por RLS; encerramento governado (Missions 202/202B); não executa decisões, não acessa contas, não pede credenciais.
+- **Posicionamento:** tese ("inteligência financeira para administrar empresas"), categoria EFOS, "a camada que faltava", ICP, "programa inicial para empresas selecionadas".
+- **Dependente de documento:** prazos de remoção e fornecedores "descritos nas condições do programa" — o documento existe, mas segue como rascunho a revisar (`FOUNDING_COMPANY_PROGRAM_DRAFT.md`).
+- **Não suportado → fora da página:** integração automática com ERP/banco, previsões, execução automática, selos e certificações, estatísticas de mercado, clientes, depoimentos, preço. Corrigido na revisão: "quarta queda seguida" (a evidência fala em 4 períodos).
+
+**CTA.** Canal comercial por `NEXT_PUBLIC_NEXO_CONTACT_URL` (`mailto:` ou `https:`; qualquer outro valor é ignorado). O documento do programa deixa os contatos como `[A DEFINIR]`, então nenhum contato foi inventado: sem a variável, o botão leva à seção `#conversar`. Canonical e imagem de compartilhamento só com `NEXT_PUBLIC_SITE_URL` (origem https) — sem ela o Next resolveria as URLs contra um host provisório.
+
+**Também.** Metadata institucional; imagem de compartilhamento 1200×630 (`public/og/nexo-og.png`, gerada de uma composição própria); `app/icon.svg` (monograma NEXO) no lugar do favicon padrão do create-next-app; descrição do layout raiz sem "PMEs"; token `--brass`.
+
+**Revisão visual e validação.**
+- Capturas nativas em 1440, 1280, 1024, 768, 576, 390 e 360px; nenhuma rolagem horizontal. O critério do harness passou a verificar também elementos além da largura — foi assim que apareceram e foram corrigidos o estouro do Scenario Lab e do Chat no celular (grade sem coluna-base limitada).
+- Console: 0 erros, avisos ou exceções. Contraste calculado em 327 textos visíveis: mínimo 5,01:1. Foco marfim sobre superfícies escuras.
+- JavaScript da landing: 202 KB gzip (login: 290 KB); HTML 27 KB gzip.
+- type-check e lint limpos; build limpo — 18 páginas + a rota de metadata `/icon.svg` (19 entradas); `/` passou a estática.
+- 346 testes: financial-ingestion 65, executive-report 30, activation 41, production-surface 205 (25 em `mission-205-landing.test.ts`; decisões de rota em `session-cookie-redirects.test.ts`), release-candidate 5.
+
+**Origem.** Mission 205 — NEXO Institutional & Sales Experience.

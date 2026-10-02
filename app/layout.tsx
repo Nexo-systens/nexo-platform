@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NEXO Platform",
-  description: "Financial Operating System para PMEs.",
+  title: "NEXO",
+  description: "NEXO — Executive Financial Operating System. Inteligência financeira para administrar empresas.",
 };
 
 export default function RootLayout({

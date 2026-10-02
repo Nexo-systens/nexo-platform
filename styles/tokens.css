@@ -87,6 +87,11 @@
   --kind-recommendation: oklch(0.36 0.08 262);
   --kind-decision: oklch(0.47 0.1 158);
 
+  /* ---------- Institucional (Mission 205) ----------
+   * Latão discreto da página institucional: só filetes e numerais sobre
+   * `--surface-inverse`. Nunca texto corrido, nunca status. */
+  --brass: oklch(0.8 0.06 82);
+
   /* ---------- Foco ---------- */
   --ring: oklch(0.55 0.1 262);
 
@@ -174,6 +179,7 @@
   --kind-hypothesis: oklch(0.8 0.11 75);
   --kind-recommendation: oklch(0.8 0.08 262);
   --kind-decision: oklch(0.76 0.11 158);
+  --brass: oklch(0.8 0.06 82);
 
   --ring: oklch(0.7 0.1 262);
 }

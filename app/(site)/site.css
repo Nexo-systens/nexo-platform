@@ -1,0 +1,105 @@
+/*
+ * Mission 205 — página institucional. Carregado só pela rota `/`
+ * (layout do grupo `(site)`); o produto não recebe nada daqui.
+ *
+ * Movimento: só CSS, sem JavaScript. Revelação ligada à rolagem
+ * (`animation-timeline: view()`) onde o navegador suporta; sem suporte
+ * ou com `prefers-reduced-motion`, o conteúdo aparece direto.
+ */
+
+.site-display {
+  font-family: var(--font-site-display), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  font-optical-sizing: auto;
+}
+
+/* Filetes horizontais discretos, como papel de balanço. */
+.site-ledger {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    oklch(1 0 0 / 0.032) 31px,
+    oklch(1 0 0 / 0.032) 32px
+  );
+}
+
+
+/* Quadro de produto: superfície de papel com elevação sobre o fundo escuro. */
+.site-frame {
+  border-radius: 0.875rem;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow:
+    0 0 0 1px oklch(0.2 0.02 262 / 0.08),
+    0 24px 60px -24px oklch(0.15 0.03 262 / 0.45),
+    0 8px 20px -12px oklch(0.15 0.03 262 / 0.25);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-enter {
+    animation: site-enter 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .site-enter-delayed {
+    animation: site-enter 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) 180ms both;
+  }
+
+  @supports (animation-timeline: view()) {
+    .site-reveal {
+      animation: site-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+  }
+
+  /* Cabeçalho ganha filete inferior assim que a página rola. */
+  @supports (animation-timeline: scroll()) {
+    .site-header {
+      animation: site-header-rule linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 120px;
+    }
+  }
+}
+
+@keyframes site-enter {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
+@keyframes site-reveal {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+  }
+}
+
+@keyframes site-header-rule {
+  from {
+    border-bottom-color: transparent;
+  }
+  to {
+    border-bottom-color: oklch(1 0 0 / 0.1);
+  }
+}
+
+/* Foco visível sobre as superfícies escuras: marfim no lugar do azul. */
+.site-root .bg-surface-inverse :focus-visible,
+.site-root .site-header :focus-visible {
+  outline-color: var(--foreground-inverse);
+}
+
+html:has(.site-root) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.site-root) {
+    scroll-behavior: auto;
+  }
+}

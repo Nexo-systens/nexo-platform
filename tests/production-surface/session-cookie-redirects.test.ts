@@ -136,8 +136,10 @@ describe("Mission 204 — o proxy preserva cookies de sessão em todo redirect",
     assert.equal(new URL(anonymousProtected.headers.get("location")!).pathname, "/login");
     assert.equal(anonymousProtected.headers.getSetCookie().length, 0, "sem sessão, nenhum cookie é inventado");
 
+    // Mission 205 — `/` é a página institucional: visitante fica nela.
     const anonymousRoot = await updateSession(request("/"));
-    assert.equal(new URL(anonymousRoot.headers.get("location")!).pathname, "/login");
+    assert.equal(anonymousRoot.headers.get("location"), null, "visitante vê a página institucional, sem redirect para /login");
+    assert.equal(anonymousRoot.headers.getSetCookie().length, 0, "a página pública não grava cookie para visitante");
 
     const anonymousPublic = await updateSession(request("/login"));
     assert.equal(anonymousPublic.headers.get("location"), null);
@@ -148,6 +150,12 @@ describe("Mission 204 — o proxy preserva cookies de sessão em todo redirect",
 
     const authenticatedPublic = await updateSession(request("/signup", valid));
     assert.equal(new URL(authenticatedPublic.headers.get("location")!).pathname, "/dashboard");
+
+    const authenticatedRoot = await updateSession(request("/", valid));
+    assert.equal(new URL(authenticatedRoot.headers.get("location")!).pathname, "/dashboard", "usuário autenticado em / continua indo para o produto");
+
+    const anonymousLookalike = await updateSession(request("/dashboard-publico"));
+    assert.equal(new URL(anonymousLookalike.headers.get("location")!).pathname, "/login", "só a raiz exata é pública");
 
     const recovery = await updateSession(request("/reset-password", valid));
     assert.equal(recovery.headers.get("location"), null, "recovery continua sem redirect");

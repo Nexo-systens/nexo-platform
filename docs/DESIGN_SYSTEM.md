@@ -22,6 +22,7 @@ Mission 203. Documento curto e operacional: o que usar, quando e por quê. A fon
 | Identidade | `--primary` (azul-noite), `--primary-soft` | ação principal, item ativo, foco |
 | Status | `--positive`, `--warning`, `--negative`, `--info`, cada um com `-soft` e `-soft-foreground` | badges, callouts, estados. `--destructive` é alias de `--negative` |
 | Natureza | `--kind-fact`, `--kind-evidence`, `--kind-interpretation`, `--kind-hypothesis`, `--kind-recommendation`, `--kind-decision` | marcadores e barras de acento de insight |
+| Institucional | `--brass` | só na página institucional: filetes, eyebrows e numerais sobre `--surface-inverse` |
 | Elevação | `--shadow-xs`, `--shadow-sm`, `--shadow-md`, `--shadow-overlay` | cartões (xs), menus e diálogos (overlay) |
 | Layout | `--content-max` (76rem), `--sidebar-width`, `--header-height` | shell e largura de leitura |
 
@@ -96,6 +97,18 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 
 - `scripts/visual-fixtures/seed-local.ts` cria três empresas fictícias com documentos no formato da ingestão real, em cadência mensal (`FIXTURE_THROUGH=AAAA-MM`). Recusa qualquer host que não seja 127.0.0.1/localhost.
 - Com `NEXO_LOCAL_SYNTHETIC_AI=1` num `.env.development.local` apontando para o Supabase local, diagnóstico e Executive Chat usam os stand-ins determinísticos da Mission 160 (`lib/ai/executive-ai-providers.ts`) — nunca a Anthropic. Desliga sozinho em produção e contra qualquer host remoto; o `providerName` persistido identifica o conteúdo sintético.
+
+## Página institucional (Mission 205)
+
+A landing em `/` (`app/(site)/`, `modules/site/`) herda os tokens do produto e pode ser mais expressiva que ele. Padrões reutilizáveis:
+
+- **Título serifado só no site:** Newsreader (`.site-display`), carregada apenas no layout do grupo `(site)`. O produto continua em Geist.
+- **Latão (`--brass`):** só filetes, eyebrows e numerais sobre `--surface-inverse`. Nunca texto corrido, nunca status.
+- **Filetes de balanço (`.site-ledger`):** linhas horizontais a ~3% sobre as superfícies escuras. Sem gradientes, blobs, partículas ou glassmorphism.
+- **Quadro de produto (`ProductFrame`):** recorte de uma tela real montado com os componentes do produto (`ChangeIndicator`, `KindMarker`, `SemanticBadge`, `ScenarioImpactTable`), sempre com o selo "Dados fictícios" e `figcaption` acessível. Nada dentro dele é focável. Não simula navegador nem usa captura com dado real.
+- **Movimento:** só CSS — entrada do hero e revelação ligada à rolagem (`animation-timeline: view()`) dentro de `prefers-reduced-motion: no-preference`. Sem suporte, o conteúdo aparece direto.
+- **Grades de seção:** sempre `grid-cols-[minmax(0,1fr)]` na base. Conteúdo sem quebra (tabela, badge) não pode alargar a coluna em telas estreitas.
+- **CTAs:** o canal comercial vem de `NEXT_PUBLIC_NEXO_CONTACT_URL` (`mailto:` ou `https:`). Sem ele, o botão leva à seção `#conversar`, que não exibe contato fictício. "Entrar na plataforma" sempre leva ao `/login`.
 
 ## Estados
 

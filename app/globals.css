@@ -17,6 +17,7 @@
   --color-surface-subtle: var(--surface-subtle);
   --color-surface-sunken: var(--surface-sunken);
   --color-surface-inverse: var(--surface-inverse);
+  --color-brass: var(--brass);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
