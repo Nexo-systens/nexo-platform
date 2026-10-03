@@ -1,3 +1,5 @@
+import { EXECUTIVE_OUTPUT_LANGUAGE } from "@/efos/application/executive-output-policy";
+
 import { EXECUTIVE_CHAT_CONSTRAINT_CODES } from "./ExecutiveChatInstruction";
 import type { ExecutiveChatInstruction } from "./ExecutiveChatInstruction";
 
@@ -63,6 +65,11 @@ export function validateExecutiveChatInstruction(
 
   if (typeof instruction.instructionId !== "string" || instruction.instructionId.trim().length === 0) {
     errors.push("ExecutiveChatInstruction.instructionId é obrigatório.");
+  }
+
+  // Mission 206 (D-132) — o idioma da saída é contrato, nunca opcional.
+  if (instruction.outputLanguage !== EXECUTIVE_OUTPUT_LANGUAGE) {
+    errors.push(`outputLanguage deve ser exatamente "${EXECUTIVE_OUTPUT_LANGUAGE}" — toda resposta do Executive Chat é em português do Brasil.`);
   }
 
   if (typeof instruction.question?.text !== "string" || instruction.question.text.trim().length === 0) {

@@ -12,6 +12,7 @@ import { buildExecutiveFinancialContext } from "@/efos/application/executive-con
 import { buildExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
 import { executeExecutiveChatAnalysis, type ExecutiveChatAnswer } from "@/efos/application/executive-chat";
 import { createExecutiveChatProvider } from "@/lib/ai/executive-ai-providers";
+import { logExecutiveOutputRejection } from "@/lib/ai/log-executive-output-rejection";
 import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
 import { getKnowledgeEvaluationsGroupedByKnowledge } from "@/modules/decisions/services/knowledge-evaluation-persistence.service";
 import {
@@ -182,6 +183,7 @@ export async function askExecutiveChatQuestionAction(
   );
 
   if (!result.success) {
+    logExecutiveOutputRejection("chat", result.error);
     return { success: false, stage: "provider", error: result.error.message };
   }
 

@@ -10303,3 +10303,38 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 - 346 testes: financial-ingestion 65, executive-report 30, activation 41, production-surface 205 (25 em `mission-205-landing.test.ts`; decisões de rota em `session-cookie-redirects.test.ts`), release-candidate 5.
 
 **Origem.** Mission 205 — NEXO Institutional & Sales Experience.
+
+## Mission 206 — Executive AI Output Governance & pt-BR
+
+**Status.** Fechada (`MISSION_206_CLOSED`). Decisão D-132. Nenhuma mudança em Engines, persistência, RLS, migrations, tenancy, schema das tools ou ações governadas do Chat. Rotas inalteradas.
+
+**Auditoria (cadeia real).** `ExecutiveFinancialContext` (D-058, textos dos Engines já em pt-BR) → instrução (D-061 / D-103) → adapter Anthropic (Diagnosis em 2 estágios strict, D-069; Chat em 1) → tool use forçado → shape mínima + `validateExecutiveDiagnosis`/`validateExecutiveChatAnswer` → decode de `basis` (D-068) → validação de referências (conhecimento e contexto financeiro) → persistência (diagnóstico) ou sessão (Chat) → UI. Só existem dois usos de LLM em produção; recomendação é determinística (Recommendation Engine).
+
+**Matriz.** Diagnosis: pt-BR, tools strict, persistido, visível. Chat (resposta, fatos, análise, hipóteses, limitações, motivo das ações): pt-BR, tool strict, sessão, visível. Ações governadas: catálogo fechado re-resolvido no servidor (não mexido). Stand-ins locais (Mission 160): mesmos contratos, só local.
+
+**Problemas encontrados.**
+- Prompts dos dois adapters 100% em inglês, sem nenhuma regra de idioma — o diagnóstico podia sair (e ser persistido) em inglês.
+- Nenhuma regra sobre como citar números em texto: nada impedia calcular diferenças, trocar sinal ou dar número a indicador indisponível.
+- `confidence`, `raisedFrom` e texto vazio de vários itens não eram checados em runtime — só a gramática strict da Anthropic impunha os enums.
+- Falha de validação do diagnóstico aparecia crua na UI (só a indisponibilidade virava mensagem executiva).
+- Stand-in sintético do diagnóstico em inglês; o do Chat com plurais "evidência(s)".
+- Nenhum teste permanente da camada de Executive AI (os testes das Missions 116–190 nunca foram versionados).
+
+**Entrega.**
+- Política canônica (`efos/application/executive-output-policy/`), herdada por contrato: `outputLanguage: "pt-BR"` nas duas instruções e sete constraints comuns no mesmo vocabulário fechado; prompts renderizam o mesmo parágrafo; tools ganham nota na descrição (schema intacto).
+- Governança em runtime nas duas composições (idioma conservador; números citados precisam existir no contexto; sinal; indisponível), código `VALIDATION_FAILED`, sem retry automático.
+- Validators aplicam em runtime os vocabulários já declarados (confiança, origem da pergunta) e texto não vazio.
+- Erro do estágio do provedor do diagnóstico → mensagem executiva + detalhe recolhido.
+- Log seguro de rejeição (capability, provider, contagens por categoria — nunca conteúdo).
+- Stand-ins locais em pt-BR.
+
+**Confiança.** Autoavaliação categórica do modelo (`low`/`medium`/`high`) sobre a própria interpretação, exibida como "Confiança baixa/média/alta" dentro da leitura da IA. Sem percentual; não é a confiança dos Engines.
+
+**Validação com o provider real (§17).** Não disponível: `ANTHROPIC_API_KEY` em `.env.local` não é uma chave válida da Anthropic (não segue o formato de uma chave da Anthropic). As 9 chamadas sintéticas (3 diagnósticos, 6 perguntas do Chat) foram recusadas na autenticação em ~200ms, sem resposta de modelo, sem persistência e sem contato com o Pilot. O caminho de erro se comportou como esperado (`PROVIDER_UNAVAILABLE`, mensagem sem chave). O script foi apagado.
+
+**Validação.**
+- type-check e lint limpos; build limpo, rotas inalteradas (18 páginas + `/icon.svg`).
+- 400 testes: financial-ingestion 65, executive-report 30, activation 41, production-surface 259 (54 em `mission-206-executive-ai-output.test.ts`), release-candidate 5.
+- Os testes cobrem: política e herança, prompts e tools, serialização de números, idioma (pt-BR, inglês, misto, termos canônicos), números (canônico, arredondado, variação da comparação, variação calculada, inventado, sinal, indisponível, moeda em "mil", datas, eco da pergunta), Diagnosis em 6 fixtures (saudável, margem deteriorando, caixa pressionado, receita crescendo com recebimento piorando, dado insuficiente, indicador ausente), Chat com as 6 perguntas da missão, adapter Anthropic com cliente falso, erro do provider sem segredo, retry, enums, ações governadas, stand-ins e apresentação.
+
+**Origem.** Mission 206 — Executive AI Output Governance & pt-BR.

@@ -1,5 +1,6 @@
 import type { ExecutiveFinancialContext } from "@/efos/application/executive-context";
 import type { ExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
+import { EXECUTIVE_OUTPUT_LANGUAGE } from "@/efos/application/executive-output-policy";
 
 import {
   EXECUTIVE_CHAT_AUTHORITY,
@@ -34,6 +35,7 @@ export function buildExecutiveChatInstruction(
     instructionId,
     context,
     ...(knowledgeContext ? { knowledgeContext } : {}),
+    outputLanguage: EXECUTIVE_OUTPUT_LANGUAGE,
     question,
     priorMessages,
     objective: EXECUTIVE_CHAT_OBJECTIVE,

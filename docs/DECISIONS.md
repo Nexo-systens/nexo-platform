@@ -2040,6 +2040,30 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 ---
 
+## D-132 — Governança de saída da Executive AI: pt-BR é contrato de produto e invariantes comuns (idioma, tom, terminologia, fidelidade numérica, indisponível, hipótese e ação) governam toda capability, acima de qualquer provider, com verificação determinística em runtime
+
+**Problema.** A Mission 204 confirmou que nenhum prompt real fixava o idioma da saída — o diagnóstico, que não tem pergunta do usuário para espelhar, podia sair em inglês e ser persistido. Também não havia regra sobre como a IA cita números em texto (calcular diferenças, trocar sinal, dar valor a indicador indisponível), os enums de confiança/risco/origem não eram checados em runtime (só a gramática estrita da Anthropic os impunha) e uma falha de validação do diagnóstico aparecia crua na UI.
+
+**Decisão.**
+1. **Política canônica acima do provider.** Novo módulo `efos/application/executive-output-policy/`: `EXECUTIVE_OUTPUT_LANGUAGE = "pt-BR"` e sete códigos comuns (`WRITE_IN_BRAZILIAN_PORTUGUESE`, `USE_EXECUTIVE_BRAZILIAN_TONE`, `USE_BRAZILIAN_FINANCIAL_TERMINOLOGY`, `CITE_CANONICAL_FIGURES_EXACTLY`, `STATE_UNAVAILABLE_AS_UNAVAILABLE`, `PHRASE_HYPOTHESES_AS_POSSIBILITIES`, `PHRASE_ACTIONS_AS_SUGGESTIONS`), com descrições definidas só ali. Nenhum adapter escreve a política com as próprias palavras; nenhum código associa idioma a provider.
+2. **Herança por contrato.** `ExecutiveAIInstruction` e `ExecutiveChatInstruction` ganham `outputLanguage` (literal fechado, exigido pelos validators). Os códigos entram no MESMO vocabulário fechado de constraints de cada capability (o Chat reaproveita pelo código, mesmo padrão de D-103) — mesma enforcement, mesmo texto automático de prompt. Os dois prompts renderizam o mesmo parágrafo de idioma (`describeExecutiveOutputLanguage`) e as tools ganham uma nota na descrição; o schema estrito não muda (limite de gramática, D-068/D-069).
+3. **Garantia em runtime, depois do schema e das referências, antes de persistir/exibir.** `validateExecutiveOutputGovernance()` chamada pelas duas composições (D-060/D-103), com o código existente `VALIDATION_FAILED`:
+   - **idioma** — rejeita campo longo dominado por palavras funcionais inglesas (ou o conjunto); ignora termos canônicos, siglas e campos curtos. Justificativa: o diagnóstico é persistido; o prompt sozinho não garante; a rejeição usa o caminho de falha que já existe;
+   - **números** — toda figura com unidade (R$, %, p.p.) ou casas decimais precisa existir no contexto, com tolerância de uma unidade na última casa exibida (a IA cita, não calcula); sinal não pode ser trocado junto ao nome do indicador; indicador indisponível nunca recebe número. No Chat, a pergunta, o histórico e os parâmetros estruturados das ações propostas também são fontes permitidas — nunca o próprio texto verificado.
+4. **Vocabulário declarado checado em runtime.** `confidence` (`low`/`medium`/`high`), `risks[].type` e `questions[].raisedFrom` passam a ser validados também fora da gramática do provider, assim como texto não vazio em todo item.
+5. **Confiança.** Continua autoavaliação categórica do modelo sobre a própria interpretação, exibida como "Confiança baixa/média/alta" dentro da leitura da IA — nunca percentual, nunca confundida com a confiança dos Engines.
+6. **Falha.** Erro no estágio do provedor do diagnóstico vira mensagem executiva, com o texto técnico recolhido (antes só a indisponibilidade era tratada). Sem retry automático: a próxima tentativa continua sendo do usuário. Um log seguro registra só capability, provider e contagens por categoria (`countExecutiveOutputViolations`).
+
+**Fora do escopo, deliberadamente.** Schema das tools; contratos persistidos (`executive_diagnoses` inalterado); ações governadas do Chat (D-104/D-105 intocados); Engines; stand-ins locais só tiveram o texto traduzido.
+
+**Impacto.** Criados: `efos/application/executive-output-policy/` (política, idioma, números, porta única, README), `efos/application/executive-ai/collectExecutiveDiagnosisTexts.ts`, `efos/application/executive-chat/collectExecutiveChatAnswerTexts.ts`, `lib/ai/log-executive-output-rejection.ts`. Alterados: instruções/builders/validators das duas capabilities, os dois prompts e tool schemas (só descrição), as duas composições, `validateExecutiveDiagnosis`/`validateExecutiveChatAnswer` (enums e texto vazio), stand-ins da Mission 160 (pt-BR), apresentação de erro do diagnóstico. Provas: `tests/production-surface/mission-206-executive-ai-output.test.ts` (54 testes, sem rede; seis contextos sintéticos em `tests/production-surface/fixtures/executive-ai-contexts.ts`).
+
+**Limitação conhecida.** A taxa de rejeição contra o modelo real não foi medida: a chave local não é uma chave válida da Anthropic (autenticação recusada). A heurística de idioma é conservadora e a de números aceita qualquer número presente no contexto — ela barra cálculo e invenção, não uma citação de um número do contexto no lugar errado.
+
+**Origem.** Mission 206 — Executive AI Output Governance & pt-BR.
+
+---
+
 ## Próximas decisões
 
 Estrutura preparada para D-006 em diante. Toda nova decisão arquitetural permanente segue o mesmo formato: `## D-XXX — Título`, depois `**Descrição.**`, `**Justificativa.**`, `**Impacto.**`, `**Origem.**` (missão que originou a decisão). Nunca remover ou reescrever uma decisão existente — apenas adicionar uma nova entrada, mesmo que ela substitua o entendimento anterior (nesse caso, a nova entrada deve referenciar explicitamente a decisão que está revisando).

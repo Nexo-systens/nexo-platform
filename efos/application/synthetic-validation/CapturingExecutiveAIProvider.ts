@@ -128,25 +128,25 @@ function knowledgeAwareStatement(instruction: ExecutiveAIInstruction): { stateme
   const state = instruction.knowledgeContext?.states.find((s) => s.knowledgeId === knowledge?.id)?.state;
 
   if (!knowledge || !state) {
-    return { statement: "No historical knowledge is available for this company at this point — analysis proceeds using only the current financial context.", confidence: "low" };
+    return { statement: "Ainda não há conhecimento histórico desta empresa — a análise usa apenas o contexto financeiro atual.", confidence: "low" };
   }
 
   if (state === "MIXED") {
     return {
-      statement: "A historical pattern exists for this company, but the evidence is genuinely mixed (both reinforcing and contradicting observations) — described here as historically inconsistent, never as an established pattern.",
+      statement: "Há um padrão histórico nesta empresa, mas com evidências mistas (observações que o reforçam e que o contradizem) — tratado como historicamente inconsistente, nunca como padrão estabelecido.",
       confidence: confidenceForKnowledgeState(state),
     };
   }
 
   if (state === "WEAKENED") {
     return {
-      statement: "A historical pattern exists for this company but has only been contradicted since it was formed — treated here with reduced historical confidence, never with the same weight as a supported pattern.",
+      statement: "Há um padrão histórico nesta empresa, mas ele só foi contradito desde que se formou — considerado com confiança histórica reduzida, nunca com o peso de um padrão confirmado.",
       confidence: confidenceForKnowledgeState(state),
     };
   }
 
   return {
-    statement: "A historical pattern exists for this company and remains supported by subsequent observations — noted here as context only, never as proof that the same result will recur.",
+    statement: "Há um padrão histórico nesta empresa, confirmado pelas observações seguintes — registrado apenas como contexto, nunca como prova de que o mesmo resultado se repetirá.",
     confidence: confidenceForKnowledgeState(state),
   };
 }
@@ -185,16 +185,16 @@ export function buildDeterministicSyntheticDiagnosis(
     basedOn: { contextId: instruction.context.identity.companyId, generatedAt },
     executiveSummary: {
       statement: hasEvidence
-        ? `The current financial context for this company shows ${instruction.context.evidence.length} deterministic evidence item(s) already produced by the Engines.`
-        : "The current financial context for this company shows no deterministic evidence for this period.",
+        ? `O contexto financeiro atual desta empresa reúne ${instruction.context.evidence.length} ${instruction.context.evidence.length === 1 ? "evidência determinística" : "evidências determinísticas"} produzidas pelos Engines.`
+        : "O contexto financeiro atual desta empresa não reúne evidências determinísticas neste período.",
       basis: summaryBasis,
     },
     interpretations: [
       {
         id: interpretationId,
         statement: hasEvidence
-          ? "The available indicators and evidence, taken together, suggest a period requiring executive attention."
-          : "The available indicators do not show any evidence requiring executive attention this period.",
+          ? "Os indicadores e as evidências disponíveis, em conjunto, sugerem um período que pede atenção executiva."
+          : "Os indicadores disponíveis não mostram evidência que peça atenção executiva neste período.",
         basis: summaryBasis,
         confidence: hasEvidence ? "medium" : "low",
       },
@@ -202,17 +202,17 @@ export function buildDeterministicSyntheticDiagnosis(
     hypotheses: [
       {
         id: hypothesisId,
-        statement: "The pattern observed may continue in subsequent periods if the same operational conditions persist.",
+        statement: "O padrão observado pode continuar nos próximos períodos se as condições operacionais se mantiverem.",
         basis: summaryBasis,
         confidence: "low",
-        validationNeeded: "Confirm with the next period's Financial Truth once it becomes available.",
+        validationNeeded: "Confirmar com os números do próximo período, quando estiverem disponíveis.",
       },
     ],
     risks: hasEvidence
       ? [
           {
             id: riskId,
-            statement: "A confirmed signal from the deterministic Evidence Engine indicates a risk already present in the current period.",
+            statement: "Um sinal confirmado pelas regras de evidência indica um risco já presente no período atual.",
             type: "CONFIRMED_SIGNAL",
             basis: summaryBasis,
           },
@@ -223,8 +223,8 @@ export function buildDeterministicSyntheticDiagnosis(
           {
             id: priorityId,
             rank: 1,
-            statement: "Address the condition indicated by the current period's evidence before it compounds further.",
-            reason: "Directly grounded in deterministic Evidence already produced for the current period.",
+            statement: "Avaliar a condição apontada pelas evidências do período antes que ela se agrave.",
+            reason: "Fundamentado diretamente nas evidências determinísticas já produzidas para o período atual.",
             basis: summaryBasis,
           },
         ]
@@ -241,7 +241,7 @@ export function buildDeterministicSyntheticDiagnosis(
       ? [
           {
             id: questionId,
-            question: `What additional data would resolve "${firstUnknown.subject}", currently unavailable?`,
+            question: `Que dado adicional permitiria calcular "${firstUnknown.subject}", hoje indisponível?`,
             raisedFrom: "unknown",
           },
         ]
@@ -250,7 +250,7 @@ export function buildDeterministicSyntheticDiagnosis(
       ? [
           {
             id: uncertaintyId,
-            statement: `Whether "${firstUnknown.subject}" would change the current interpretation cannot be concluded.`,
+            statement: `Não é possível concluir se "${firstUnknown.subject}" mudaria a leitura atual.`,
             reason: firstUnknown.impact,
           },
         ]

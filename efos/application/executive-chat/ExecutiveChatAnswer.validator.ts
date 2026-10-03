@@ -49,6 +49,9 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/** Mission 206 (D-132) — confiança declarada no contrato, checada em runtime. */
+const ALLOWED_CONFIDENCE: readonly string[] = ["low", "medium", "high"];
+
 function isFiniteNonZero(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value !== 0;
 }
@@ -171,9 +174,18 @@ export function validateExecutiveChatAnswer(answer: ExecutiveChatAnswer): Execut
     if (basisIsEmpty(item.basis)) {
       errors.push(`analysis[${index}] ("${item.statement}") sem basis.`);
     }
+    if (!ALLOWED_CONFIDENCE.includes(item.confidence)) {
+      errors.push(`analysis[${index}] com confidence inválida: "${String(item.confidence)}".`);
+    }
   });
 
   answer.hypotheses.forEach((hypothesis, index) => {
+    if (!isNonEmptyString(hypothesis.statement)) {
+      errors.push(`hypotheses[${index}] sem statement.`);
+    }
+    if (!ALLOWED_CONFIDENCE.includes(hypothesis.confidence)) {
+      errors.push(`hypotheses[${index}] com confidence inválida: "${String(hypothesis.confidence)}".`);
+    }
     if (basisIsEmpty(hypothesis.basis)) {
       errors.push(`hypotheses[${index}] ("${hypothesis.statement}") sem basis.`);
     }

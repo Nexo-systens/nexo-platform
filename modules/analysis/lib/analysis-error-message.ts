@@ -58,6 +58,24 @@ export function presentExecutiveAiError(rawMessage: string | undefined): Analysi
   return { message };
 }
 
+export const EXECUTIVE_AI_UNEXPECTED_MESSAGE =
+  "A Executive AI não produziu um diagnóstico válido desta vez — nada foi salvo. Tente gerar novamente; se persistir, fale com o suporte da NEXO.";
+
+/**
+ * Mission 206 — falha no estágio do provedor do diagnóstico
+ * (`stage: "provider"`): indisponibilidade, forma inválida ou resposta
+ * rejeitada pela validação/política de saída (idioma, números). O texto
+ * é sempre interno e vira detalhe recolhido; a mensagem é executiva.
+ * Sessão/acesso/verdade financeira não passam por aqui.
+ */
+export function presentExecutiveDiagnosisProviderError(rawMessage: string | undefined): AnalysisErrorPresentation {
+  const message = rawMessage?.trim() ?? "";
+  if (message.length === 0 || AI_PROVIDER.test(message)) {
+    return { message: EXECUTIVE_AI_UNAVAILABLE_MESSAGE, technicalDetail: message || undefined };
+  }
+  return { message: EXECUTIVE_AI_UNEXPECTED_MESSAGE, technicalDetail: message };
+}
+
 export const EXECUTIVE_CHAT_UNAVAILABLE_MESSAGE =
   "O Executive Chat está indisponível no momento. A análise e o diagnóstico da empresa continuam disponíveis; tente perguntar novamente mais tarde.";
 

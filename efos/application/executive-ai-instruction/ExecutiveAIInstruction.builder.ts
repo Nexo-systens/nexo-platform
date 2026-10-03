@@ -1,5 +1,6 @@
 import type { ExecutiveFinancialContext } from "@/efos/application/executive-context";
 import type { ExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
+import { EXECUTIVE_OUTPUT_LANGUAGE } from "@/efos/application/executive-output-policy";
 
 import {
   EXECUTIVE_AI_AUTHORITY,
@@ -51,6 +52,7 @@ export function buildExecutiveAIInstruction(
     instructionId,
     context,
     ...(knowledgeContext ? { knowledgeContext } : {}),
+    outputLanguage: EXECUTIVE_OUTPUT_LANGUAGE,
     objective: EXECUTIVE_AI_OBJECTIVE,
     authority: EXECUTIVE_AI_AUTHORITY,
     outputContract: EXECUTIVE_AI_OUTPUT_CONTRACT,

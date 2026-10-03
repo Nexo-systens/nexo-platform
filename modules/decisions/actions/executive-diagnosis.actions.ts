@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
 import { createExecutiveAIProvider } from "@/lib/ai/executive-ai-providers";
+import { logExecutiveOutputRejection } from "@/lib/ai/log-executive-output-rejection";
 import { buildExecutiveFinancialContext } from "@/efos/application/executive-context";
 import { executeExecutiveAnalysis } from "@/efos/application/executive-ai";
 import { buildExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
@@ -252,6 +253,7 @@ export async function activateExecutiveDiagnosisAction(input: {
   const analysis = await executeExecutiveAnalysis(provider, context, randomUUID(), knowledgeContext);
 
   if (!analysis.success) {
+    logExecutiveOutputRejection("diagnosis", analysis.error);
     return { success: false, stage: "provider", error: analysis.error.message };
   }
 

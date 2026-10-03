@@ -1,3 +1,4 @@
+import { EXECUTIVE_OUTPUT_TOOL_LANGUAGE_NOTE } from "@/efos/application/executive-output-policy";
 import { EXECUTIVE_CHAT_ACTION_TYPES } from "@/efos/application/executive-chat";
 
 /**
@@ -192,7 +193,9 @@ export const EXECUTIVE_CHAT_ANSWER_TOOL: ExecutiveChatToolDefinition = {
     "Submit your structured answer to the executive's question, grounded exclusively in the provided ExecutiveFinancialContext and, when present, ExecutiveKnowledgeContext. `factualClaims`, `analysis`, and `hypotheses` may each be empty when there is nothing to report in that category — never fabricate an entry to avoid an empty array. Set `requiresScenarioSimulation: true` and never compute a number yourself whenever the question asks for a hypothetical/what-if financial calculation. Set `groundingStatus: \"UNSUPPORTED\"` (with at least one limitation explaining why) whenever the current context does not support a reliable answer at all. " +
     BASIS_DESCRIPTION_NOTE +
     " " +
-    ACTION_CATALOG_NOTE,
+    ACTION_CATALOG_NOTE +
+    " " +
+    EXECUTIVE_OUTPUT_TOOL_LANGUAGE_NOTE,
   input_schema: EXECUTIVE_CHAT_ANSWER_TOOL_SCHEMA,
   strict: true,
 };

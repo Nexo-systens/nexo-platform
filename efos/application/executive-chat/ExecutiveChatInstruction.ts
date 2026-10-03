@@ -1,6 +1,7 @@
 import type { ExecutiveFinancialContext } from "@/efos/application/executive-context";
 import type { ExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
 import { EXECUTIVE_AI_CONSTRAINTS } from "@/efos/application/executive-ai-instruction";
+import { EXECUTIVE_OUTPUT_POLICY_CODES, type ExecutiveOutputLanguage } from "@/efos/application/executive-output-policy";
 
 /**
  * Pergunta do executivo (Mission 188) — texto **untrusted** por
@@ -101,6 +102,11 @@ export const EXECUTIVE_CHAT_REUSED_CONSTRAINT_CODES = [
   "DO_NOT_REINTERPRET_SUSTAINED_IMPROVEMENT_AS_RECOVERY",
   "DO_NOT_REINTERPRET_NOT_DETERMINABLE_EPISODE_AS_HEALTHY",
   "DO_NOT_CLAIM_UNSUPPORTED_EPISODE_STATES",
+  // Mission 206 (D-132) — invariantes de saída comuns (idioma, tom,
+  // terminologia, números, indisponível, hipótese/ação), reaproveitadas
+  // pelo código como as demais: mesma descrição, definida uma única vez
+  // em `executive-output-policy`.
+  ...EXECUTIVE_OUTPUT_POLICY_CODES,
 ] as const;
 
 /** Constraints exclusivos de Chat (Missions 188/189/190) — sem equivalente em Executive Diagnosis. */
@@ -217,6 +223,8 @@ export interface ExecutiveChatInstruction {
   readonly instructionId: string;
   readonly context: ExecutiveFinancialContext;
   readonly knowledgeContext?: ExecutiveKnowledgeContext;
+  /** Mission 206 (D-132) — idioma obrigatório de todo texto da resposta. */
+  readonly outputLanguage: ExecutiveOutputLanguage;
   readonly question: ExecutiveChatQuestion;
   readonly priorMessages: readonly ExecutiveChatPriorMessage[];
   readonly objective: ExecutiveChatObjective;

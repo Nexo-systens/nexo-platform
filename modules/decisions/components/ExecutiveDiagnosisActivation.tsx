@@ -10,7 +10,7 @@ import { TechnicalDetail } from "@/components/shared/TechnicalDetail";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { presentExecutiveAiError } from "@/modules/analysis/lib/analysis-error-message";
+import { presentExecutiveAiError, presentExecutiveDiagnosisProviderError } from "@/modules/analysis/lib/analysis-error-message";
 import { activateExecutiveDiagnosisAction } from "@/modules/decisions/actions/executive-diagnosis.actions";
 
 type Status =
@@ -53,6 +53,8 @@ export function ExecutiveDiagnosisActivation({ companyId }: { companyId: string 
   const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  // Mission 206 — só o estágio do provedor esconde o texto interno; sessão e acesso continuam visíveis.
+  const [providerStage, setProviderStage] = useState(false);
 
   async function activate() {
     setStatus("activating");
@@ -68,12 +70,17 @@ export function ExecutiveDiagnosisActivation({ companyId }: { companyId: string 
             ? "ambiguous-truth"
             : "provider-failed";
       setStatus(nextStatus);
+      setProviderStage(result.stage === "provider");
       setErrorMessage(result.error);
       return;
     }
 
     router.refresh();
   }
+
+  const providerFailure = providerStage
+    ? presentExecutiveDiagnosisProviderError(errorMessage)
+    : presentExecutiveAiError(errorMessage);
 
   return (
     <Card>
@@ -103,12 +110,8 @@ export function ExecutiveDiagnosisActivation({ companyId }: { companyId: string 
 
         {status === "provider-failed" && (
           <div className="flex flex-col gap-2">
-            <ErrorState
-              title="Não foi possível gerar o diagnóstico"
-              description={presentExecutiveAiError(errorMessage).message}
-              onRetry={activate}
-            />
-            <TechnicalDetail detail={presentExecutiveAiError(errorMessage).technicalDetail} />
+            <ErrorState title="Não foi possível gerar o diagnóstico" description={providerFailure.message} onRetry={activate} />
+            <TechnicalDetail detail={providerFailure.technicalDetail} />
           </div>
         )}
 

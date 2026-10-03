@@ -1,5 +1,10 @@
 import type { ExecutiveFinancialContext } from "@/efos/application/executive-context";
 import type { ExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
+import {
+  EXECUTIVE_OUTPUT_POLICY_CODES,
+  EXECUTIVE_OUTPUT_POLICY_DESCRIPTIONS,
+  type ExecutiveOutputLanguage,
+} from "@/efos/application/executive-output-policy";
 
 /**
  * Objetivo explícito entregue a uma futura Executive AI (Mission 117
@@ -110,6 +115,14 @@ export const EXECUTIVE_AI_CONSTRAINT_CODES = [
   "DO_NOT_REINTERPRET_SUSTAINED_IMPROVEMENT_AS_RECOVERY",
   "DO_NOT_REINTERPRET_NOT_DETERMINABLE_EPISODE_AS_HEALTHY",
   "DO_NOT_CLAIM_UNSUPPORTED_EPISODE_STATES",
+  // Mission 206 — Executive AI Output Governance (D-132). Invariantes de
+  // saída comuns a toda capability (idioma pt-BR, tom executivo,
+  // terminologia, fidelidade numérica, indisponível, hipótese e ação
+  // como possibilidade/sugestão) — definidas uma única vez em
+  // `executive-output-policy`, entram no MESMO vocabulário fechado (nunca
+  // uma lista paralela) e herdam a mesma enforcement e o mesmo texto
+  // automático de prompt dos constraints anteriores.
+  ...EXECUTIVE_OUTPUT_POLICY_CODES,
 ] as const;
 
 export type ExecutiveAIConstraintCode = (typeof EXECUTIVE_AI_CONSTRAINT_CODES)[number];
@@ -151,6 +164,13 @@ export interface ExecutiveAIInstruction {
   readonly instructionId: string;
   readonly context: ExecutiveFinancialContext;
   readonly knowledgeContext?: ExecutiveKnowledgeContext;
+  /**
+   * Mission 206 (D-132) — idioma obrigatório de todo texto da saída.
+   * Literal fechado: só existe um valor válido nesta fase
+   * (`EXECUTIVE_OUTPUT_LANGUAGE`), exigido por
+   * `validateExecutiveAIInstruction()` e renderizado pelo provider.
+   */
+  readonly outputLanguage: ExecutiveOutputLanguage;
   readonly objective: ExecutiveAIObjective;
   readonly authority: ExecutiveAIAuthority;
   readonly outputContract: ExecutiveAIOutputContract;
@@ -249,6 +269,8 @@ const CONSTRAINT_DESCRIPTIONS: Readonly<Record<ExecutiveAIConstraintCode, string
     "A financial episode with state NOT_DETERMINABLE means the available data is insufficient, conflicting, or incompatible for a reliable classification — never describe it as healthy, stable, resolved, or as an absence of a problem; explicitly state that the episode state could not be determined.",
   DO_NOT_CLAIM_UNSUPPORTED_EPISODE_STATES:
     "The only financial episode states EFOS currently supports are NEW_DETERIORATION, CONTINUING_DETERIORATION, SUSTAINED_IMPROVEMENT, and NOT_DETERMINABLE — never claim, imply, or invent a partial recovery, full recovery, or recurrence state for any metric; those concepts are not yet supported by the underlying architecture (D-088).",
+  // Mission 206 (D-132) — descrições definidas só na política de saída.
+  ...EXECUTIVE_OUTPUT_POLICY_DESCRIPTIONS,
 };
 
 /**

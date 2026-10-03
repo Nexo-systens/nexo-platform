@@ -10,3 +10,4 @@ export * from "./ExecutiveChatRequest";
 export * from "./validateExecutiveChatFinancialContextReferences";
 export * from "./validateExecutiveChatKnowledgeReferences";
 export * from "./executeExecutiveChatAnalysis";
+export * from "./collectExecutiveChatAnswerTexts";

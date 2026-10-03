@@ -67,6 +67,18 @@ function isNonEmptyString(value: string | undefined): value is string {
 }
 
 /**
+ * Mission 206 (D-132) — vocabulários declarados no próprio contrato,
+ * agora também checados em runtime: a gramática estrita de um provider
+ * não é garantia da NEXO (outro provider pode não impor enum).
+ */
+const ALLOWED_CONFIDENCE = ["low", "medium", "high"] as const;
+const ALLOWED_QUESTION_ORIGINS = ["unknown", "uncertainty", "conflict", "hypothesis"] as const;
+
+function isAllowed<T extends string>(allowed: readonly T[], value: unknown): value is T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
+
+/**
  * Valida um `ExecutiveDiagnosis` contra as regras mínimas de
  * integridade da Mission 115 (Etapa 17) — nunca valida conteúdo
  * semântico ("esta interpretação faz sentido?"), apenas a estrutura
@@ -111,9 +123,18 @@ export function validateExecutiveDiagnosis(
         `interpretations[${index}] ("${interpretation.statement}") sem basis — toda interpretação precisa apontar para elementos existentes do ExecutiveFinancialContext.`
       );
     }
+     if (!isAllowed(ALLOWED_CONFIDENCE, interpretation.confidence)) {
+      errors.push(`interpretations[${index}] com confidence inválida: "${String(interpretation.confidence)}".`);
+    }
   });
 
   diagnosis.hypotheses.forEach((hypothesis, index) => {
+    if (!isNonEmptyString(hypothesis.statement)) {
+      errors.push(`hypotheses[${index}] sem statement.`);
+    }
+    if (!isAllowed(ALLOWED_CONFIDENCE, hypothesis.confidence)) {
+      errors.push(`hypotheses[${index}] com confidence inválida: "${String(hypothesis.confidence)}".`);
+    }
     if (basisIsEmpty(hypothesis.basis)) {
       errors.push(`hypotheses[${index}] ("${hypothesis.statement}") sem basis.`);
     }
@@ -125,6 +146,9 @@ export function validateExecutiveDiagnosis(
   });
 
   diagnosis.risks.forEach((risk, index) => {
+    if (!isNonEmptyString(risk.statement)) {
+      errors.push(`risks[${index}] sem statement.`);
+    }
     if (basisIsEmpty(risk.basis)) {
       errors.push(`risks[${index}] ("${risk.statement}") sem basis.`);
     }
@@ -134,6 +158,9 @@ export function validateExecutiveDiagnosis(
   });
 
   diagnosis.priorities.forEach((priority, index) => {
+    if (!isNonEmptyString(priority.statement)) {
+      errors.push(`priorities[${index}] sem statement.`);
+    }
     if (!isNonEmptyString(priority.reason)) {
       errors.push(
         `priorities[${index}] ("${priority.statement}") sem reason — prioridade sem justificativa nunca é aceita (nunca "priority: HIGH" isolado).`
@@ -145,6 +172,9 @@ export function validateExecutiveDiagnosis(
   });
 
   diagnosis.possibleActions.forEach((action, index) => {
+    if (!isNonEmptyString(action.statement)) {
+      errors.push(`possibleActions[${index}] sem statement.`);
+    }
     if (!ALLOWED_POSSIBLE_ACTION_KINDS.includes(action.kind)) {
       errors.push(
         `possibleActions[${index}] ("${action.statement}") com kind inválido: "${action.kind}" — só ${ALLOWED_POSSIBLE_ACTION_KINDS.join(", ")} são permitidos; a estrutura deve representar "possible", nunca "command".`
@@ -152,6 +182,21 @@ export function validateExecutiveDiagnosis(
     }
     if (basisIsEmpty(action.basis)) {
       errors.push(`possibleActions[${index}] ("${action.statement}") sem basis.`);
+    }
+  });
+
+  diagnosis.questions.forEach((question, index) => {
+    if (!isNonEmptyString(question.question)) {
+      errors.push(`questions[${index}] sem question.`);
+    }
+    if (!isAllowed(ALLOWED_QUESTION_ORIGINS, question.raisedFrom)) {
+      errors.push(`questions[${index}] com raisedFrom inválido: "${String(question.raisedFrom)}".`);
+    }
+  });
+
+  diagnosis.uncertainties.forEach((uncertainty, index) => {
+    if (!isNonEmptyString(uncertainty.statement)) {
+      errors.push(`uncertainties[${index}] sem statement.`);
     }
   });
 

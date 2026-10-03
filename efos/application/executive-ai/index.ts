@@ -5,3 +5,4 @@ export * from "./ExecutiveAIRequest";
 export * from "./ExecutiveAIResponse";
 export * from "./ExecutiveAIError";
 export * from "./executeExecutiveAnalysis";
+export * from "./collectExecutiveDiagnosisTexts";

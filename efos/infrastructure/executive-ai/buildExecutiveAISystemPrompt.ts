@@ -1,4 +1,5 @@
 import type { ExecutiveAIInstruction } from "@/efos/application/executive-ai-instruction";
+import { describeExecutiveOutputLanguage } from "@/efos/application/executive-output-policy";
 
 /**
  * Nome da tool (structured output) que o modelo deve chamar para
@@ -68,6 +69,11 @@ function buildBaseSystemPrompt(instruction: ExecutiveAIInstruction, toolName: st
     "You are the Executive Intelligence Layer of the EFOS (Executive Financial Operating System).",
     "",
     "You are not the source of financial truth. The financial data provided to you in the user message is the factual basis, already calculated and validated by a deterministic financial engine outside your control — you never recalculate, round, or override any of it.",
+    "",
+    // Mission 206 (D-132) — idioma e política de saída vêm da instrução
+    // (`outputLanguage` + constraints de `executive-output-policy`),
+    // renderizados pelo mesmo texto em toda capability.
+    describeExecutiveOutputLanguage(instruction.outputLanguage),
     "",
     // Mission 143 — Knowledge Injection into Executive Analysis (D-075).
     // Explica, sempre, o significado das 2 chaves de topo do JSON do

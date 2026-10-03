@@ -8,6 +8,7 @@ import {
   buildExecutiveAIInstruction,
   validateExecutiveAIInstruction,
 } from "@/efos/application/executive-ai-instruction";
+import { validateExecutiveOutputGovernance } from "@/efos/application/executive-output-policy";
 import type { Result } from "@/efos/application/shared";
 
 import {
@@ -15,6 +16,7 @@ import {
   type ExecutiveAIError,
 } from "./ExecutiveAIError";
 import type { ExecutiveAIProvider } from "./ExecutiveAIProvider";
+import { collectExecutiveDiagnosisTexts } from "./collectExecutiveDiagnosisTexts";
 
 export type ExecutiveAIResult = Result<ExecutiveDiagnosis, ExecutiveAIError>;
 
@@ -202,6 +204,21 @@ export async function executeExecutiveAnalysis(
         error: {
           code: "VALIDATION_FAILED",
           message: financialContextReferenceValidation.errors.join("; "),
+          providerName: response.providerName,
+        },
+      };
+    }
+
+    // Mission 206 (D-132) — governança de saída: idioma pt-BR e
+    // fidelidade numérica, depois de schema e referências, antes de
+    // qualquer persistência. Mesmo código de falha de validação.
+    const governance = validateExecutiveOutputGovernance(collectExecutiveDiagnosisTexts(response.output), context);
+    if (!governance.valid) {
+      return {
+        success: false,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: `Política de saída da Executive AI: ${governance.errors.join("; ")}`,
           providerName: response.providerName,
         },
       };

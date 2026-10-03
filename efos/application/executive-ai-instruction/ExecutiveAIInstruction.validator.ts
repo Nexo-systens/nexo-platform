@@ -1,3 +1,5 @@
+import { EXECUTIVE_OUTPUT_LANGUAGE } from "@/efos/application/executive-output-policy";
+
 import { EXECUTIVE_AI_CONSTRAINT_CODES } from "./ExecutiveAIInstruction";
 import type { ExecutiveAIInstruction } from "./ExecutiveAIInstruction";
 
@@ -83,6 +85,11 @@ export function validateExecutiveAIInstruction(
   }
 
   // Cenário B — objetivo pede decisão/execução.
+  // Mission 206 (D-132) — o idioma da saída é contrato, nunca opcional.
+  if (instruction.outputLanguage !== EXECUTIVE_OUTPUT_LANGUAGE) {
+    errors.push(`outputLanguage deve ser exatamente "${EXECUTIVE_OUTPUT_LANGUAGE}" — toda saída textual da Executive AI é em português do Brasil.`);
+  }
+
   const objectiveStatement = (instruction.objective?.statement ?? "").toLowerCase();
   const forbiddenWordFound = FORBIDDEN_OBJECTIVE_WORDS.find((word) => objectiveStatement.includes(word));
   if (forbiddenWordFound) {

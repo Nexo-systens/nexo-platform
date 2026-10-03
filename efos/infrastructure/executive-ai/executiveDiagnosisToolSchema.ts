@@ -1,3 +1,4 @@
+import { EXECUTIVE_OUTPUT_TOOL_LANGUAGE_NOTE } from "@/efos/application/executive-output-policy";
 import {
   SUBMIT_EXECUTIVE_DIAGNOSIS_TOOL_NAME,
   SUBMIT_EXECUTIVE_DIAGNOSIS_CORE_TOOL_NAME,
@@ -249,7 +250,8 @@ export const EXECUTIVE_DIAGNOSIS_TOOL: ExecutiveDiagnosisToolDefinition = {
   name: SUBMIT_EXECUTIVE_DIAGNOSIS_TOOL_NAME,
   description:
     "Submit the structured executive diagnosis produced from the provided ExecutiveFinancialContext. Every array may be empty when there is nothing to report in that category — never fabricate an entry to avoid an empty array. " +
-    "Every `basis` field is an array of strings, each referencing one real element that supports the statement. Each entry MUST be prefixed with its category, using exactly one of these forms: \"indicator:<id>\", \"evidence:<id>\", \"context:<id>\", \"conflict:<id>\" (from \"context\" — Financial Truth), or \"knowledge:<id>\" (from \"knowledgeContext.knowledge\" — Historical Knowledge, when present) — using only ids that actually appear in the provided data, never an invented id. Citing a \"knowledge:<id>\" means this item CONSIDERED that historical pattern — never that the pattern is a confirmed cause or guarantee of this item. An entry with an unrecognized prefix or no prefix will be discarded, so always include the prefix.",
+    "Every `basis` field is an array of strings, each referencing one real element that supports the statement. Each entry MUST be prefixed with its category, using exactly one of these forms: \"indicator:<id>\", \"evidence:<id>\", \"context:<id>\", \"conflict:<id>\" (from \"context\" — Financial Truth), or \"knowledge:<id>\" (from \"knowledgeContext.knowledge\" — Historical Knowledge, when present) — using only ids that actually appear in the provided data, never an invented id. Citing a \"knowledge:<id>\" means this item CONSIDERED that historical pattern — never that the pattern is a confirmed cause or guarantee of this item. An entry with an unrecognized prefix or no prefix will be discarded, so always include the prefix. " +
+    EXECUTIVE_OUTPUT_TOOL_LANGUAGE_NOTE,
   input_schema: EXECUTIVE_DIAGNOSIS_TOOL_SCHEMA,
   strict: true,
 };
@@ -288,7 +290,9 @@ export const EXECUTIVE_DIAGNOSIS_CORE_TOOL: ExecutiveDiagnosisToolDefinition = {
   name: SUBMIT_EXECUTIVE_DIAGNOSIS_CORE_TOOL_NAME,
   description:
     "Submit the CORE portion of the structured executive diagnosis (executiveSummary, interpretations, risks, priorities, possibleActions) produced from the provided ExecutiveFinancialContext. A separate call will submit the interpretive/epistemic portion (hypotheses, questions, uncertainties, conflictInterpretations) — do not attempt to include those fields here. Every array may be empty when there is nothing to report in that category — never fabricate an entry to avoid an empty array. " +
-    BASIS_DESCRIPTION_NOTE,
+    BASIS_DESCRIPTION_NOTE +
+    " " +
+    EXECUTIVE_OUTPUT_TOOL_LANGUAGE_NOTE,
   input_schema: EXECUTIVE_DIAGNOSIS_CORE_TOOL_SCHEMA,
   strict: true,
 };
@@ -313,7 +317,9 @@ export const EXECUTIVE_DIAGNOSIS_INTERPRETATION_TOOL: ExecutiveDiagnosisToolDefi
   name: SUBMIT_EXECUTIVE_DIAGNOSIS_INTERPRETATION_TOOL_NAME,
   description:
     "Submit the INTERPRETIVE/EPISTEMIC portion of the structured executive diagnosis (hypotheses, questions, uncertainties, conflictInterpretations) produced from the provided ExecutiveFinancialContext. A separate call already submitted the core/actionable portion (executiveSummary, interpretations, risks, priorities, possibleActions) — do not attempt to include those fields here. Every array may be empty when there is nothing to report in that category — never fabricate an entry to avoid an empty array. " +
-    BASIS_DESCRIPTION_NOTE,
+    BASIS_DESCRIPTION_NOTE +
+    " " +
+    EXECUTIVE_OUTPUT_TOOL_LANGUAGE_NOTE,
   input_schema: EXECUTIVE_DIAGNOSIS_INTERPRETATION_TOOL_SCHEMA,
   strict: true,
 };

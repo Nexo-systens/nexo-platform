@@ -1,6 +1,7 @@
 import type { ExecutiveFinancialContext } from "@/efos/application/executive-context";
 import type { ExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
 import { EXECUTIVE_AI_ERROR_CODES, type ExecutiveAIError } from "@/efos/application/executive-ai";
+import { validateExecutiveOutputGovernance } from "@/efos/application/executive-output-policy";
 import type { Result } from "@/efos/application/shared";
 
 import { buildExecutiveChatInstruction } from "./ExecutiveChatInstruction.builder";
@@ -11,6 +12,7 @@ import type { ExecutiveChatAnswer } from "./ExecutiveChatAnswer.types";
 import { validateExecutiveChatAnswer } from "./ExecutiveChatAnswer.validator";
 import { validateExecutiveChatKnowledgeReferences } from "./validateExecutiveChatKnowledgeReferences";
 import { validateExecutiveChatFinancialContextReferences } from "./validateExecutiveChatFinancialContextReferences";
+import { collectExecutiveChatAnswerTexts } from "./collectExecutiveChatAnswerTexts";
 
 export type ExecutiveChatResult = Result<ExecutiveChatAnswer, ExecutiveAIError>;
 
@@ -150,6 +152,27 @@ export async function executeExecutiveChatAnalysis(
         error: {
           code: "VALIDATION_FAILED",
           message: financialContextReferenceValidation.errors.join("; "),
+          providerName: response.providerName,
+        },
+      };
+    }
+
+    // Mission 206 (D-132) — governança de saída (idioma pt-BR, fidelidade
+    // numérica). A resposta pode repetir números da pergunta, do
+    // histórico da conversa e dos parâmetros ESTRUTURADOS das ações
+    // propostas — nunca do próprio texto que está sendo verificado.
+    const proposedParameters = (response.output.proposedActions ?? []).map((action) => ({ ...action, reason: "" }));
+    const governance = validateExecutiveOutputGovernance(collectExecutiveChatAnswerTexts(response.output), context, [
+      question.text,
+      ...(priorMessages ?? []).map((message) => message.content),
+      proposedParameters,
+    ]);
+    if (!governance.valid) {
+      return {
+        success: false,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: `Política de saída do Executive Chat: ${governance.errors.join("; ")}`,
           providerName: response.providerName,
         },
       };

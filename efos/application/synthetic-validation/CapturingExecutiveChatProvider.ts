@@ -266,13 +266,13 @@ export function buildDeterministicSyntheticChatAnswer(
   return {
     id: answerId,
     answer: hasEvidence
-      ? `O contexto financeiro atual desta empresa mostra ${instruction.context.evidence.length} evidência(s) determinística(s) já produzida(s) pelos Engines.`
+      ? `O contexto financeiro atual desta empresa reúne ${instruction.context.evidence.length} ${instruction.context.evidence.length === 1 ? "evidência determinística produzida" : "evidências determinísticas produzidas"} pelos Engines.`
       : "O contexto financeiro atual desta empresa não mostra nenhuma evidência determinística para este período.",
     factualClaims: hasEvidence
       ? [
           {
             id: claimId,
-            statement: `Há ${instruction.context.evidence.length} evidência(s) determinística(s) disponível(is) no contexto atual.`,
+            statement: `Há ${instruction.context.evidence.length} ${instruction.context.evidence.length === 1 ? "evidência determinística disponível" : "evidências determinísticas disponíveis"} no contexto atual.`,
             basis,
           },
         ]
