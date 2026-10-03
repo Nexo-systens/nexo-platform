@@ -129,7 +129,10 @@ function escapeRegExp(value: string) {
 
 /** Trecho logo depois de uma menção, até o fim da oração. */
 function windowAfter(text: string, from: number, length: number): string {
-  const slice = text.slice(from, from + length);
+  // Nunca corta no meio de um número ("2026" virando "202") — estende até o fim do token.
+  let end = Math.min(text.length, from + length);
+  while (end < text.length && /[\d.,%]/.test(text[end]) && /[\d.,]/.test(text[end - 1] ?? "")) end += 1;
+  const slice = text.slice(from, end);
   const boundary = slice.search(/[;\n]|\.\s/);
   return boundary === -1 ? slice : slice.slice(0, boundary);
 }
@@ -163,7 +166,9 @@ export function assessExecutiveFigureFidelity(
     for (const name of unavailableNames) {
       for (const match of text.matchAll(new RegExp(`\\b${escapeRegExp(name)}\\b`, "giu"))) {
         const after = windowAfter(text, (match.index ?? 0) + match[0].length, 32);
-        if (/\d/.test(after) && !UNAVAILABLE_WORDING.test(after)) {
+        // Datas e anos ("agosto de 2026", "31/08/2026") não são valor do indicador (Mission 207: falso positivo real).
+        const withoutDates = after.replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, " ").replace(/\b(?:19|20)\d{2}\b/g, " ");
+        if (/\d/.test(withoutDates) && !UNAVAILABLE_WORDING.test(after)) {
           errors.push(`${path} atribui um número a "${name}", que está indisponível no contexto.`);
         }
       }

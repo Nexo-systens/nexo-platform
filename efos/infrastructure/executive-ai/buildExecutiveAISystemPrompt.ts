@@ -1,6 +1,8 @@
 import type { ExecutiveAIInstruction } from "@/efos/application/executive-ai-instruction";
 import { describeExecutiveOutputLanguage } from "@/efos/application/executive-output-policy";
 
+import { describeCitableBasisReferences } from "./basisTransport";
+
 /**
  * Nome da tool (structured output) que o modelo deve chamar para
  * produzir seu diagnóstico (Etapa 7) — compartilhado com
@@ -117,6 +119,10 @@ function buildBaseSystemPrompt(instruction: ExecutiveAIInstruction, toolName: st
     '- Every indicator marked as "unavailable" (unknown) in the provided context must remain unknown in your output — never convert it into zero, false, or any other confirmed value.',
     "- Every conflict preserved in the provided context must remain a coexisting, unresolved conflict in your output — never discard or silently resolve one side in favor of the other.",
     "- Every interpretation, hypothesis, risk, priority, and possible action you produce must reference real elements of the provided context (indicator, evidence, context, or conflict identifiers) — never a free-floating claim.",
+    // Mission 207 — referências citáveis desta chamada, explícitas (a
+    // validação real mostrou o prefixo "context:" usado para qualquer
+    // coisa dentro do bloco JSON `context`).
+    describeCitableBasisReferences(instruction.context, instruction.knowledgeContext?.knowledge ?? []),
     ...(stageNote ? [stageNote] : []),
     `- Respond exclusively by calling the "${toolName}" tool with your structured diagnosis. Do not respond in plain text.`,
   ].join("\n");

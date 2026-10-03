@@ -10338,3 +10338,27 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 - Os testes cobrem: política e herança, prompts e tools, serialização de números, idioma (pt-BR, inglês, misto, termos canônicos), números (canônico, arredondado, variação da comparação, variação calculada, inventado, sinal, indisponível, moeda em "mil", datas, eco da pergunta), Diagnosis em 6 fixtures (saudável, margem deteriorando, caixa pressionado, receita crescendo com recebimento piorando, dado insuficiente, indicador ausente), Chat com as 6 perguntas da missão, adapter Anthropic com cliente falso, erro do provider sem segredo, retry, enums, ações governadas, stand-ins e apresentação.
 
 **Origem.** Mission 206 — Executive AI Output Governance & pt-BR.
+
+## Mission 207 — Validação real controlada da Executive AI
+
+**Status.** Fechada (`MISSION_207_CLOSED`). Executada a partir do pedido de retomada: gate de credencial do provider e validação real controlada, só com dados sintéticos, nada persistido, sem contato com o Pilot. O texto original da Mission 207 não estava disponível nesta sessão (nenhum registro no repositório nem em outra sessão); o escopo seguido foi o descrito no pedido. Nenhuma mudança em contrato persistido, schema de tool, validação de referências, RLS ou migrations.
+
+**Gate de credencial.** Uma chamada mínima (1 token) com a chave local: válida. Nenhum metadado do segredo foi impresso ou registrado; scripts temporários apagados.
+
+**Validação real (rodada 1, código da Mission 206).** 6 diagnósticos (12 chamadas) sobre os seis contextos sintéticos e 6 perguntas do Chat. Resultado: 3/12 aceitos.
+- **Nenhuma rejeição veio da governança de saída da Mission 206 por causa do modelo**: aplicada isoladamente às 12 saídas brutas, ela aceitou 11; a única rejeição foi um falso positivo (ano "2026" junto ao nome de um indicador indisponível).
+- **Defeito bloqueante (anterior à 206):** 9/12 respostas caíram na validação de referências — o modelo usava o prefixo "context:" para qualquer coisa dentro do bloco JSON `context` (ids de indicador/evidência, `historicalIntelligence`, `unknowns`, nomes de indicador). O prefixo colide com o nome da chave do JSON.
+- **Qualidade:** pt-BR executivo, números canônicos, hipóteses condicionais, ações como sugestão; mas 26 vazamentos de termos internos no texto ("knowledgeContext", "Financial Truth", ids de evidência) em 287 textos.
+
+**Correções (só instrução e verificação, com evidência).**
+- `describeCitableBasisReferences()` (`efos/infrastructure/executive-ai/basisTransport.ts`), renderizada nos prompts do Diagnosis e do Chat: a lista exata das referências citáveis de cada chamada, com o nome ao lado de cada id; prefixos sem entidade aparecem como "nenhum"; comparações, unknowns, episódios, nomes e chaves do JSON declarados não citáveis. A regra de aceitação (D-081) não mudou.
+- Política de tom: proibido escrever ids, referências, chaves JSON e jargão interno no texto.
+- Verificação de indisponível: ignora anos e datas e não corta mais um número no limite da janela.
+
+**Validação real (rodada 2, depois das correções).** 11/12 aceitos: os 6 diagnósticos e 5 das 6 perguntas. A falha restante foi o Chat parando por `max_tokens` (limite de 8.000 de saída) numa única chamada; repetida 3 vezes, a mesma pergunta usou 1.752–1.994 tokens com estrutura completa — evento isolado de geração degenerada, tratado pelo caminho de falha existente (mensagem executiva, nova tentativa); limite não alterado. Vazamentos de termos internos: 26 → 2 (em 259 textos, um único campo de limitação do Chat). Campos com inglês: 0 nas duas rodadas.
+
+**Custo e exposição.** ~40 chamadas reais (gate, 2 rodadas e a sonda de max_tokens), todas com contexto sintético; nenhum dado de cliente, nenhuma persistência, nenhuma chamada a Supabase.
+
+**Validação.** type-check e lint limpos; build limpo, rotas inalteradas; 405 testes (production-surface 264, com 5 em `mission-207-executive-ai-real-provider.test.ts`, sem rede); nenhuma alteração em `supabase/`; varredura de segredos/PII limpa; chave fora do bundle do cliente.
+
+**Origem.** Mission 207 — Validação real controlada da Executive AI.

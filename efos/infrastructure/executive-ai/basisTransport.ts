@@ -135,3 +135,38 @@ export function decodeModelDiagnosisBasisFields(modelDiagnosis: Record<string, u
 
   return result;
 }
+
+/**
+ * Mission 207 — lista exata das referências citáveis em `basis` NESTA
+ * chamada, renderizada nas instruções de sistema dos dois adapters
+ * (Diagnosis e Chat). Achado da validação real: o modelo usava o prefixo
+ * "context:" para qualquer coisa dentro do bloco JSON `context`
+ * (ids de indicador/evidência, `historicalIntelligence`, `unknowns`,
+ * nomes) — a colisão entre o prefixo e o nome da chave tornava 9 de 12
+ * respostas reais inválidas na validação de referências (D-081).
+ *
+ * Só torna explícito o que a validação já exige: nenhum contrato, schema
+ * ou regra de aceitação muda. Mostra o nome ao lado de cada id para o
+ * modelo mapear "Margem Líquida" → `indicator:<id>` sem adivinhar.
+ */
+export interface CitableBasisSource {
+  readonly financialTruth: { readonly indicators: ReadonlyArray<{ readonly id: string; readonly name: string }> };
+  readonly evidence: ReadonlyArray<{ readonly id: string; readonly title: string }>;
+  readonly deterministicIntelligence: { readonly contexts: ReadonlyArray<{ readonly id: string }> };
+}
+
+export function describeCitableBasisReferences(
+  context: CitableBasisSource,
+  knowledge: ReadonlyArray<{ readonly id: string }> = []
+): string {
+  const list = (entries: readonly string[]) => (entries.length > 0 ? entries.join("; ") : "none in this call — never use this prefix");
+  return [
+    "Citable `basis` references for THIS call — use only these exact strings, nothing else:",
+    `- indicator: ${list(context.financialTruth.indicators.map((item) => `"indicator:${item.id}" (${item.name})`))}`,
+    `- evidence: ${list(context.evidence.map((item) => `"evidence:${item.id}" (${item.title})`))}`,
+    `- context: ${list(context.deterministicIntelligence.contexts.map((item) => `"context:${item.id}"`))}. The "context:" prefix refers ONLY to entries of context.deterministicIntelligence.contexts — it never means "anything inside the context block".`,
+    "- conflict: none in this call — never use this prefix (conflicts have no identity of their own).",
+    `- knowledge: ${list(knowledge.map((item) => `"knowledge:${item.id}"`))}`,
+    "Nothing else is citable. historicalIntelligence comparisons, unknowns, financialEpisodes, JSON key names and indicator or evidence names have no reference of their own — to ground a statement on a comparison, an unknown or an episode, cite the \"indicator:<id>\" of the same metric. Never invent, rename or abbreviate an id.",
+  ].join("\n");
+}
