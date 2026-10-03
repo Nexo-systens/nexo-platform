@@ -1,0 +1,62 @@
+/*
+ * Mission 208 — relatório executivo impresso (ou salvo em PDF pelo navegador).
+ * O shell (sidebar, cabeçalho) já some via `print:hidden` no layout; aqui só
+ * a paginação do documento: margens, quebras e tabelas sem rolagem.
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm 14mm 18mm;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  .report-document {
+    max-width: none;
+    gap: 2rem;
+    font-size: 10pt;
+  }
+
+  .report-document a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .report-item,
+  .report-document tr,
+  .report-block,
+  .report-keep {
+    break-inside: avoid;
+  }
+
+  .report-keep,
+  .report-document h2,
+  .report-document h3 {
+    break-after: avoid;
+  }
+
+  .report-annex {
+    break-before: page;
+  }
+
+  /* Tabelas inteiras no papel: sem contêiner de rolagem. */
+  .report-document .overflow-x-auto,
+  .report-document [data-slot="table-container"] {
+    overflow: visible !important;
+  }
+
+  .report-document table {
+    min-width: 0 !important;
+  }
+
+  .report-document details > summary {
+    list-style: none;
+  }
+
+  .report-document details > summary::-webkit-details-marker {
+    display: none;
+  }
+}

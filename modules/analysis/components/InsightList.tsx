@@ -31,6 +31,9 @@ const KIND_VAR: Readonly<Record<InsightKind, string>> = {
   hypothesis: "--kind-hypothesis",
   recommendation: "--kind-recommendation",
   decision: "--kind-decision",
+  companyDecision: "--kind-decision",
+  outcome: "--kind-outcome",
+  learning: "--kind-learning",
 };
 
 /**

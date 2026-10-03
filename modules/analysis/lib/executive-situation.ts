@@ -75,13 +75,29 @@ export interface ExecutiveSituation {
   readonly movement: { readonly improved: number; readonly worsened: number } | undefined;
 }
 
-const SEVERITY_ORDER: Readonly<Record<string, number>> = { critical: 0, high: 1, medium: 2, low: 3 };
+/** Ordem de gravidade/prioridade dos Engines (a mais grave primeiro) — reaproveitada pelo relatório executivo (Mission 208). */
+export const SEVERITY_ORDER: Readonly<Record<string, number>> = { critical: 0, high: 1, medium: 2, low: 3 };
 const PRIORITY_ORDER = SEVERITY_ORDER;
 
 export function buildExecutiveSituation(history: readonly HistoricalExecution[]): ExecutiveSituation | undefined {
   const current = history.at(-1);
   if (!current?.report) return undefined;
   const previous = history.length > 1 ? history.at(-2) : undefined;
+  return buildExecutiveSituationFor(current, previous, history.length);
+}
+
+/**
+ * Mission 208 — o mesmo cálculo com a análise anterior escolhida por quem
+ * chama. A Visão geral passa a execução anterior (`history.at(-2)`, acima,
+ * comportamento inalterado); o relatório executivo passa o período anterior
+ * canônico (`modules/reports/lib/report-period.ts`).
+ */
+export function buildExecutiveSituationFor(
+  current: HistoricalExecution,
+  previous: HistoricalExecution | undefined,
+  analysesCount: number
+): ExecutiveSituation | undefined {
+  if (!current.report) return undefined;
   const comparison: ExecutionComparison | undefined = previous ? compareExecutions(previous, current) : undefined;
   const comparisonByName = new Map(comparison?.metrics.map((metric) => [metric.metricName, metric] as const) ?? []);
 
@@ -129,7 +145,7 @@ export function buildExecutiveSituation(history: readonly HistoricalExecution[])
   return {
     period: period ? formatPeriodLabel(period) : undefined,
     previousPeriod: previousPeriod ? formatPeriodLabel(previousPeriod) : undefined,
-    analysesCount: history.length,
+    analysesCount,
     headline,
     signals: evidence.map((item) => ({
       id: item.id,

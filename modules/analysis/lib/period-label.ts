@@ -22,6 +22,11 @@ function pad(value: number) {
 export function formatPeriodLabel(period: Period): PeriodLabel {
   const start = utcParts(period.startDate);
   const end = utcParts(period.endDate);
+  // Mission 208 — período de um único dia (posição de Balanço, D-111): a data, não "31/08/2026 – 31/08/2026".
+  if (start.year === end.year && start.month === end.month && start.day === end.day) {
+    const day = `${pad(start.day)}/${pad(start.month + 1)}/${start.year}`;
+    return { long: day, short: day };
+  }
   const lastDay = new Date(Date.UTC(end.year, end.month + 1, 0)).getUTCDate();
   if (start.year === end.year && start.month === end.month && start.day === 1 && end.day === lastDay) {
     return { long: `${MONTHS[start.month]} de ${start.year}`, short: `${MONTHS[start.month].slice(0, 3)}/${start.year}` };

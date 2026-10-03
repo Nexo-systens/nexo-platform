@@ -73,9 +73,10 @@ describe("Mission 203 — navegação executiva", () => {
   });
 
   test("somente capacidades ainda indisponíveis são marcadas como 'em breve'", () => {
+    // Mission 208: Relatórios passou a existir (índice e leitura do relatório executivo).
     assert.deepEqual(
       workspaceNavigation.filter((item) => item.status === "soon").map((item) => item.href).sort(),
-      ["/reports", "/settings"]
+      ["/settings"]
     );
   });
 

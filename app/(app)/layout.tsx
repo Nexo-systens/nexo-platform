@@ -16,14 +16,15 @@ export default async function AppLayout({
     <div className="flex min-h-screen bg-background">
       <a
         href="#conteudo"
-        className="sr-only z-50 rounded-md bg-surface px-3 py-2 text-sm font-medium text-foreground shadow-md focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        className="sr-only z-50 rounded-md bg-surface px-3 py-2 text-sm font-medium text-foreground shadow-md focus:not-sr-only focus:fixed focus:top-3 focus:left-3 print:hidden"
       >
         Pular para o conteúdo
       </a>
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader user={user} />
-        <main id="conteudo" className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+        {/* Mission 208 — na impressão (relatório executivo) só o conteúdo segue; shell e navegação somem. */}
+        <main id="conteudo" className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 print:p-0!">
           <div className="mx-auto w-full max-w-(--content-max)">{children}</div>
         </main>
       </div>

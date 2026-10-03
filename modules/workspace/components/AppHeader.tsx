@@ -18,7 +18,7 @@ export function AppHeader({ user }: { user: User | null }) {
   const context = describeRouteContext(pathname);
 
   return (
-    <header className="sticky top-0 z-30 flex h-(--header-height) items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-(--header-height) items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 sm:px-6 print:hidden!">
       <MobileSidebarTrigger />
 
       <nav aria-label="Contexto" className="flex min-w-0 flex-1 items-center gap-1.5 text-[0.8125rem]">

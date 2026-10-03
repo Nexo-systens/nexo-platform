@@ -28,10 +28,13 @@ export function ScenarioImpactTable({
   metricKeys,
   comparison,
   caption,
+  baselineLabel = "Base atual",
 }: {
   metricKeys: readonly string[];
   comparison: Readonly<Record<string, ScenarioMetricComparison | undefined>>;
   caption: string;
+  /** Mission 208 — no relatório executivo a base é a do período do relatório, não a "atual". */
+  baselineLabel?: string;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -40,7 +43,7 @@ export function ScenarioImpactTable({
       <thead>
         <tr className="border-b border-border-strong text-left">
           <th scope="col" className="py-2 pr-4 type-meta font-medium">Indicador</th>
-          <th scope="col" className="py-2 pr-4 text-right type-meta font-medium">Base atual</th>
+          <th scope="col" className="py-2 pr-4 text-right type-meta font-medium">{baselineLabel}</th>
           <th scope="col" className="py-2 pr-4 text-right type-meta font-medium">Com o cenário</th>
           <th scope="col" className="py-2 text-right type-meta font-medium">Diferença</th>
         </tr>

@@ -5,7 +5,7 @@ import { Fragment, useMemo, useState } from "react";
 
 import type { ExecutiveReport, ExecutiveReportSection } from "@/efos/application/report";
 import type { NormalizedFinancialRecord } from "@/efos/engines/data";
-import type { Evidence, Indicator, ResourceType } from "@/efos/domain";
+import type { Evidence, Indicator } from "@/efos/domain";
 import {
   buildEvidenceSourceDetails,
   buildIndicatorSourceDetails,
@@ -23,7 +23,7 @@ import {
   type InsightLayer,
 } from "@/modules/analysis/lib/insight-semantics";
 import { formatEngineText } from "@/modules/analysis/lib/engine-text";
-import { derivePeriodLabel } from "@/modules/analysis/lib/report-view";
+import { derivePeriodLabel, isBalanceSheetRecord } from "@/modules/analysis/lib/report-view";
 
 import { FinancialRecordsTable } from "./FinancialRecordsTable";
 import { IndicatorsGrid } from "./IndicatorsGrid";
@@ -32,37 +32,6 @@ import { SourceDetailsSheet } from "./SourceDetailsSheet";
 
 interface ExecutiveReportViewProps {
   report: ExecutiveReport;
-}
-
-/**
- * Conjunto de `ResourceType` que a convenção D-004 (`docs/DECISIONS.md`,
- * já reaproveitada por `DefaultBalanceSheetBuilder`, Mission 054)
- * reconhece como Ativo/Passivo — os únicos registros que representam
- * de fato uma posição patrimonial, nunca uma movimentação. O Builder
- * nunca descarta um registro não classificado (preserva-o no grupo
- * residual "unclassified", para rastreabilidade) — mas exibi-lo sob o
- * título "Balanço Patrimonial" apresentaria transações (`kind:
- * "event"`, sempre residuais aqui) como se fossem contas patrimoniais
- * reais, o que um extrato bancário sem nenhuma conta declarada nunca
- * fornece (Mission 097, Etapa 7, D-051). Os mesmos registros continuam
- * visíveis, sem nenhuma perda, na seção "Fluxo de Caixa".
- */
-const BALANCE_SHEET_RESOURCE_TYPES: ReadonlySet<ResourceType> = new Set([
-  "cash",
-  "client",
-  "inventory",
-  "asset",
-  "investment",
-  "supplier",
-  "loan",
-]);
-
-function isBalanceSheetRecord(record: NormalizedFinancialRecord): boolean {
-  return (
-    record.kind === "resource" &&
-    record.resourceType !== undefined &&
-    BALANCE_SHEET_RESOURCE_TYPES.has(record.resourceType)
-  );
 }
 
 /**

@@ -207,6 +207,12 @@ export default async function CompanyProfilePage({
           }
           actions={
             <>
+              {/* Mission 208 — os relatórios executivos desta empresa (um por análise concluída). */}
+              {executionsCount > 0 && (
+                <Button variant="outline" size="sm" render={<Link href={`/reports?empresa=${company.id}`} />} nativeButton={false}>
+                  Relatórios
+                </Button>
+              )}
               <CompanyFormSheet company={company} trigger={<Button variant="outline" size="sm">Editar</Button>} />
               <ArchiveCompanyButton companyId={company.id} status={company.status} />
               <DeleteCompanyButton companyId={company.id} companyName={company.razao_social} />

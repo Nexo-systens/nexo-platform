@@ -20,7 +20,10 @@ export type InsightKind =
   | "interpretation"
   | "hypothesis"
   | "recommendation"
-  | "decision";
+  | "decision"
+  | "companyDecision"
+  | "outcome"
+  | "learning";
 
 /** "known": fato documental, cálculo ou evidência rastreável. "inferred": leitura do EFOS. */
 export type InsightLayer = "known" | "inferred";
@@ -67,6 +70,24 @@ export const INSIGHT_KIND_META: Readonly<Record<InsightKind, InsightKindMeta>> =
     label: "Proposta de decisão",
     layer: "inferred",
     description: "Priorização proposta pelo EFOS. A decisão final é sempre da empresa.",
+  },
+  // Mission 208 — relatório executivo: a decisão registrada pela empresa (não
+  // a proposta do Decision Engine), o que aconteceu depois dela e o que a
+  // empresa aprendeu com isso.
+  companyDecision: {
+    label: "Decisão da empresa",
+    layer: "known",
+    description: "Decisão registrada por uma pessoa da empresa, com justificativa e ciclo de execução.",
+  },
+  outcome: {
+    label: "Resultado observado",
+    layer: "known",
+    description: "Resultado registrado pela empresa ou observado nos dados de um período posterior.",
+  },
+  learning: {
+    label: "Aprendizado",
+    layer: "inferred",
+    description: "Conhecimento governado formado a partir de decisões e resultados — não é um fato do período.",
   },
 };
 
@@ -126,6 +147,11 @@ const LEVEL_LABELS: Readonly<Record<string, string>> = {
 /** Valor desconhecido nunca vaza cru em inglês com sublinhado. */
 function humanize(value: string): string {
   return LEVEL_LABELS[value] ?? value.replace(/_/g, " ");
+}
+
+/** Mission 208 — o nível em português ("alta", "média"), para frases como "Confiança do EFOS: alta". */
+export function levelLabel(value: string): string {
+  return humanize(value);
 }
 
 const SEVERITY_TONE: Readonly<Record<string, SemanticTone>> = {

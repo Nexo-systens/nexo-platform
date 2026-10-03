@@ -3,6 +3,7 @@ import type {
   ExecutiveReportSection,
   ExecutiveReportSectionType,
 } from "@/efos/application/report";
+import type { ResourceType } from "@/efos/domain";
 import type { NormalizedFinancialRecord } from "@/efos/engines/data";
 
 /**
@@ -124,4 +125,38 @@ export function derivePeriodLabel(
     }
   }
   return undefined;
+}
+
+/**
+ * Conjunto de `ResourceType` que a convenção D-004 (`docs/DECISIONS.md`,
+ * já reaproveitada por `DefaultBalanceSheetBuilder`, Mission 054)
+ * reconhece como Ativo/Passivo — os únicos registros que representam
+ * de fato uma posição patrimonial, nunca uma movimentação. O Builder
+ * nunca descarta um registro não classificado (preserva-o no grupo
+ * residual "unclassified", para rastreabilidade) — mas exibi-lo sob o
+ * título "Balanço Patrimonial" apresentaria transações (`kind:
+ * "event"`, sempre residuais aqui) como se fossem contas patrimoniais
+ * reais, o que um extrato bancário sem nenhuma conta declarada nunca
+ * fornece (Mission 097, Etapa 7, D-051). Os mesmos registros continuam
+ * visíveis, sem nenhuma perda, na seção "Fluxo de Caixa".
+ *
+ * Mission 208 — movido de `ExecutiveReportView.tsx` para cá: o anexo do
+ * relatório executivo (`modules/reports/`) aplica a mesma regra.
+ */
+const BALANCE_SHEET_RESOURCE_TYPES: ReadonlySet<ResourceType> = new Set([
+  "cash",
+  "client",
+  "inventory",
+  "asset",
+  "investment",
+  "supplier",
+  "loan",
+]);
+
+export function isBalanceSheetRecord(record: NormalizedFinancialRecord): boolean {
+  return (
+    record.kind === "resource" &&
+    record.resourceType !== undefined &&
+    BALANCE_SHEET_RESOURCE_TYPES.has(record.resourceType)
+  );
 }

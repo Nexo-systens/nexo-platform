@@ -1,5 +1,5 @@
 import {
-  BarChart3,
+  BookOpenText,
   Building2,
   FileText,
   Gauge,
@@ -41,12 +41,14 @@ export const workspaceNavGroups: NavGroup[] = [
 ];
 
 // Fonte única de navegação: alimenta a Sidebar e o contexto do Header.
+// Mission 208 — Relatórios deixa de ser "em breve" e passa a acompanhar a
+// Visão executiva: é onde o executivo lê o que o EFOS sabia de cada período.
 export const workspaceNavigation: NavItem[] = [
   { label: "Visão executiva", href: "/dashboard", icon: Gauge, group: "overview" },
+  { label: "Relatórios", href: "/reports", icon: BookOpenText, group: "overview" },
   { label: "Empresas", href: "/companies", icon: Building2, group: "companies" },
   { label: "Documentos", href: "/documents", icon: FileText, group: "companies" },
   { label: "Central de Decisões", href: "/diagnostics", icon: Scale, group: "decision" },
-  { label: "Relatórios", href: "/reports", icon: BarChart3, group: "account", status: "soon" },
   { label: "Configurações", href: "/settings", icon: Settings, group: "account", status: "soon" },
 ];
 
@@ -78,5 +80,6 @@ export function describeRouteContext(pathname: string): { section: string; page?
   const item = findActiveNavItem(pathname);
   if (!item) return { section: "NEXO" };
   if (item.href === "/companies" && pathname !== "/companies") return { section: "Empresas", page: "Empresa" };
+  if (item.href === "/reports" && pathname !== "/reports") return { section: "Relatórios", page: "Relatório executivo" };
   return { section: item.label };
 }

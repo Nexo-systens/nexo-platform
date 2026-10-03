@@ -21,7 +21,7 @@ Mission 203. Documento curto e operacional: o que usar, quando e por quê. A fon
 | Borda | `--border`, `--border-strong`, `--input` | divisórias e contornos de controles |
 | Identidade | `--primary` (azul-noite), `--primary-soft` | ação principal, item ativo, foco |
 | Status | `--positive`, `--warning`, `--negative`, `--info`, cada um com `-soft` e `-soft-foreground` | badges, callouts, estados. `--destructive` é alias de `--negative` |
-| Natureza | `--kind-fact`, `--kind-evidence`, `--kind-interpretation`, `--kind-hypothesis`, `--kind-recommendation`, `--kind-decision` | marcadores e barras de acento de insight |
+| Natureza | `--kind-fact`, `--kind-evidence`, `--kind-interpretation`, `--kind-hypothesis`, `--kind-recommendation`, `--kind-decision`, `--kind-outcome`, `--kind-learning` | marcadores e barras de acento de insight; resultado e aprendizado desde a Mission 208 |
 | Institucional | `--brass` | só na página institucional: filetes, eyebrows e numerais sobre `--surface-inverse` |
 | Elevação | `--shadow-xs`, `--shadow-sm`, `--shadow-md`, `--shadow-overlay` | cartões (xs), menus e diálogos (overlay) |
 | Layout | `--content-max` (76rem), `--sidebar-width`, `--header-height` | shell e largura de leitura |
@@ -65,7 +65,7 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 ## Shell e navegação
 
 - `modules/workspace/config/navigation.ts` é a fonte única da sidebar e do contexto do header.
-- Os grupos seguem a função executiva: Visão executiva, Empresas (Empresas e Documentos), Decisão (Central de Decisões) e conta (itens "em breve").
+- Os grupos seguem a função executiva: acompanhar (Visão executiva e Relatórios, desde a Mission 208), Empresas (Empresas e Documentos), Decisão (Central de Decisões) e conta (Configurações, "em breve").
 - As rotas não mudaram.
 - O layout autenticado tem skip link ("Pular para o conteúdo") → `main#conteudo`. A navegação é rotulada, o item ativo usa `aria-current="page"` e o foco é visível em todos os controles.
 - A página da empresa é um **workspace em visões** (`?secao=`, `modules/companies/lib/workspace-views.ts`): Visão geral · Análise · Decisões · Cenários · Executive Chat · Conhecimento · Documentos · Cadastro. Só a visão ativa é renderizada; cada uma tem URL própria. `CompanyWorkspaceNav` é a navegação (links reais, `aria-current="page"`, contador de decisões pendentes). Antes da primeira análise só existem Documentos, Análise, Decisões e Cadastro.
@@ -110,6 +110,19 @@ A landing em `/` (`app/(site)/`, `modules/site/`) herda os tokens do produto e p
 - **Grades de seção:** sempre `grid-cols-[minmax(0,1fr)]` na base. Conteúdo sem quebra (tabela, badge) não pode alargar a coluna em telas estreitas.
 - **CTAs:** o canal comercial vem de `NEXT_PUBLIC_NEXO_CONTACT_URL` (`mailto:` ou `https:`). Sem ele, o botão leva à seção `#conversar`, que não exibe contato fictício. "Entrar na plataforma" sempre leva ao `/login`.
 
+## Documento executivo (Mission 208)
+
+O relatório executivo (`/reports/[executionId]`, `modules/reports/components/`) é um documento, não um painel. Padrões reutilizáveis:
+
+- **Cabeçalho de documento:** eyebrow → nome da empresa (`h1`) → período em destaque → metadados em `dl` (período analisado, comparado com, gerado em, versão) → uma frase de natureza ("registro imutável…; ciclo de decisão no estado de…") → sumário numerado das seções presentes.
+- **Seções numeradas (`DocSection`):** filete superior, número em eyebrow (`01`), `h2`, frase de abertura. A numeração conta só as seções que existem — seção sem objeto canônico não aparece.
+- **Natureza por bloco:** `KindMarker` antes de cada bloco. Ponto cheio para o que é conhecido (indicador, evidência, **decisão da empresa**, **resultado observado**); anel para o que é inferido (interpretação, hipótese, recomendação, proposta do EFOS, **aprendizado**). A proposta do Decision Engine ("Proposta de decisão") e a decisão registrada pela empresa ("Decisão da empresa") nunca dividem rótulo.
+- **Itens como texto:** lista com divisores; título, descrição e uma linha de metadados em texto ("Severidade alta · Confiança do EFOS: alta · Indicador: Margem Líquida"). Selos só onde o componente reaproveitado já os usa (leitura da IA).
+- **Confiança:** "Confiança do EFOS: …" para Engines; a leitura da IA mantém "Confiança média" dentro da própria seção. Nunca percentual.
+- **Anexo:** catálogo completo de indicadores e demonstrações recolhidas (`<details>`), proveniência com o identificador técnico só ali.
+- **Impressão:** `print:hidden!` no shell (sidebar, cabeçalho, skip link), `print:hidden` nos controles; `report-document.css` define `@page` A4, quebras (`report-item`, `report-keep`, anexo em página nova) e tabelas sem rolagem. O botão "Imprimir ou salvar PDF" e o evento `beforeprint` (Ctrl+P) abrem todos os `<details>` antes de imprimir.
+- **Período de um único dia** (só Balanço): título "Posição em 31/08/2026", metadado "Data-base 31/08/2026" — `formatPeriodLabel` devolve a data, não "31/08/2026 – 31/08/2026".
+
 ## Estados
 
 | Estado | Tratamento |
@@ -136,4 +149,5 @@ A landing em `/` (`app/(site)/`, `modules/site/`) herda os tokens do produto e p
 - que o 404 próprio e a rota do operador não revelem a existência da rota;
 - a acessibilidade do shell;
 - a integridade das confirmações destrutivas;
-- visões do workspace, sistema de números, situação sem dado fabricado, proveniência legível, comando do portfólio, IA sintética só local e nomes acessíveis dos selects (Mission 204).
+- visões do workspace, sistema de números, situação sem dado fabricado, proveniência legível, comando do portfólio, IA sintética só local e nomes acessíveis dos selects (Mission 204);
+- documento executivo: verdade do relatório, período e versões, linhagem do ciclo de decisão, fronteira de empresa, títulos e tabelas acessíveis, impressão (`mission-208-executive-reports.test.ts`).

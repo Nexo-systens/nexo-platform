@@ -65,7 +65,7 @@ export async function getLatestAnalysisSummary(companyId: string): Promise<Lates
   };
 }
 
-function isExecutiveReportSummary(value: unknown): value is ExecutiveReportSummary {
+export function isExecutiveReportSummary(value: unknown): value is ExecutiveReportSummary {
   if (typeof value !== "object" || value === null) return false;
   const summary = value as Record<string, unknown>;
   return ["indicatorsCount", "evidenceCount", "contextCount", "reasoningCount", "recommendationCount", "decisionCount"].every(

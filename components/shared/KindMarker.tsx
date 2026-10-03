@@ -9,6 +9,9 @@ const KIND_COLOR: Readonly<Record<InsightKind, string>> = {
   hypothesis: "bg-kind-hypothesis",
   recommendation: "bg-kind-recommendation",
   decision: "bg-kind-decision",
+  companyDecision: "bg-kind-decision",
+  outcome: "bg-kind-outcome",
+  learning: "bg-kind-learning",
 };
 
 /** Barra lateral que marca a natureza de um bloco (usada por cartões de insight). */
@@ -52,6 +55,8 @@ function ringColor(kind: InsightKind): string {
       return "ring-kind-recommendation";
     case "decision":
       return "ring-kind-decision";
+    case "learning":
+      return "ring-kind-learning";
     default:
       return "ring-kind-fact";
   }

@@ -42,7 +42,8 @@ export function formatIndicatorValue(value: number, unit: IndicatorUnit): string
       const formatted = new Intl.NumberFormat("pt-BR", {
         maximumFractionDigits: 0,
       }).format(value);
-      return `${formatted} dias`;
+      // Mission 208 — "1 dia", nunca "1 dias".
+      return `${formatted} ${formatted === "1" || formatted === "-1" ? "dia" : "dias"}`;
     }
     case "currency": {
       const formatted = new Intl.NumberFormat("pt-BR", {
@@ -106,7 +107,7 @@ export function formatIndicatorDelta(delta: number, unit: IndicatorUnit): string
     }
     case "days": {
       const formatted = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(magnitude);
-      return `${sign}${formatted} dias`;
+      return `${sign}${formatted} ${formatted === "1" ? "dia" : "dias"}`;
     }
     case "ratio": {
       const formatted = new Intl.NumberFormat("pt-BR", {

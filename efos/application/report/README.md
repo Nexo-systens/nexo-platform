@@ -2,6 +2,8 @@
 
 Status: **estrutura implementada (Mission 022 — Executive Report Service; estendida na Mission 062 — Report Layer Builder Integration; estendida novamente na Mission 064 — Financial Statement Builders Integration).** Contratos e mapeamento puro de `PipelineExecution` para `ExecutiveReport` — sem renderização, sem HTML, sem Markdown, sem PDF, sem IA, sem template engine. Essa camada de apresentação é trabalho de uma missão futura, ainda não definida.
 
+**Mission 208 (D-133):** este contrato é o relatório executivo do produto — um por execução, imutável, lido por `modules/reports/` (índice `/reports` e documento `/reports/[executionId]`). Nenhuma alteração de contrato: a leitura executiva é uma projeção de apresentação que carrega o `ExecutiveReport` por referência.
+
 ## Objetivo
 
 Transformar um `PipelineExecution` (`efos/application/orchestrators/PipelineExecution.ts`, Mission 020B) — já concluído (ou parcialmente concluído, em caso de falha de estágio) — em uma representação estruturada e canônica de relatório executivo, consumível por uma futura camada de apresentação (HTML, PDF, Dashboard). Produzido por `DefaultReportService` (`efos/application/services/DefaultReportService.ts`, Mission 022).

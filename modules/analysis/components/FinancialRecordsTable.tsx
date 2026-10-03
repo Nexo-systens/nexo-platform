@@ -1,6 +1,7 @@
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -10,10 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { NormalizedFinancialRecord } from "@/efos/engines/data";
 import { FINANCIAL_EVENT_TYPE_LABELS, RESOURCE_TYPE_LABELS } from "@/modules/analysis/lib/recordTypeLabels";
+import { formatCalendarDate } from "@/modules/analysis/lib/executive-language";
 import { STATEMENT_CATEGORY_LABELS } from "@/modules/analysis/lib/statementCategoryLabels";
 
 interface FinancialRecordsTableProps {
   records: readonly NormalizedFinancialRecord[];
+  /** Mission 208 — legenda para leitores de tela (o relatório executivo nomeia cada demonstração). */
+  caption?: string;
 }
 
 /**
@@ -48,10 +52,19 @@ function formatMoney(amount: number | undefined, currency: string | undefined) {
  * simplesmente representada por um campo diferente.
  */
 function formatWhen(record: NormalizedFinancialRecord): string {
-  if (record.occurredAt) return record.occurredAt;
-  if (record.asOfDate) return `Data-base: ${record.asOfDate}`;
-  if (record.period) return `Período: ${record.period.startDate} a ${record.period.endDate}`;
+  if (record.occurredAt) return calendarDate(record.occurredAt);
+  if (record.asOfDate) return `Data-base: ${calendarDate(record.asOfDate)}`;
+  if (record.period) return `Período: ${calendarDate(record.period.startDate)} a ${calendarDate(record.period.endDate)}`;
   return "—";
+}
+
+/**
+ * Mission 208 — datas de calendário em pt-BR (UTC, como `formatCalendarDate`),
+ * no lugar do carimbo ISO cru ("2026-07-31T00:00:00.000Z") que a coluna
+ * mostrava. Valor que não é data continua exibido como veio.
+ */
+function calendarDate(iso: string): string {
+  return Number.isNaN(new Date(iso).getTime()) ? iso : formatCalendarDate(iso);
 }
 
 /**
@@ -80,7 +93,7 @@ function formatType(record: NormalizedFinancialRecord): string {
 // nunca apresentar um valor derivado como se fosse a mesma coisa que
 // um valor bruto, e vice-versa — aqui o sinal já vem pronto do
 // documento de origem, apenas destacado).
-export function FinancialRecordsTable({ records }: FinancialRecordsTableProps) {
+export function FinancialRecordsTable({ records, caption = "Lançamentos da demonstração" }: FinancialRecordsTableProps) {
   if (records.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -92,12 +105,13 @@ export function FinancialRecordsTable({ records }: FinancialRecordsTableProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <Table>
+        <TableCaption className="sr-only">{caption}</TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead>Registro</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
-            <TableHead>Quando</TableHead>
-            <TableHead>Tipo</TableHead>
+            <TableHead scope="col">Registro</TableHead>
+            <TableHead scope="col" className="text-right">Valor</TableHead>
+            <TableHead scope="col">Quando</TableHead>
+            <TableHead scope="col">Tipo</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

@@ -25,7 +25,8 @@ import {
  * incertezas ficam recolhidas (divulgação progressiva).
  */
 
-function Basis({ basis, references }: { basis: InterpretationBasis; references: ReferenceLabels }) {
+/** Base de uma afirmação, pelos nomes da análise de origem (exportada para o relatório executivo, Mission 208). */
+export function DiagnosisBasis({ basis, references }: { basis: InterpretationBasis; references: ReferenceLabels }) {
   const current: { kind: ReferenceKind; id: string }[] = [
     ...(basis.indicatorIds ?? []).map((id) => ({ kind: "indicator" as const, id })),
     ...(basis.evidenceIds ?? []).map((id) => ({ kind: "evidence" as const, id })),
@@ -73,13 +74,23 @@ function Basis({ basis, references }: { basis: InterpretationBasis; references: 
   );
 }
 
-function Group({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function Group({
+  title,
+  count,
+  children,
+  heading: Heading = "h4",
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+  heading?: "h3" | "h4";
+}) {
   if (count === 0) return null;
   return (
     <section className="flex flex-col gap-1">
-      <h4 className="type-eyebrow">
+      <Heading className="type-eyebrow">
         {title} <span className="num">· {count}</span>
-      </h4>
+      </Heading>
       <ul className="flex flex-col divide-y divide-border">{children}</ul>
     </section>
   );
@@ -105,7 +116,7 @@ function Item({
         {aside}
       </div>
       {detail && <p className="type-meta">{detail}</p>}
-      {basis && <Basis basis={basis} references={references} />}
+      {basis && <DiagnosisBasis basis={basis} references={references} />}
     </li>
   );
 }
@@ -114,12 +125,16 @@ export function ExecutiveDiagnosisView({
   diagnosis,
   references = new Map(),
   generatedAt,
+  embedded = false,
 }: {
   diagnosis: ExecutiveDiagnosis;
   references?: ReferenceLabels;
   generatedAt?: string;
+  /** Mission 208 — dentro do relatório executivo o título vem da seção do documento; fica só o aviso. */
+  embedded?: boolean;
 }) {
   const followUps = diagnosis.questions.length + diagnosis.uncertainties.length;
+  const groupHeading = embedded ? "h3" : "h4";
 
   return (
     <article className="flex flex-col gap-6 border-l-2 border-dotted border-kind-interpretation pl-5">
@@ -128,23 +143,26 @@ export function ExecutiveDiagnosisView({
           <KindMarker kind="interpretation" />
           {generatedAt && <span className="type-meta">· gerada em {generatedAt}</span>}
         </div>
-        <h3 className="type-section-title">Leitura da Executive AI</h3>
+        {!embedded && <h3 className="type-section-title">Leitura da Executive AI</h3>}
         <p className="type-meta max-w-3xl">
           <strong className="font-medium text-foreground-secondary">Interpretação, não fato contábil.</strong> Leitura gerada
           por IA sobre o que o EFOS já calculou — nunca uma decisão nem uma execução. Revise cada afirmação antes de agir.
         </p>
       </header>
 
-      <div className="flex flex-col gap-2">
-        <p className="type-eyebrow">Resumo executivo</p>
-        <p className="max-w-3xl text-[1.0625rem] leading-relaxed text-pretty text-foreground">
-          {diagnosis.executiveSummary.statement}
-        </p>
-        <Basis basis={diagnosis.executiveSummary.basis} references={references} />
-      </div>
+      {/* Mission 208 — no relatório executivo o resumo já abre o documento (Situação executiva). */}
+      {!embedded && (
+        <div className="flex flex-col gap-2">
+          <p className="type-eyebrow">Resumo executivo</p>
+          <p className="max-w-3xl text-[1.0625rem] leading-relaxed text-pretty text-foreground">
+            {diagnosis.executiveSummary.statement}
+          </p>
+          <DiagnosisBasis basis={diagnosis.executiveSummary.basis} references={references} />
+        </div>
+      )}
 
       <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
-        <Group title="Prioridades" count={diagnosis.priorities.length}>
+        <Group heading={groupHeading} title="Prioridades" count={diagnosis.priorities.length}>
           {[...diagnosis.priorities]
             .sort((a, b) => a.rank - b.rank)
             .map((item) => (
@@ -158,7 +176,7 @@ export function ExecutiveDiagnosisView({
             ))}
         </Group>
 
-        <Group title="Riscos" count={diagnosis.risks.length}>
+        <Group heading={groupHeading} title="Riscos" count={diagnosis.risks.length}>
           {diagnosis.risks.map((item) => (
             <Item
               key={item.id}
@@ -174,7 +192,7 @@ export function ExecutiveDiagnosisView({
           ))}
         </Group>
 
-        <Group title="Interpretações" count={diagnosis.interpretations.length}>
+        <Group heading={groupHeading} title="Interpretações" count={diagnosis.interpretations.length}>
           {diagnosis.interpretations.map((item) => (
             <Item
               key={item.id}
@@ -186,7 +204,7 @@ export function ExecutiveDiagnosisView({
           ))}
         </Group>
 
-        <Group title="Hipóteses" count={diagnosis.hypotheses.length}>
+        <Group heading={groupHeading} title="Hipóteses" count={diagnosis.hypotheses.length}>
           {diagnosis.hypotheses.map((item) => (
             <Item
               key={item.id}
@@ -199,7 +217,7 @@ export function ExecutiveDiagnosisView({
           ))}
         </Group>
 
-        <Group title="Ações possíveis" count={diagnosis.possibleActions.length}>
+        <Group heading={groupHeading} title="Ações possíveis" count={diagnosis.possibleActions.length}>
           {diagnosis.possibleActions.map((item) => (
             <Item
               key={item.id}
@@ -211,7 +229,7 @@ export function ExecutiveDiagnosisView({
           ))}
         </Group>
 
-        <Group title="Interpretações de conflito" count={diagnosis.conflictInterpretations.length}>
+        <Group heading={groupHeading} title="Interpretações de conflito" count={diagnosis.conflictInterpretations.length}>
           {diagnosis.conflictInterpretations.map((item) => (
             <Item
               key={item.id}

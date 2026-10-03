@@ -32,11 +32,21 @@ export function toHistoricalExecution(snapshot: ExecutionSnapshot): HistoricalEx
 function orderByExecutedAt(
   executions: readonly HistoricalExecution[]
 ): readonly HistoricalExecution[] {
-  return [...executions].sort((a, b) => {
-    const dateDiff = a.executedAt.localeCompare(b.executedAt);
-    if (dateDiff !== 0) return dateDiff;
-    return a.executionId.localeCompare(b.executionId);
-  });
+  return [...executions].sort(compareHistoricalExecutionOrder);
+}
+
+/**
+ * Mission 208 — o mesmo critério de `orderByExecutedAt()`, exportado para
+ * o índice de relatórios (`modules/reports/`), que lê só metadados das
+ * execuções e precisa da mesma ordem canônica sem uma segunda regra.
+ */
+export function compareHistoricalExecutionOrder(
+  a: Pick<HistoricalExecution, "executedAt" | "executionId">,
+  b: Pick<HistoricalExecution, "executedAt" | "executionId">
+): number {
+  const dateDiff = a.executedAt.localeCompare(b.executedAt);
+  if (dateDiff !== 0) return dateDiff;
+  return a.executionId.localeCompare(b.executionId);
 }
 
 /**

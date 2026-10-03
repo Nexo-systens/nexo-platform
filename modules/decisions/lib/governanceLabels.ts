@@ -1,8 +1,10 @@
 import type {
   DecisionType,
+  OutcomeStatus,
   RecommendationConfidence,
   RecommendationPriority,
 } from "@/efos/domain";
+import type { DecisionExecutionStatus } from "@/efos/application/decision-execution/DecisionExecutionEvent";
 import type { RecommendationReferenceTrace } from "@/efos/application/executive-diagnosis";
 import type { RecommendationGovernanceState } from "@/efos/application/recommendation-governance";
 import type { RecommendationOutcomeReconciliation } from "@/efos/application/recommendation-outcome-reconciliation";
@@ -93,4 +95,22 @@ export const RECONCILIATION_STATE_LABELS: Record<NonNullable<RecommendationOutco
   OUTCOME_RECORDED: "Resultado humano registrado",
   FINANCIAL_OBSERVATION_AVAILABLE: "Observação financeira disponível",
   LEARNING_RECORDED: "Aprendizado registrado",
+};
+
+/** Mission 208 — status de execução de uma decisão (antes local em `DecisionExecutionCard`). */
+export const DECISION_EXECUTION_STATUS_LABELS: Record<DecisionExecutionStatus, string> = {
+  NOT_STARTED: "Não iniciada",
+  IN_PROGRESS: "Em andamento",
+  BLOCKED: "Bloqueada",
+  COMPLETED: "Concluída",
+  CANCELLED: "Cancelada",
+};
+
+/** Mission 208 — avaliação humana de um resultado (antes local em `DecisionExecutionCard`). */
+export const OUTCOME_STATUS_LABELS: Record<OutcomeStatus, string> = {
+  pending: "Aguardando avaliação",
+  positive: "Positivo",
+  negative: "Negativo",
+  neutral: "Neutro",
+  inconclusive: "Inconclusivo",
 };

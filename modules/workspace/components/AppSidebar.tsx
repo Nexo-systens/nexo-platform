@@ -94,7 +94,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 // exibido via MobileSidebarTrigger (Sheet), evitando duplicar a lista.
 export function AppSidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-(--sidebar-width) shrink-0 flex-col border-r border-border bg-surface lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-(--sidebar-width) shrink-0 flex-col border-r border-border bg-surface lg:flex print:hidden!">
       <div className="flex h-(--header-height) items-center border-b border-border px-5">
         <BrandMark />
       </div>

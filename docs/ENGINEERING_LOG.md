@@ -10362,3 +10362,71 @@ B2 e B3 são indistinguíveis por mensagem, status, redirect e estado visual; a 
 **Validação.** type-check e lint limpos; build limpo, rotas inalteradas; 405 testes (production-surface 264, com 5 em `mission-207-executive-ai-real-provider.test.ts`, sem rede); nenhuma alteração em `supabase/`; varredura de segredos/PII limpa; chave fora do bundle do cliente.
 
 **Origem.** Mission 207 — Validação real controlada da Executive AI.
+
+
+---
+
+## Mission 208 — Governed Executive Reports
+
+**Status.** Fechada (`MISSION_208_CLOSED`). Decisão nova: **D-133**. Nenhuma migration, nenhuma alteração de RLS, de Engine, de contrato persistido ou de Executive AI.
+
+**Auditoria (antes de qualquer código).** `ExecutiveReport` já é o contrato único (D-043): `DefaultReportService` (única implementação; o renderer Markdown da Mission 078 é só apresentação), determinístico, sem IA, gravado uma vez por execução em `public.executions.report`. A tabela é documentada como imutável, não tem policy de UPDATE e é isolada por RLS via `companies.user_id`. `metadata` não guarda período: ele vem dos indicadores (`periodOf`). Não existe campo de versão: a versão é a execução. `ReportRepository`/`GenerateExecutiveReportUseCase`/`GenerateReport.dto` são esqueletos da Mission 017 sem consumidor. D-118 garante a separação dos lançamentos por demonstração e o rótulo honesto de caixa; D-119 garante que ausência de DRE/Balanço nunca vira indicador `available` com 0. A Mission 194 resolveu a fidelidade da projeção, não a capability de relatórios. `/reports` era um `PlaceholderPage` e o relatório só existia dentro do workspace da empresa (a última análise). Conclusão: nenhum conflito estrutural — a resposta a "o relatório de ontem muda?" já estava no contrato (não muda). Faltava formalizar como decisões, resultados e aprendizados se ligam a um relatório: D-133 (linhagem explícita, estado derivado na leitura).
+
+**Entrega.**
+- `modules/reports/lib/`:
+  - `report-period.ts`: período canônico, comparação com o período anterior canônico (`buildCanonicalPriorPeriods` restrito a períodos que terminam antes, fail-closed em ambiguidade) e versão (mais recente × anterior do mesmo período);
+  - `report-lineage.ts`: leitura da IA por `execution_id`; decisões por `diagnosis_id` ou cenário com período e impressão do Financial Model iguais; observações pela execução de observação; Knowledge pela origem; tudo filtrado pela empresa;
+  - `report-reading.ts`: leitura executiva (o `ExecutiveReport` vai por referência);
+  - `report-index.ts`, `report-language.ts`.
+- `modules/reports/services/`: `report-queries.ts` (consultas leves com a sessão, cliente injetado, `isUuid` antes do banco) e `report.service.ts` (carregamento com `cache()`).
+- `modules/reports/components/`: `ReportDocument` (cabeçalho de documento, sumário, seções numeradas só quando há objeto canônico), `ReportAnnex` (catálogo de indicadores, demonstrações, proveniência), `ReportIndex`, `ReportPrintButton` (abre `<details>` no `beforeprint`), `report-document.css` (`@page` A4, quebras).
+- Rotas: `/reports` (índice por empresa e período, sem botão de gerar) e `/reports/[executionId]` (404 indistinto). Navegação: Relatórios deixa de ser "em breve" e vai para o grupo de acompanhamento; botão "Relatórios" no workspace da empresa com análise.
+- Reaproveitamento sem mudança de comportamento: `DECISION_EXECUTION_STATUS_LABELS`/`OUTCOME_STATUS_LABELS` e `isBalanceSheetRecord` saem de componentes client para as bibliotecas; `compareHistoricalExecutionOrder` e `SEVERITY_ORDER` exportados; `buildExecutiveSituationFor` (a Visão geral continua chamando com a execução anterior); `ScenarioImpactTable.baselineLabel`; `ExecutiveDiagnosisView` com modo embutido e `DiagnosisBasis` exportado; naturezas "Decisão da empresa", "Resultado observado" e "Aprendizado" (tokens claro/escuro).
+- Shell some na impressão (`print:hidden!`).
+
+**Achados corrigidos pela revisão visual** (na camada certa, reaproveitados também pela Análise):
+- decisão registrada pela empresa marcada como "Proposta de decisão": nova natureza "Decisão da empresa";
+- `FinancialRecordsTable`: datas ISO cruas ("2026-07-31T00:00:00.000Z"); agora datas pt-BR, com legenda e `scope` nos cabeçalhos;
+- `formatIndicatorValue`/`formatIndicatorDelta`: "1 dias";
+- `formatPeriodLabel` de um dia só: "31/08/2026 – 31/08/2026" passa a "31/08/2026";
+- evidência temporal mostrava "Indicador: net-margin": a chave passa por `translateMetricKey`, e essas evidências passam a entrar nos indicadores em foco.
+
+**Validação sintética (pipeline real, sem rede).** `tests/production-surface/fixtures/report-fixtures.ts` produz, por intake real de documento → `EFOSPipelineRuntime` → `DefaultReportService`:
+- **A, saudável:** margens melhorando, nenhuma evidência de atenção;
+- **B, deterioração:** prejuízo, 3 evidências de atenção, patrimônio negativo;
+- **C, ciclo de decisão:** diagnóstico → decisão pela prioridade → execução → resultado → observação canônica julho→agosto → aprendizado → Knowledge, mais decisão de cenário com o simulador real;
+- **D, incompleta:** só Balanço; 14 de 20 indicadores indisponíveis, nunca zero.
+
+O relatório muda semanticamente entre eles.
+
+**Testes.** `mission-208-executive-reports.test.ts` (25), cobrindo:
+- autoridade única, nenhuma IA, nenhuma escrita, nenhuma migration;
+- números vindos do relatório e da comparação canônica (inclusive um relatório adulterado provando que nada é recalculado do Financial Model);
+- indisponível ≠ 0; hipótese ≠ fato; decisão não inventada; cenário não gerado nem previsão;
+- reanálise do mesmo período = nova versão e nunca "período anterior"; histórico divergente = comparação ambígua dita;
+- linhagem de julho/agosto da empresa C; fronteira de empresa com objetos estrangeiros reaproveitando os mesmos ids;
+- índice; 404 indistinto; impressão; acessibilidade (um `h1`, sem salto de nível, tabelas com legenda e `scope`).
+
+`tests/reports-local/report-tenant-boundary.local.test.ts` (4, `npm run test:reports-local`, recusa host não local) prova contra o Supabase local, com dois usuários reais e só as próprias sessões:
+- B não resolve, não lista e não lê o relatório nem a leitura da IA de A, nem por id direto;
+- B não grava em nome de A;
+- id malformado não chega ao banco.
+
+O setup espera o PostgREST local aceitar o JWT novo (`PGRST303 JWT issued at future`, desvio de relógio já visto na 204).
+
+**Revisão visual (Supabase local, dados sintéticos; `.env.development.local` temporário, apagado ao fim).**
+- **Capturas em 1440:** índice, topo, movimento, indicadores em foco, evidências, leitura da IA, recomendações, cenários, decisões, aprendizados, o que não se sabe, anexo; SIGMA (só Balanço) e DELTA (saudável).
+- **Impressão:** mídia `print` em largura A4 e PDF real do Chrome (A4, 12 páginas).
+- **Responsivo:** 1280/1024/768/576. Nenhum overflow de página, nenhum erro de console.
+- **Dados locais criados para isso:** empresa SIGMA com um Balanço; decisão de cenário em GAMA/agosto pelos construtores canônicos; uma leitura sintética nova em GAMA/agosto, pelo stand-in local com trava de ambiente. A leitura anterior, de 27/09, em inglês, foi gravada antes de a Mission 206 traduzir os stand-ins, e o relatório a mostraria como foi gravada.
+
+**Validação.** type-check e lint limpos; 430 testes no CI (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 289 · release-candidate 5) + 4 locais; build limpo, 20 entradas de rota (nova `/reports/[executionId]`); `supabase/` intocado; varredura de segredos e PII limpa; nenhuma chave no bundle do cliente; nenhuma chamada à Anthropic; nada no Pilot.
+
+**Limitações.**
+- Decisões sem diagnóstico e sem cenário não aparecem em relatório (não têm vínculo com execução).
+- Cenários não decididos não são guardados.
+- A Visão geral ainda compara com a execução imediatamente anterior (pode ser a mesma competência reanalisada).
+- Texto gerado pelos Engines ainda contém termos crus em algumas propostas ("prioridade high", "Recommendation").
+- "Resultados observados neste período" foi provado por teste, mas não visto na tela: os dados locais não têm observação financeira formal.
+
+**Origem.** Mission 208 — Governed Executive Reports.

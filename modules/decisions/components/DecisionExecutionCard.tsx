@@ -45,6 +45,7 @@ import {
   EXPECTED_ACTUAL_DIRECTION_CONSISTENCY_LABELS,
   EXPECTED_ACTUAL_ELIGIBILITY_LABELS,
 } from "@/modules/decisions/lib/expectedActualLabels";
+import { DECISION_EXECUTION_STATUS_LABELS, OUTCOME_STATUS_LABELS } from "@/modules/decisions/lib/governanceLabels";
 import type { PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import {
   SCENARIO_IMPACT_TONE_CLASSNAME,
@@ -87,21 +88,9 @@ const LEARNING_CONFIDENCE_LABELS: Record<string, string> = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const STATUS_LABELS: Record<DecisionExecutionStatus, string> = {
-  NOT_STARTED: "Não iniciada",
-  IN_PROGRESS: "Em andamento",
-  BLOCKED: "Bloqueada",
-  COMPLETED: "Concluída",
-  CANCELLED: "Cancelada",
-};
-
-const OUTCOME_LABELS: Record<OutcomeStatus, string> = {
-  pending: "Aguardando avaliação",
-  positive: "Positivo",
-  negative: "Negativo",
-  neutral: "Neutro",
-  inconclusive: "Inconclusivo",
-};
+// Mission 208 — rótulos movidos para `governanceLabels.ts` (o relatório executivo usa os mesmos).
+const STATUS_LABELS = DECISION_EXECUTION_STATUS_LABELS;
+const OUTCOME_LABELS = OUTCOME_STATUS_LABELS;
 
 /**
  * Próximas transições permitidas por status atual — mesma máquina de

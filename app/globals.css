@@ -73,6 +73,8 @@
   --color-kind-hypothesis: var(--kind-hypothesis);
   --color-kind-recommendation: var(--kind-recommendation);
   --color-kind-decision: var(--kind-decision);
+  --color-kind-outcome: var(--kind-outcome);
+  --color-kind-learning: var(--kind-learning);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
