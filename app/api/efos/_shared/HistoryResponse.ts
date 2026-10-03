@@ -1,6 +1,14 @@
-import type { ExecutionComparison } from "@/efos/application/history";
-import type { HistoricalExecution } from "@/efos/application/history";
-import { compareExecutions } from "@/efos/application/history";
+import {
+  compareExecutions,
+  executionPeriodOf,
+  resolvePeriodVersion,
+  resolvePreviousPeriodComparison,
+  selectLatestPeriodExecution,
+  type ExecutionComparison,
+  type HistoricalExecution,
+  type PreviousPeriodState,
+} from "@/efos/application/history";
+import { periodsEqual } from "@/efos/application/scenario-simulation/periodsEqual";
 
 /**
  * Resumo mínimo de uma execução para exibição — apenas os dois campos
@@ -20,6 +28,8 @@ export interface HistoryExecutionSummary {
    * data de execução. Ausente quando a execução não calculou indicadores.
    */
   readonly period?: { readonly startDate: string; readonly endDate: string };
+  /** Mission 209 — o mesmo período foi analisado de novo depois desta execução (versão anterior, D-133). */
+  readonly earlierVersion?: boolean;
 }
 
 /**
@@ -37,15 +47,26 @@ export interface HistoryResponse {
   readonly previousExecution?: HistoryExecutionSummary;
   readonly availableExecutions: readonly HistoryExecutionSummary[];
   readonly comparison?: ExecutionComparison;
+  /**
+   * Mission 209 (D-134) — estado do período anterior canônico da execução
+   * atual. Sem seleção explícita, `comparison` só existe quando é `resolved`.
+   */
+  readonly previousPeriodState?: PreviousPeriodState;
+  /** De onde veio `previousExecution`: o período anterior canônico ou a escolha do usuário. */
+  readonly comparisonBasis?: "previous-period" | "selected";
+  /** A execução escolhida é outra versão do MESMO período: diferença entre versões, não variação no tempo. */
+  readonly samePeriod?: boolean;
 }
 
-function toSummary(execution: HistoricalExecution): HistoryExecutionSummary {
+function toSummary(execution: HistoricalExecution, history: readonly HistoricalExecution[] = []): HistoryExecutionSummary {
   const indicators = execution.report?.sections.find((section) => section.type === "indicators");
   const period = indicators?.type === "indicators" ? indicators.indicators.indicators[0]?.period : undefined;
+  const earlierVersion = resolvePeriodVersion(history, execution).state === "earlier";
   return {
     executionId: execution.executionId,
     executedAt: execution.executedAt,
     ...(period ? { period: { startDate: period.startDate, endDate: period.endDate } } : {}),
+    ...(earlierVersion ? { earlierVersion } : {}),
   };
 }
 
@@ -57,20 +78,22 @@ function toSummary(execution: HistoricalExecution): HistoryExecutionSummary {
  * (Mission 087, "seleção de períodos"). Função pura — nenhum acesso a
  * Repository/banco, nenhuma transformação de valor.
  *
- * Regras:
+ * Regras (Mission 209, D-134 — revisa a política padrão de D-047):
  * - histórico vazio → `currentExecution`/`previousExecution`/
  *   `comparison` todos ausentes, `availableExecutions: []`;
- * - uma execução → `currentExecution` presente, `previousExecution`/
- *   `comparison` ausentes (nenhum período anterior existe);
- * - duas ou mais execuções → `currentExecution` é sempre a mais
- *   recente; `previousExecution` é a execução selecionada
- *   (`previousExecutionId`, quando válida e diferente da atual) ou,
- *   por padrão, a execução imediatamente anterior à mais recente;
- *   `comparison` é `compareExecutions(previous, current)`, repassado
- *   sem alteração.
- * - `previousExecutionId` igual ao `executionId` da execução atual, ou
- *   que não pertence ao histórico, é ignorado silenciosamente —
- *   nunca compara uma execução consigo mesma, nunca lança.
+ * - `currentExecution` é a versão mais recente do período mais recente
+ *   (`selectLatestPeriodExecution`), não a última execução — reanalisar
+ *   julho depois de agosto não faz de julho a análise "atual";
+ * - sem seleção explícita, `previousExecution`/`comparison` vêm do
+ *   período anterior canônico (`resolvePreviousPeriodComparison`); sem
+ *   período anterior comparável ou com histórico ambíguo, os dois ficam
+ *   ausentes e `previousPeriodState` diz por quê — nunca a execução
+ *   imediatamente anterior, que pode ser uma reanálise do mesmo mês;
+ * - seleção explícita (`previousExecutionId`) continua permitida para
+ *   qualquer outra execução (D-047); quando ela é do mesmo período,
+ *   `samePeriod` marca a comparação como diferença entre versões;
+ * - `previousExecutionId` igual ao da execução atual, ou que não pertence
+ *   ao histórico, é ignorado — nunca compara uma execução consigo mesma.
  *
  * `availableExecutions` é devolvida da mais recente para a mais
  * antiga (ordem invertida em relação a `getHistory()`) — ordem mais
@@ -81,35 +104,52 @@ export function buildHistoryResponse(
   history: readonly HistoricalExecution[],
   previousExecutionId?: string
 ): HistoryResponse {
-  const availableExecutions = [...history].reverse().map(toSummary);
+  const availableExecutions = [...history].reverse().map((execution) => toSummary(execution, history));
 
   if (history.length === 0) {
     return { companyId, availableExecutions };
   }
 
-  const current = history[history.length - 1];
+  const current = selectLatestPeriodExecution(history) ?? history[history.length - 1];
+  const canonical = resolvePreviousPeriodComparison(history, current);
 
-  if (history.length === 1) {
+  const selected =
+    previousExecutionId !== undefined && previousExecutionId !== current.executionId
+      ? history.find((execution) => execution.executionId === previousExecutionId)
+      : undefined;
+
+  if (selected) {
+    const currentPeriod = executionPeriodOf(current);
+    const selectedPeriod = executionPeriodOf(selected);
+    return {
+      companyId,
+      currentExecution: toSummary(current),
+      previousExecution: toSummary(selected),
+      availableExecutions,
+      comparison: compareExecutions(selected, current),
+      previousPeriodState: canonical.outcome,
+      comparisonBasis: "selected",
+      samePeriod: currentPeriod !== undefined && selectedPeriod !== undefined && periodsEqual(currentPeriod, selectedPeriod),
+    };
+  }
+
+  if (canonical.outcome !== "resolved") {
     return {
       companyId,
       currentExecution: toSummary(current),
       availableExecutions,
+      previousPeriodState: canonical.outcome,
     };
   }
-
-  const defaultPrevious = history[history.length - 2];
-  const selectedPrevious =
-    previousExecutionId !== undefined &&
-    previousExecutionId !== current.executionId
-      ? history.find((execution) => execution.executionId === previousExecutionId)
-      : undefined;
-  const previous = selectedPrevious ?? defaultPrevious;
 
   return {
     companyId,
     currentExecution: toSummary(current),
-    previousExecution: toSummary(previous),
+    previousExecution: toSummary(canonical.baseline),
     availableExecutions,
-    comparison: compareExecutions(previous, current),
+    comparison: canonical.comparison,
+    previousPeriodState: "resolved",
+    comparisonBasis: "previous-period",
+    samePeriod: false,
   };
 }

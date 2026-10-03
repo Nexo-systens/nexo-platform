@@ -11,7 +11,12 @@ import { deriveDecisionExecutionState } from "@/efos/application/decision-execut
 import { createHumanDecision, type ScenarioDecisionContext } from "@/efos/application/decision-lifecycle";
 import { DIAGNOSIS_BOUNDARIES, validateExecutiveDiagnosis, type ExecutiveDiagnosis } from "@/efos/application/executive-diagnosis";
 import { buildFinancialOutcomeObservation, type FinancialOutcomeObservation } from "@/efos/application/financial-observation";
-import { compareExecutions, type HistoricalExecution } from "@/efos/application/history";
+import {
+  compareExecutions,
+  resolvePeriodVersion,
+  resolvePreviousPeriodComparison,
+  type HistoricalExecution,
+} from "@/efos/application/history";
 import type { ExecutiveReport } from "@/efos/application/report";
 import { simulateOperatingCostScenario } from "@/efos/application/scenario-simulation";
 import type { Decision, Knowledge, LearningRecord, Outcome } from "@/efos/domain";
@@ -22,7 +27,6 @@ import type { PersistedExecutiveDiagnosis } from "@/modules/decisions/services/e
 import { ReportDocument } from "@/modules/reports/components/ReportDocument";
 import { buildReportIndex } from "@/modules/reports/lib/report-index";
 import { selectReportLineage } from "@/modules/reports/lib/report-lineage";
-import { resolveReportVersion, selectReportComparison } from "@/modules/reports/lib/report-period";
 import { buildReportReading, type ReportReading, type ReportReadingInputs } from "@/modules/reports/lib/report-reading";
 import { fingerprintFinancialModel } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 import { workspaceNavigation } from "@/modules/workspace/config/navigation";
@@ -466,12 +470,12 @@ describe("Mission 208 — período, comparação e versões", () => {
     const reanalysis = await buildReanalysis(FIXTURE_COMPANIES.deteriorating, "2026-09-20T12:00:00.000Z");
     const history = [july, august, reanalysis];
 
-    const comparison = selectReportComparison(history, reanalysis);
+    const comparison = resolvePreviousPeriodComparison(history, reanalysis);
     assert.equal(comparison.outcome, "resolved");
     if (comparison.outcome === "resolved") assert.equal(comparison.baseline.executionId, july.executionId);
 
-    assert.deepEqual(resolveReportVersion(history, reanalysis), { state: "latest", versions: 2 });
-    const earlier = resolveReportVersion(history, august);
+    assert.deepEqual(resolvePeriodVersion(history, reanalysis), { state: "latest", versions: 2 });
+    const earlier = resolvePeriodVersion(history, august);
     assert.equal(earlier.state, "earlier");
     if (earlier.state === "earlier") assert.equal(earlier.latestExecutionId, reanalysis.executionId);
 

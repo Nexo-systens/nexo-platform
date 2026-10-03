@@ -1,4 +1,4 @@
-import { compareHistoricalExecutionOrder } from "@/efos/application/history";
+import { compareHistoricalExecutionOrder, latestPeriodAmong, periodVersionAmong } from "@/efos/application/history";
 import type { ExecutiveReportSummary } from "@/efos/application/report";
 import { periodsEqual } from "@/efos/application/scenario-simulation";
 import type { Period } from "@/efos/domain";
@@ -84,7 +84,8 @@ export function buildReportIndex(inputs: ReportIndexInputs): readonly ReportInde
         .filter((link) => link.companyId === company.id && link.executionId)
         .map((link) => link.executionId as string)
     );
-    const mostRecentPeriod = [...entries].sort(newestPeriodFirst)[0]?.period;
+    // Mission 209 (D-134): versão e período mais recente pela autoridade temporal, sobre os metadados.
+    const mostRecentPeriod = latestPeriodAmong(entries);
 
     const rows: ReportIndexRow[] = [...entries].sort(newestPeriodFirst).map((entry) => {
       if (!entry.period) {
@@ -101,16 +102,15 @@ export function buildReportIndex(inputs: ReportIndexInputs): readonly ReportInde
         };
       }
       const period = entry.period;
-      const samePeriod = entries.filter((candidate) => candidate.period && periodsEqual(candidate.period, period));
-      const latest = samePeriod.at(-1);
+      const version = periodVersionAmong(entries, entry);
       return {
         executionId: entry.executionId,
         period,
         periodLabel: formatPeriodLabel(period),
         executedAt: entry.executedAt,
         generatedAt: entry.generatedAt,
-        version: latest?.executionId === entry.executionId ? "latest" : "earlier",
-        versions: samePeriod.length,
+        version: version.state === "earlier" ? "earlier" : "latest",
+        versions: version.state === "unpositioned" ? 1 : version.versions,
         isMostRecentPeriod: mostRecentPeriod !== undefined && periodsEqual(period, mostRecentPeriod),
         hasAiReading: withAi.has(entry.executionId),
         hasReport: entry.hasReport,

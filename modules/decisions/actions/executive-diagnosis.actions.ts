@@ -15,7 +15,7 @@ import { executeExecutiveAnalysis } from "@/efos/application/executive-ai";
 import { buildExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
 import {
   DefaultHistoricalExecutionService,
-  compareExecutions,
+  previousPeriodComparisonOf,
 } from "@/efos/application/history";
 import { saveExecutiveDiagnosis, type PersistedExecutiveDiagnosis } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
 import { getKnowledgeByCompany } from "@/modules/decisions/services/knowledge-persistence.service";
@@ -197,13 +197,9 @@ export async function activateExecutiveDiagnosisAction(input: {
   // é repassado integralmente a `buildExecutiveFinancialContext()`
   // abaixo, que decide colapso/conflito de mesmo período via
   // `deriveFinancialEpisodeState()` (Mission 171/171 Fix).
-  const priorExecutions = history.filter(
-    (h) => h.executionId !== currentHistoricalExecution.executionId
-  );
-  const comparison =
-    priorExecutions.length > 0
-      ? compareExecutions(priorExecutions[priorExecutions.length - 1], currentHistoricalExecution)
-      : undefined;
+  // Mission 209 (D-134): comparação com o período anterior canônico,
+  // nunca com uma reanálise do mesmo período.
+  const comparison = previousPeriodComparisonOf(history, currentHistoricalExecution);
 
   const context = buildExecutiveFinancialContext(
     input.companyId,

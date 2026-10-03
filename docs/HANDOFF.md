@@ -35,6 +35,7 @@ Ele representa o estado atual do desenvolvimento.
 - **Página institucional** (Mission 205): `/` é a landing pública e estática da NEXO (`app/(site)/`, `modules/site/`) — tese, categoria EFOS, produto com quadros de telas reais e dados fictícios, segurança, Founding Company e conversa. Visitante fica em `/`; usuário autenticado continua indo para `/dashboard`. Canal comercial (`NEXT_PUBLIC_NEXO_CONTACT_URL`) e URL pública (`NEXT_PUBLIC_SITE_URL`) são configuráveis e ainda não definidos. Sem domínio, DNS ou deploy.
 - **Governança de saída da Executive AI** (Mission 206, D-132): toda saída textual de Diagnosis e Executive Chat é contratualmente pt-BR, com invariantes comuns (tom executivo, terminologia, números canônicos sem cálculo, indisponível nunca vira número, hipótese/ação como possibilidade/sugestão) definidas uma vez em `efos/application/executive-output-policy/` e verificadas em runtime (idioma e fidelidade numérica) antes de persistir ou exibir. Acima de qualquer provider; schema das tools e ações governadas inalterados.
 - **Validação real da Executive AI** (Mission 207): provider real validado com contextos sintéticos; prompts de Diagnosis e Chat listam as referências citáveis de cada chamada (fim da confusão do prefixo "context:").
+- **Comparação temporal canônica** (Mission 209, D-134): toda variação "desde" — Visão geral, Dashboard, histórico da Análise, relatório e contexto da Executive AI — é contra o período anterior canônico, por uma autoridade única (`efos/application/history/resolveTemporalComparison.ts`). Reanálise do mesmo mês é versão, nunca "período anterior"; histórico anterior ambíguo é dito, sem delta.
 - **Relatórios executivos** (Mission 208, D-133): `/reports` lista os relatórios por empresa e período e `/reports/[executionId]` abre o documento. O relatório é o `ExecutiveReport` gravado pela análise (imutável, versão = execução); a leitura (`modules/reports/`) liga por linhagem a leitura da IA, decisões, resultados e aprendizados, com o ciclo de decisão derivado na leitura. Sem IA nova, sem persistência nova, impressão/PDF pelo navegador.
 - **Banco de dados**: `companies`, `users`, `documents` (com RLS) e `financial_metrics` (RLS habilitada numa auditoria de segurança) existem e estão em uso pela Plataforma. Na Mission 036, `public.executions` (com RLS) foi criada — primeira tabela que sustenta o EFOS Core (`ExecutionSnapshot`, via `SupabaseExecutionRepository`/`SupabasePersistenceClient`); nenhuma migration foi de fato aplicada contra um banco real nesta sessão (sem Docker local disponível). Nenhuma tabela de Domain/Engine foi criada — por instrução explícita de todas as missões EFOS até agora ("não acessar banco").
 - **Documentação**: `docs/ARCHITECTURE.md`, `docs/CONTEXT.md` e `docs/ROADMAP.md` foram preenchidos na Mission 006 — deixaram de ser templates vazios. `docs/ENGINEERING_LOG.md` (underscore) passou a existir como log canônico, cobrindo Mission 001–006; o antigo `docs/ENGINEERING LOG.md` (espaço) foi preservado e agora só redireciona para o canônico. Na Mission 008.5, `docs/ARCHITECTURE.md` teve a seção "Desvio de implementação" removida — a divergência que ela descrevia foi resolvida (D-006), não apenas registrada. Na Mission 016.5 (EFOS Core Cleanup), `docs/CONTEXT.md` e `efos/README.md` foram ressincronizados com o estado real do projeto (ambos haviam ficado desatualizados desde a Mission 006), o conflito de merge não resolvido em `README.md` (raiz) foi corrigido, e `efos/shared/engine-registry.ts` teve suas descrições sincronizadas com o comportamento real de cada Engine.
@@ -47,7 +48,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 208 — Governed Executive Reports (2026-10-03).** Ver `docs/DECISIONS.md` (D-133), `docs/ENGINEERING_LOG.md`, `docs/DESIGN_SYSTEM.md` ("Documento executivo") e `modules/reports/README.md`. **Status: `MISSION_208_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (nova `/reports/[executionId]`), 430 testes no CI (production-surface 289, com 25 em `mission-208-executive-reports.test.ts`) + 4 locais (`npm run test:reports-local`, fronteira entre empresas contra Supabase local). Nenhuma migration.
+**Mission 209 — Canonical Temporal Comparison Alignment (2026-10-03).** Ver `docs/DECISIONS.md` (D-134, revisa o padrão de D-047), `docs/ENGINEERING_LOG.md` e `docs/DESIGN_SYSTEM.md` ("Comparação temporal"). **Status: `MISSION_209_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 448 testes no CI (production-surface 307, com 18 em `mission-209-canonical-temporal-comparison.test.ts`) + 4 locais. Nenhuma migration.
+
+- **Defeito reproduzido:** reanálise de agosto fazia a Visão geral comparar agosto com agosto ("= estável") e o Dashboard marcar "Estável".
+- **Correção:** uma autoridade temporal em `efos/application/history/`, usada por Visão geral, Dashboard, histórico, relatório, índice e contexto da IA; "atual" = versão mais recente do período mais recente.
+- **Também:** "Diferença entre versões" no histórico; linguagem única para ausência de comparação.
+
+**Anterior — Mission 208 — Governed Executive Reports (2026-10-03).** Ver `docs/DECISIONS.md` (D-133), `docs/ENGINEERING_LOG.md`, `docs/DESIGN_SYSTEM.md` ("Documento executivo") e `modules/reports/README.md`. **Status: `MISSION_208_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (nova `/reports/[executionId]`), 430 testes no CI (production-surface 289, com 25 em `mission-208-executive-reports.test.ts`) + 4 locais (`npm run test:reports-local`, fronteira entre empresas contra Supabase local). Nenhuma migration.
 
 - **Semântica:** relatório = `ExecutiveReport` da execução; não muda depois de gerado; reanálise do mesmo período = nova versão; período = `periodOf`; comparação = período anterior canônico (ambiguidade dita, nunca escolhida).
 - **Linhagem:** leitura da IA por `execution_id`; decisões por `diagnosis_id` ou cenário sobre a mesma verdade financeira; resultados pela execução de observação; aprendizados pela origem — sempre filtrado pela empresa.
@@ -437,12 +444,14 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 208):**
-1. Conferir os relatórios no Pilot com dados reais (só leitura): períodos, versões de reanálise e a linhagem das decisões existentes.
-2. Corrigir a comparação da Visão geral para usar o período anterior canônico (hoje compara com a execução imediatamente anterior, que pode ser a mesma competência reanalisada) — a regra já existe em `modules/reports/lib/report-period.ts`.
-3. Itens após a Mission 207 continuam valendo: observar no Pilot a taxa de falha da Executive AI e o `max_tokens` do Chat.
+**Próximo passo (após a Mission 209):**
+1. Observação financeira de decisões (Outcome, Mission 139): exigir que a execução de observação seja de um período posterior ao da base — hoje uma reanálise do mesmo mês pode virar "observação". Exige decisão sobre a semântica de Outcome.
+2. Conferir no Pilot, só leitura, relatórios e comparações com dados reais (períodos, reanálises, linhagem).
+3. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
 
-Nenhuma Mission 209 foi iniciada.
+Nenhuma Mission 210 foi iniciada.
+
+Histórico (Mission 208): **Próximo passo (após a Mission 208):** (1) conferir relatórios no Pilot; (2) Visão geral com o período anterior canônico — feito na Mission 209; (3) itens após a Mission 207.
 
 Histórico (Mission 207): **Próximo passo (após a Mission 207):** (1) observar no Pilot a taxa de falha da Executive AI; (2) investigar `max_tokens` do Chat se voltar; (3) itens após a Mission 205.
 
@@ -614,10 +623,14 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Pendências
 
+- **Mission 209:**
+  - observação financeira de decisão pode usar uma reanálise do mesmo período como "observação" (semântica de Outcome, fora do escopo);
+  - a Análise abre a última análise executada (pode não ser o período mais recente); a comparação enviada à IA já é canônica;
+  - comparações ainda não conferidas contra dados reais do Pilot.
 - **Mission 208:**
   - decisões sem diagnóstico e sem cenário (ex.: vindas do Chat) não têm vínculo com execução e não aparecem em relatório;
   - cenários simulados e não decididos não são guardados (Mission 183), então não aparecem;
-  - Visão geral ainda compara com a execução imediatamente anterior, não com o período anterior canônico;
+  - ~~Visão geral ainda compara com a execução imediatamente anterior~~ — corrigido na Mission 209 (D-134);
   - texto de algumas propostas do Decision Engine tem termos crus ("prioridade high", "Recommendation");
   - "Resultados observados neste período" provado por teste, sem observação financeira formal nos dados locais para captura;
   - relatórios ainda não conferidos contra dados reais do Pilot.

@@ -2,7 +2,14 @@ import type { DecisionExecutionEvent } from "@/efos/application/decision-executi
 import { deriveDecisionExecutionState } from "@/efos/application/decision-execution/deriveDecisionExecutionState";
 import { listRecommendationReferences } from "@/efos/application/executive-diagnosis";
 import type { FinancialOutcomeObservation } from "@/efos/application/financial-observation";
-import type { HistoricalExecution } from "@/efos/application/history";
+import {
+  executionPeriodOf,
+  resolvePeriodVersion,
+  resolvePreviousPeriodComparison,
+  type HistoricalExecution,
+  type PeriodVersion,
+  type PreviousPeriodComparison,
+} from "@/efos/application/history";
 import type { ExecutiveReport, ExecutiveReportSection } from "@/efos/application/report";
 import type { ScenarioMetricComparison } from "@/efos/application/scenario-simulation";
 import type { Evidence, Indicator, Knowledge, LearningRecord, Outcome, Period } from "@/efos/domain";
@@ -33,13 +40,7 @@ import type { PersistedExecutiveDiagnosis } from "@/modules/decisions/services/e
 import { describeScenarioAssumption } from "@/modules/scenarios/lib/scenario-language";
 
 import { selectReportLineage, type ReportDecisionLink } from "./report-lineage";
-import {
-  reportPeriodOf,
-  resolveReportVersion,
-  selectReportComparison,
-  type ReportComparison,
-  type ReportVersion,
-} from "./report-period";
+
 
 /**
  * Mission 208 — leitura executiva de um relatório (D-133).
@@ -207,9 +208,9 @@ export interface ReportReading {
   readonly stateAsOf: string;
   readonly period?: Period;
   readonly periodLabel?: PeriodLabel;
-  readonly comparison: ReportComparison;
+  readonly comparison: PreviousPeriodComparison;
   readonly comparisonLabel?: PeriodLabel;
-  readonly version: ReportVersion;
+  readonly version: PeriodVersion;
   readonly situation?: ExecutiveSituation;
   readonly signalCounts: { readonly attention: number; readonly favorable: number; readonly information: number };
   readonly indicatorCounts: { readonly total: number; readonly unavailable: number };
@@ -325,10 +326,9 @@ export function buildReportReading(inputs: ReportReadingInputs): ReportReading |
   const companyId = current.companyId;
   const scopedHistory = history.filter((execution) => execution.companyId === companyId);
 
-  const period = reportPeriodOf(current);
-  const comparison = selectReportComparison(scopedHistory, current);
-  const baseline = comparison.outcome === "resolved" ? comparison.baseline : undefined;
-  const situation = buildExecutiveSituationFor(current, baseline, scopedHistory.length);
+  const period = executionPeriodOf(current);
+  const comparison = resolvePreviousPeriodComparison(scopedHistory, current);
+  const situation = buildExecutiveSituationFor(current, comparison, scopedHistory.length);
 
   const indicators = sectionOf(report, "indicators")?.indicators.indicators ?? [];
   const evidences = sectionOf(report, "evidence")?.evidence.evidences ?? [];
@@ -605,7 +605,7 @@ export function buildReportReading(inputs: ReportReadingInputs): ReportReading |
     periodLabel: period ? formatPeriodLabel(period) : undefined,
     comparison,
     comparisonLabel: comparison.outcome === "resolved" ? formatPeriodLabel(comparison.baselinePeriod) : undefined,
-    version: resolveReportVersion(scopedHistory, current),
+    version: resolvePeriodVersion(scopedHistory, current),
     situation,
     signalCounts: { attention: evidence.attention.length, favorable: evidence.favorable.length, information: evidence.information.length },
     indicatorCounts: { total: indicators.length, unavailable: indicators.filter((indicator) => indicator.result.status === "unavailable").length },

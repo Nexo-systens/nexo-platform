@@ -4,6 +4,8 @@ import { describeMetricChange, isIndicatorUnit } from "@/modules/analysis/lib/me
 
 interface ComparisonSummaryProps {
   comparison: ExecutionComparison;
+  /** Mission 209 — versões do mesmo período: diferença sem "melhora/piora". */
+  samePeriod?: boolean;
 }
 
 // Comparação canônica entre duas execuções (`compareExecutions()`,
@@ -12,7 +14,7 @@ interface ComparisonSummaryProps {
 // explícito. Mission 204 — tabela com antes → agora e a variação pelo
 // sistema de números (símbolo + valor + "melhora"/"piora" só para as
 // métricas que o EFOS classifica, D-087).
-export function ComparisonSummary({ comparison }: ComparisonSummaryProps) {
+export function ComparisonSummary({ comparison, samePeriod = false }: ComparisonSummaryProps) {
   if (comparison.metrics.length === 0) {
     return <p className="type-body">Nenhum indicador comparável entre as duas execuções.</p>;
   }
@@ -20,7 +22,9 @@ export function ComparisonSummary({ comparison }: ComparisonSummaryProps) {
   return (
     <div className="overflow-x-auto">
     <table className="w-full min-w-[32rem] border-collapse text-sm">
-      <caption className="sr-only">Variação dos indicadores entre as duas análises</caption>
+      <caption className="sr-only">
+        {samePeriod ? "Diferença dos indicadores entre duas versões do mesmo período" : "Variação dos indicadores entre as duas análises"}
+      </caption>
       <thead>
         <tr className="border-b border-border text-left">
           <th scope="col" className="py-2 pr-4 type-meta font-medium">Indicador</th>
@@ -31,7 +35,7 @@ export function ComparisonSummary({ comparison }: ComparisonSummaryProps) {
       </thead>
       <tbody className="divide-y divide-border">
         {comparison.metrics.map((metric) => {
-          const change = describeMetricChange(metric);
+          const change = describeMetricChange(metric, { temporal: !samePeriod });
           const rawUnit = metric.unit && !isIndicatorUnit(metric.unit) ? ` ${metric.unit}` : "";
           return (
             <tr key={metric.metricName}>

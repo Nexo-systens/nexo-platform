@@ -126,7 +126,7 @@ export const FIXTURE_COMPANIES = {
   incomplete: "m208-company-d-incompleta",
 } as const;
 
-async function runExecution(
+export async function runExecution(
   companyId: string,
   executionId: string,
   executedAt: string,

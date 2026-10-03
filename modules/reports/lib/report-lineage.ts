@@ -1,13 +1,12 @@
 import { readScenarioDecisionContext, type ScenarioDecisionContext } from "@/efos/application/decision-lifecycle";
 import type { FinancialOutcomeObservation } from "@/efos/application/financial-observation";
-import type { HistoricalExecution } from "@/efos/application/history";
+import { executionPeriodOf, type HistoricalExecution } from "@/efos/application/history";
 import { periodsEqual } from "@/efos/application/scenario-simulation";
 import type { Knowledge, LearningRecord, Outcome } from "@/efos/domain";
 import type { PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import type { PersistedExecutiveDiagnosis } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
 import { fingerprintFinancialModel } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
-import { reportPeriodOf } from "./report-period";
 
 /**
  * Mission 208 — o que pertence a um relatório executivo além do próprio
@@ -64,7 +63,7 @@ export interface ReportLineage {
 }
 
 function scenarioBaselineMatches(context: ScenarioDecisionContext, current: HistoricalExecution): boolean {
-  const period = reportPeriodOf(current);
+  const period = executionPeriodOf(current);
   const financialModel = current.snapshot.execution.financialModel;
   if (!period || !financialModel) return false;
   return periodsEqual(context.period, period) && context.baselineFingerprint === fingerprintFinancialModel(financialModel);

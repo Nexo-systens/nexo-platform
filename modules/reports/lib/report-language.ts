@@ -1,4 +1,6 @@
-import type { ReportComparison, ReportVersion } from "./report-period";
+import type { PeriodVersion, PreviousPeriodComparison } from "@/efos/application/history";
+import { comparisonUnavailableText } from "@/modules/analysis/lib/temporal-comparison-language";
+
 import type { ReportReading } from "./report-reading";
 
 /**
@@ -44,20 +46,12 @@ export function describeSignals(reading: Pick<ReportReading, "signalCounts" | "i
   return `${signals} ${indicators}`;
 }
 
-export function describeComparison(comparison: ReportComparison, label?: { readonly long: string }): string {
-  switch (comparison.outcome) {
-    case "resolved":
-      return label?.long ?? "Período anterior";
-    case "first-period":
-      return "Sem período anterior analisado";
-    case "ambiguous":
-      return "Indisponível — histórico anterior ambíguo";
-    case "unpositioned":
-      return "Indisponível — período não determinado";
-  }
+export function describeComparison(comparison: PreviousPeriodComparison, label?: { readonly long: string }): string {
+  if (comparison.outcome === "resolved") return label?.long ?? "Período anterior";
+  return comparisonUnavailableText(comparison.outcome) ?? "Comparação indisponível";
 }
 
-export function describeVersion(version: ReportVersion, formatDate: (iso: string) => string): string {
+export function describeVersion(version: PeriodVersion, formatDate: (iso: string) => string): string {
   switch (version.state) {
     case "latest":
       return version.versions <= 1

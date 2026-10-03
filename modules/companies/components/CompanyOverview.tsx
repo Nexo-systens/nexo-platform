@@ -7,6 +7,7 @@ import { SemanticBadge } from "@/components/shared/SemanticBadge";
 import { UnavailableValue } from "@/components/shared/UnavailableValue";
 import { cn } from "@/lib/utils";
 import type { ExecutiveSituation } from "@/modules/analysis/lib/executive-situation";
+import { comparisonUnavailableText } from "@/modules/analysis/lib/temporal-comparison-language";
 import { companyWorkspaceHref } from "@/modules/companies/lib/workspace-views";
 import type { DecisionCenterSummary } from "@/modules/decisions/services/decision-center.service";
 import { RECOMMENDATION_CATEGORY_LABELS } from "@/modules/decisions/lib/governanceLabels";
@@ -70,7 +71,9 @@ export function CompanyOverview({
           <div className="flex flex-col gap-2">
             <Label>
               Situação{situation.period ? ` · ${situation.period.long}` : ""}
-              {situation.previousPeriod ? ` · comparada com ${situation.previousPeriod.long}` : ""}
+              {situation.previousPeriod
+                ? ` · comparada com ${situation.previousPeriod.long}`
+                : ` · ${(comparisonUnavailableText(situation.comparisonState) ?? "").toLowerCase()}`}
             </Label>
             <h2 id="situacao-titulo" className="max-w-3xl text-[1.3125rem] leading-snug font-semibold tracking-tight text-balance text-foreground">
               {situationSentence(situation)}
@@ -98,11 +101,12 @@ export function CompanyOverview({
                     ) : (
                       <UnavailableValue reason="Dados insuficientes nesta análise." />
                     )}
+                    {/* Mission 209: sem período anterior comparável, o cabeçalho já diz — aqui só a falta pontual de um indicador. */}
                     {metric.change ? (
                       <ChangeIndicator change={metric.change} />
-                    ) : (
-                      <span className="type-meta">Sem análise anterior para comparar</span>
-                    )}
+                    ) : situation.comparisonState === "resolved" ? (
+                      <span className="type-meta">Sem valor comparável no período anterior</span>
+                    ) : null}
                   </dd>
                 </div>
               ))}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChangeIndicator } from "@/components/shared/ChangeIndicator";
 import { SemanticBadge } from "@/components/shared/SemanticBadge";
 import type { HeadlineMetric } from "@/modules/analysis/lib/executive-situation";
+import { comparisonUnavailableShort } from "@/modules/analysis/lib/temporal-comparison-language";
 import type { PortfolioPriority, PortfolioRow } from "@/modules/dashboard/lib/portfolio-command";
 
 const TREND_LABEL: Readonly<Record<PortfolioRow["trend"], { label: string; tone: "negative" | "positive" | "warning" | "neutral" }>> = {
@@ -34,7 +35,7 @@ export function PortfolioMovementTable({ rows }: { rows: readonly PortfolioRow[]
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[46rem] border-collapse text-sm">
-        <caption className="sr-only">Movimento das empresas desde a análise anterior</caption>
+        <caption className="sr-only">Movimento das empresas desde o período anterior</caption>
         <thead>
           <tr className="border-b border-border-strong text-left">
             <th scope="col" className="py-2.5 pr-4 whitespace-nowrap type-meta font-medium">Empresa</th>
@@ -50,7 +51,8 @@ export function PortfolioMovementTable({ rows }: { rows: readonly PortfolioRow[]
         </thead>
         <tbody className="divide-y divide-border">
           {rows.map((row) => {
-            const trend = TREND_LABEL[row.trend];
+            const trend =
+              row.trend === "unknown" ? { ...TREND_LABEL.unknown, label: comparisonUnavailableShort(row.comparisonState) } : TREND_LABEL[row.trend];
             return (
               <tr key={row.company.id} className="align-top transition-colors duration-150 hover:bg-surface-subtle/60">
                 <th scope="row" className="py-4 pr-4 text-left font-normal">

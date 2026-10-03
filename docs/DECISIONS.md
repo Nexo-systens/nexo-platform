@@ -2089,6 +2089,45 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 ---
 
+## D-134 — Comparação temporal canônica em todas as superfícies: o período atual é comparado com o período anterior canônico, nunca com a execução imediatamente anterior; uma autoridade única em `efos/application/history/` (revisa a política padrão de D-047)
+
+**Problema.** A Mission 208 (D-133) passou a comparar cada relatório com o período anterior canônico, mas a Visão geral, o Dashboard, o histórico da Análise e o contexto entregue à Executive AI ainda comparavam com a execução imediatamente anterior (`history.at(-2)`, `priorExecutions[último]`, padrão de D-047). Reproduzido ao vivo com dados sintéticos locais: depois de reanalisar agosto, a Visão geral mostrava "agosto de 2026 · comparada com agosto de 2026", "Nenhuma métrica mudou de direção" e "= estável" em todos os indicadores, e o Dashboard marcava a empresa como "Estável" quando ela havia piorado em relação a julho. A mesma comparação falsa chegava ao Executive Chat e ao diagnóstico ("o que mudou").
+
+**Decisão.**
+1. **Autoridade única** (`efos/application/history/resolveTemporalComparison.ts`, exportada pelo barrel do histórico):
+   - `executionPeriodOf`;
+   - `resolvePreviousPeriodComparison` / `previousPeriodComparisonOf`;
+   - `resolvePeriodVersion` / `periodVersionAmong`;
+   - `selectLatestPeriodExecution`;
+   - `latestPeriodAmong`.
+
+   Não é regra nova: é a semântica da Evidence temporal (Missions 171/174/175R, `buildCanonicalPriorPeriods` + restrição a períodos que terminam antes do atual) e das versões de D-133, que estava escondida em `modules/reports`.
+2. **Período anterior** = o período imediatamente anterior DISPONÍVEL (lacuna aceita: março compara com janeiro se fevereiro não existe). Reanálises do mesmo período são versões e nunca "período anterior". Versões equivalentes de um período anterior colapsam; divergentes tornam a comparação **ambígua** — nenhuma versão é escolhida, nenhuma variação é mostrada.
+3. **Situação atual** (Visão geral, Dashboard, histórico) = versão mais recente do período mais recente, não a última execução. Reanalisar julho depois de agosto não faz de julho a situação atual. A verdade financeira estrita da Executive AI (`resolveCurrentFinancialExecution`, Mission 176, falha fechada com versões divergentes) continua sendo a regra do diagnóstico e do Chat — propósito diferente, inalterada.
+4. **Consumidores:**
+   - Visão geral e Dashboard (`buildExecutiveSituation`);
+   - relatório executivo (`modules/reports`, sem cópia local);
+   - índice de relatórios (versões e período mais recente sobre metadados, pela mesma regra);
+   - histórico da Análise (`HistoryResponse`);
+   - contexto da Executive AI no diagnóstico, no Chat e na fachada (`historicalIntelligence.comparison`).
+
+   Nenhum componente React decide comparação.
+5. **Revisão de D-047.** O padrão do histórico deixa de ser a execução imediatamente anterior e passa a ser o período anterior canônico. Sem ele, não há comparação padrão, e `previousPeriodState` diz por quê. A seleção explícita continua permitida, como em D-047, e a autocomparação continua proibida. Quando a execução escolhida é do mesmo período, a resposta marca `samePeriod`, e a UI mostra "diferença entre versões" sem "melhora/piora" nem palavras de tempo.
+6. **Sem comparação válida** nunca vira "0%", "0 p.p.", "estável" ou "sem mudança". O texto vem de uma linguagem compartilhada (`temporal-comparison-language.ts`): "Sem período anterior comparável", "Comparação indisponível — histórico anterior ambíguo", "Comparação indisponível — período não determinado".
+
+**Fora do escopo, deliberadamente.** A observação financeira de uma decisão (`buildFinancialOutcomeObservation`, Mission 139) é ancorada no instante da decisão e da conclusão, não no período anterior. Ela pode tomar como "observação" uma reanálise do mesmo período da base. Corrigir exigiria mudar a semântica de Outcome, proibido nesta missão; fica registrado como próxima correção. Esperado × Observado (Mission 185 Closure) já exige período observado posterior ao da base. Episódios financeiros (Mission 171) já colapsam o mesmo período. Valores, Engines, relatórios persistidos, migrations, RLS e Executive AI (prompts e governança) inalterados.
+
+**Justificativa.** Uma mesma pergunta ("o que mudou desde o período anterior?") tinha respostas diferentes conforme a tela. A resposta certa já existia no EFOS (Evidence temporal, relatório); a decisão tira a regra do módulo visual e a torna a única fonte.
+
+**Impacto.**
+- **Criados:** `efos/application/history/resolveTemporalComparison.ts`, `modules/analysis/lib/temporal-comparison-language.ts`, `tests/production-surface/fixtures/temporal-fixtures.ts` e `mission-209-canonical-temporal-comparison.test.ts` (matriz A–H, consistência entre superfícies, fonte única).
+- **Removido:** `modules/reports/lib/report-period.ts`.
+- **Alterados:** situação executiva, Visão geral, Dashboard, histórico da Análise (contrato aditivo), fachada, ações de diagnóstico e Chat, relatório e índice.
+
+**Origem.** Mission 209 — Canonical Temporal Comparison Alignment.
+
+---
+
 ## Próximas decisões
 
 Estrutura preparada para D-006 em diante. Toda nova decisão arquitetural permanente segue o mesmo formato: `## D-XXX — Título`, depois `**Descrição.**`, `**Justificativa.**`, `**Impacto.**`, `**Origem.**` (missão que originou a decisão). Nunca remover ou reescrever uma decisão existente — apenas adicionar uma nova entrada, mesmo que ela substitua o entendimento anterior (nesse caso, a nova entrada deve referenciar explicitamente a decisão que está revisando).

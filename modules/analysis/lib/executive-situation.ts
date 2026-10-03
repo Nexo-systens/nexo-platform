@@ -1,5 +1,10 @@
-import type { ExecutionComparison, HistoricalExecution } from "@/efos/application/history";
-import { compareExecutions } from "@/efos/application/history";
+import {
+  resolvePreviousPeriodComparison,
+  selectLatestPeriodExecution,
+  type HistoricalExecution,
+  type PreviousPeriodComparison,
+  type PreviousPeriodState,
+} from "@/efos/application/history";
 import type { ExecutiveReport } from "@/efos/application/report";
 import type { Evidence, Indicator, Period, Recommendation } from "@/efos/domain";
 
@@ -10,10 +15,18 @@ import { describeMetricChange, formatMetricValue, type MetricChangePresentation 
 
 /**
  * Mission 204 — situação executiva de uma empresa, montada SOMENTE do que
- * o EFOS já produziu: o `ExecutiveReport` da última análise e a
- * comparação canônica (`compareExecutions`, Mission 085) com a análise
- * anterior. Função pura: nenhum cálculo financeiro novo, nenhum insight
- * que o EFOS não tenha emitido; ausência continua explícita.
+ * o EFOS já produziu: o `ExecutiveReport` e a comparação canônica
+ * (`compareExecutions`, Mission 085). Função pura: nenhum cálculo
+ * financeiro novo, nenhum insight que o EFOS não tenha emitido; ausência
+ * continua explícita.
+ *
+ * Mission 209 (D-134) — a situação é a do período mais recente (versão
+ * mais recente), comparada com o período anterior canônico, resolvidos
+ * pela autoridade única de `efos/application/history`
+ * (`selectLatestPeriodExecution`/`resolvePreviousPeriodComparison`). Antes,
+ * a Visão geral e o Dashboard comparavam com a execução imediatamente
+ * anterior — uma reanálise do mesmo mês aparecia como "período anterior"
+ * e produzia "estável" falso.
  */
 
 /** Métricas de manchete: rentabilidade, liquidez e alavancagem — nesta ordem. */
@@ -65,13 +78,15 @@ export interface SituationRecommendation {
 export interface ExecutiveSituation {
   readonly period?: PeriodLabel;
   readonly previousPeriod?: PeriodLabel;
+  /** Estado da comparação temporal: só `resolved` tem variações; os demais dizem por que não há. */
+  readonly comparisonState: PreviousPeriodState;
   readonly analysesCount: number;
   readonly headline: readonly HeadlineMetric[];
   /** Evidências do EFOS, as mais graves primeiro. */
   readonly signals: readonly SituationSignal[];
   readonly signalsTotal: number;
   readonly recommendations: readonly SituationRecommendation[];
-  /** Quantas métricas classificadas pelo EFOS melhoraram/pioraram desde a análise anterior. */
+  /** Quantas métricas classificadas pelo EFOS melhoraram/pioraram desde o período anterior canônico. */
   readonly movement: { readonly improved: number; readonly worsened: number } | undefined;
 }
 
@@ -80,25 +95,23 @@ export const SEVERITY_ORDER: Readonly<Record<string, number>> = { critical: 0, h
 const PRIORITY_ORDER = SEVERITY_ORDER;
 
 export function buildExecutiveSituation(history: readonly HistoricalExecution[]): ExecutiveSituation | undefined {
-  const current = history.at(-1);
-  if (!current?.report) return undefined;
-  const previous = history.length > 1 ? history.at(-2) : undefined;
-  return buildExecutiveSituationFor(current, previous, history.length);
+  const current = selectLatestPeriodExecution(history);
+  if (!current) return undefined;
+  return buildExecutiveSituationFor(current, resolvePreviousPeriodComparison(history, current), history.length);
 }
 
 /**
- * Mission 208 — o mesmo cálculo com a análise anterior escolhida por quem
- * chama. A Visão geral passa a execução anterior (`history.at(-2)`, acima,
- * comportamento inalterado); o relatório executivo passa o período anterior
- * canônico (`modules/reports/lib/report-period.ts`).
+ * A situação de uma execução dada, com a comparação já resolvida pela
+ * autoridade temporal — a Visão geral/Dashboard (acima) e o relatório
+ * executivo (`modules/reports/`) chegam aqui pela mesma resolução.
  */
 export function buildExecutiveSituationFor(
   current: HistoricalExecution,
-  previous: HistoricalExecution | undefined,
+  resolution: PreviousPeriodComparison,
   analysesCount: number
 ): ExecutiveSituation | undefined {
   if (!current.report) return undefined;
-  const comparison: ExecutionComparison | undefined = previous ? compareExecutions(previous, current) : undefined;
+  const comparison = resolution.outcome === "resolved" ? resolution.comparison : undefined;
   const comparisonByName = new Map(comparison?.metrics.map((metric) => [metric.metricName, metric] as const) ?? []);
 
   const indicators = reportIndicators(current.report);
@@ -116,7 +129,7 @@ export function buildExecutiveSituationFor(
     ];
   });
 
-  const changes = comparison?.metrics.map(describeMetricChange) ?? [];
+  const changes = comparison?.metrics.map((metric) => describeMetricChange(metric)) ?? [];
   const movement = comparison
     ? {
         improved: changes.filter((change) => change.desirability === "favorable").length,
@@ -140,11 +153,11 @@ export function buildExecutiveSituationFor(
     }));
 
   const period = reportPeriod(current.report);
-  const previousPeriod = reportPeriod(previous?.report);
 
   return {
     period: period ? formatPeriodLabel(period) : undefined,
-    previousPeriod: previousPeriod ? formatPeriodLabel(previousPeriod) : undefined,
+    previousPeriod: resolution.outcome === "resolved" ? formatPeriodLabel(resolution.baselinePeriod) : undefined,
+    comparisonState: resolution.outcome,
     analysesCount,
     headline,
     signals: evidence.map((item) => ({

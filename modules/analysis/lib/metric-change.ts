@@ -60,6 +60,13 @@ const DIRECTION_TEXT: Readonly<Record<ChangeDirection, string>> = {
 };
 
 /** Variação em dias abaixo de 1 mantém uma casa decimal — nunca "+0 dias" para uma mudança real. */
+/** Mission 209 — entre versões do mesmo período a palavra não é de tempo ("subiu", "estável"). */
+const VERSION_DIRECTION_TEXT: Partial<Record<ChangeDirection, string>> = {
+  increased: "maior",
+  decreased: "menor",
+  unchanged: "sem diferença",
+};
+
 function formatDelta(delta: number, unit: IndicatorUnit): string {
   if (unit === "days" && Math.abs(delta) < 1) {
     const magnitude = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.abs(delta));
@@ -75,9 +82,19 @@ export function metricDesirability(metricName: string, direction: ChangeDirectio
   return (directionality === "higher_is_favorable") === higher ? "favorable" : "unfavorable";
 }
 
-export function describeMetricChange(comparison: MetricComparison): MetricChangePresentation {
+/**
+ * `temporal: false` (Mission 209) — diferença entre duas VERSÕES do mesmo
+ * período (reanálise): mostra quanto mudou, mas sem "melhora/piora", que é
+ * juízo sobre o tempo, não sobre uma correção do mesmo mês.
+ */
+export function describeMetricChange(
+  comparison: MetricComparison,
+  options: { readonly temporal?: boolean } = {}
+): MetricChangePresentation {
   const { metricName, direction, unit } = comparison;
-  const desirability = metricDesirability(metricName, direction);
+  const temporal = options.temporal !== false;
+  const desirability = temporal ? metricDesirability(metricName, direction) : "neutral";
+  const directionText = (temporal ? undefined : VERSION_DIRECTION_TEXT[direction]) ?? DIRECTION_TEXT[direction];
   const desirabilityLabel =
     desirability === "favorable" ? "Melhora" : desirability === "unfavorable" ? "Piora" : undefined;
   const deltaText =
@@ -94,13 +111,13 @@ export function describeMetricChange(comparison: MetricComparison): MetricChange
     currentText,
     deltaText,
     symbol,
-    directionLabel: DIRECTION_TEXT[direction],
+    directionLabel: directionText,
     desirability,
     desirabilityLabel,
     accessibleText: [
       `${metricName}: ${currentText}`,
       comparison.previousValue !== undefined ? `antes ${previousText}` : undefined,
-      `${DIRECTION_TEXT[direction]}${deltaText ? ` ${deltaText}` : ""}`,
+      `${directionText}${deltaText ? ` ${deltaText}` : ""}`,
       desirabilityLabel?.toLowerCase(),
     ]
       .filter(Boolean)

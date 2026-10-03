@@ -79,6 +79,8 @@ Os rótulos semânticos ficam em `modules/analysis/lib/insight-semantics.ts` (na
 - **Unidades:** percentual como "27,35%", diferença em pontos percentuais ("-3,85 p.p."), moeda "R$ 460.000", dias "13 dias"; variação em dias abaixo de 1 mantém uma casa ("+0,3 dia").
 - **Ausência:** "—" ou `UnavailableValue`, nunca 0.
 - **Período:** `formatPeriodLabel` ("agosto de 2026", "ago/2026"). Análises são nomeadas pelo período analisado; a data de execução é detalhe.
+- **Comparação temporal (Mission 209, D-134):** toda variação "desde" é contra o período anterior canônico, resolvido em `efos/application/history` — nunca contra a execução imediatamente anterior. Sem comparação válida, o texto vem de `temporal-comparison-language.ts` ("Sem período anterior comparável", "Comparação indisponível — histórico anterior ambíguo"), uma vez no cabeçalho; nunca "0 p.p.", "estável" ou "sem mudança".
+- **Versões do mesmo período:** reanálise aparece como "versão anterior"; comparar duas versões é "Diferença entre versões", com "maior/menor/sem diferença" e sem "melhora/piora" (`describeMetricChange(…, { temporal: false })`).
 - **Texto dos Engines:** `formatEngineText` converte só a forma de carimbos ISO e decimais com ponto; a redação não muda.
 - **Tabelas numéricas:** colunas alinhadas à direita, `num` + `whitespace-nowrap`; rolagem horizontal dentro do próprio contêiner, nunca da página.
 

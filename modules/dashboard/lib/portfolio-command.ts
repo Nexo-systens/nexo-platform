@@ -1,3 +1,4 @@
+import type { PreviousPeriodState } from "@/efos/application/history";
 import type { ExecutiveSituation, HeadlineMetric, SituationSignal } from "@/modules/analysis/lib/executive-situation";
 import type { CompanyOverview } from "@/modules/dashboard/lib/executive-overview";
 import type { DecisionCenterSummary } from "@/modules/decisions/services/decision-center.service";
@@ -26,6 +27,8 @@ export interface PortfolioRow {
   readonly currentLiquidity?: HeadlineMetric;
   readonly pendingDecisions: number;
   readonly trend: "worsening" | "improving" | "mixed" | "stable" | "unknown";
+  /** Mission 209 — por que não há tendência (`unknown`): sem período anterior, histórico ambíguo, sem análise. */
+  readonly comparisonState?: PreviousPeriodState;
 }
 
 export interface PortfolioPriority {
@@ -70,6 +73,7 @@ export function buildPortfolioCommand(inputs: readonly CompanyCommandInput[], ac
     currentLiquidity: situation?.headline.find((metric) => metric.name === "Liquidez Corrente"),
     pendingDecisions: decisions?.pending ?? 0,
     trend: trendOf(situation),
+    comparisonState: situation?.comparisonState,
   }));
 
   const priorities: PortfolioPriority[] = inputs
@@ -89,10 +93,14 @@ export function buildPortfolioCommand(inputs: readonly CompanyCommandInput[], ac
   const movementParts: string[] = [];
   if (worsening > 0) movementParts.push(plural(worsening, "piorou", "pioraram"));
   if (improving > 0) movementParts.push(plural(improving, "melhorou", "melhoraram"));
+  // Mission 209 — "sem mudança" só quando a comparação existe (período anterior canônico).
+  const comparable = rows.filter((row) => row.trend !== "unknown").length;
   parts.push(
     movementParts.length > 0
-      ? `Das ${plural(activeCount, "empresa ativa", "empresas ativas")}, ${movementParts.join(" e ")} desde a análise anterior.`
-      : `${plural(activeCount, "empresa ativa", "empresas ativas")}, sem mudança de direção desde a análise anterior.`
+      ? `Das ${plural(activeCount, "empresa ativa", "empresas ativas")}, ${movementParts.join(" e ")} desde o período anterior.`
+      : comparable > 0
+        ? `Das ${plural(activeCount, "empresa ativa", "empresas ativas")}, nenhuma mudou de direção desde o período anterior.`
+        : `${plural(activeCount, "empresa ativa", "empresas ativas")}, nenhuma ainda com período anterior comparável.`
   );
   if (withoutAnalysis > 0) {
     parts.push(`${plural(withoutAnalysis, "ainda não tem análise", "ainda não têm análise")}.`);

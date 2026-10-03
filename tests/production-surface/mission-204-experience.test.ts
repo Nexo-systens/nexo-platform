@@ -61,7 +61,18 @@ function execution(id: string, indicators: unknown[], extra: unknown[] = []): Hi
     summary: {},
     sections: [{ type: "indicators", title: "Indicadores", indicators: { indicators } }, ...extra],
   } as unknown as ExecutiveReport;
-  return { executionId: id, companyId: "c", executedAt: "2026-09-01T00:00:00.000Z", report, snapshot: {} } as unknown as HistoricalExecution;
+  // Mission 209 — o snapshot real carrega os indicadores da execução: é deles que a autoridade
+  // temporal (D-134) lê o período para escolher o período anterior canônico.
+  const snapshot = {
+    metadata: { startedAt: "2026-09-01T00:00:00.000Z" },
+    execution: {
+      pipelineContext: { companyId: "c", executionId: id },
+      financialModel: { root: { id: "m" } },
+      indicators: { companyId: "c", financialModelId: "m", indicators },
+    },
+    report,
+  };
+  return { executionId: id, companyId: "c", executedAt: "2026-09-01T00:00:00.000Z", report, snapshot } as unknown as HistoricalExecution;
 }
 
 const evidenceSection = {
@@ -192,7 +203,7 @@ describe("Mission 204 — comando do portfólio", () => {
       ],
       2
     );
-    assert.equal(command.headline, "Das 2 empresas ativas, 1 piorou desde a análise anterior. 1 ainda não tem análise. 6 itens aguardam sua decisão.");
+    assert.equal(command.headline, "Das 2 empresas ativas, 1 piorou desde o período anterior. 1 ainda não tem análise. 6 itens aguardam sua decisão.");
     assert.equal(command.rows[1].trend, "unknown");
     assert.equal(command.rows[1].netMargin, undefined);
     assert.deepEqual(command.priorities.map((priority) => priority.signal.id), ["e2", "e1"], "sinal favorável não é prioridade");

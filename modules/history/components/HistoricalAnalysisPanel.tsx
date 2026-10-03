@@ -15,6 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { HistoryResponse } from "@/app/api/efos/_shared/HistoryResponse";
 import type { ApplicationResult } from "@/efos/application/contracts";
+import { comparisonUnavailableText } from "@/modules/analysis/lib/temporal-comparison-language";
 import { describeExecution } from "@/modules/history/lib/formatExecutedAt";
 import { resolveExecutionLabel } from "@/modules/history/lib/resolveExecutionLabel";
 
@@ -187,8 +188,11 @@ export function HistoricalAnalysisPanel({
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="type-subsection-title">
-                  O que mudou
-                  {data.currentExecution &&
+                  {data.samePeriod && data.currentExecution
+                    ? `Diferença entre versões — ${describeExecution(data.currentExecution).title}`
+                    : "O que mudou"}
+                  {!data.samePeriod &&
+                    data.currentExecution &&
                     data.previousExecution &&
                     ` — ${describeExecution(data.currentExecution).title} comparado com ${describeExecution(data.previousExecution).title}`}
                 </h4>
@@ -203,7 +207,7 @@ export function HistoricalAnalysisPanel({
                         (() => {
                           const match = data.availableExecutions.find((execution) => execution.executionId === value);
                           return match
-                            ? describeExecution(match).title
+                            ? `${describeExecution(match).title}${match.earlierVersion ? " · versão anterior" : ""}`
                             : resolveExecutionLabel(value as string | undefined, data.availableExecutions);
                         })()
                       }
@@ -221,13 +225,30 @@ export function HistoricalAnalysisPanel({
                           value={execution.executionId}
                         >
                           {describeExecution(execution).title}
+                          {execution.earlierVersion ? " · versão anterior" : ""}
                         </SelectItem>
                       ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {data.comparison && <ComparisonSummary comparison={data.comparison} />}
+              {/* Mission 209 (D-134): sem escolha explícita, só o período anterior canônico; sem ele, a ausência é dita. */}
+              {data.comparison ? (
+                <>
+                  {data.comparisonBasis === "previous-period" && (
+                    <p className="type-meta">Período anterior comparável. Escolha outra análise para comparar com ela.</p>
+                  )}
+                  {data.samePeriod && (
+                    <p className="type-meta">As duas são versões do mesmo período (reanálise): a diferença não é variação no tempo.</p>
+                  )}
+                  <ComparisonSummary comparison={data.comparison} samePeriod={data.samePeriod} />
+                </>
+              ) : (
+                <p className="type-body">
+                  {comparisonUnavailableText(data.previousPeriodState ?? "first-period")}. Escolha uma análise acima para
+                  comparar com ela.
+                </p>
+              )}
             </div>
           </>
         )}

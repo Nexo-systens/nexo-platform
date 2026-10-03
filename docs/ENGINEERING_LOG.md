@@ -10430,3 +10430,82 @@ O setup espera o PostgREST local aceitar o JWT novo (`PGRST303 JWT issued at fut
 - "Resultados observados neste período" foi provado por teste, mas não visto na tela: os dados locais não têm observação financeira formal.
 
 **Origem.** Mission 208 — Governed Executive Reports.
+
+
+---
+
+## Mission 209 — Canonical Temporal Comparison Alignment
+
+**Status.** Fechada (`MISSION_209_CLOSED`). Decisão nova: **D-134**, que revisa a política padrão de D-047. Nenhuma migration, nenhuma alteração de RLS, de Engine, de valor calculado, de relatório persistido ou de Executive AI (prompts e governança).
+
+**Auditoria (superfície → fonte da comparação → canônica? → risco).**
+
+| Superfície | Fonte da comparação | Canônica? | Risco |
+|---|---|---|---|
+| Visão geral e Dashboard | `buildExecutiveSituation` com `history.at(-2)` | **não** | reanálise do mesmo mês vira "período anterior"; "estável" falso |
+| Histórico da Análise | `HistoryResponse` com padrão "execução imediatamente anterior" (D-047) | **não** | mesmo risco |
+| Contexto da Executive AI (diagnóstico, Chat, fachada) | `priorExecutions[último]` | **não** | falsa resposta a "o que mudou" |
+| Relatórios (D-133) | período anterior canônico | sim | regra morando em `modules/reports` |
+| Evidence temporal | `buildCanonicalPriorPeriods` + restrição a períodos anteriores | sim | — |
+| Episódios / trajetória | colapso de mesmo período (Mission 171) | sim | — |
+| Esperado × Observado | elegibilidade por período (Mission 185 Closure) | sim | — |
+| Linha do tempo | só eventos, sem comparação | — | — |
+| Observação financeira (Outcome) | janela da decisão, por `executedAt` | regra própria | pode observar uma reanálise do mesmo período; fora do escopo (semântica de Outcome) |
+
+Reproduzido ao vivo (Supabase local, dados sintéticos), depois de reanalisar agosto da GAMA:
+- a Visão geral mostrava "agosto de 2026 · comparada com agosto de 2026", "Nenhuma métrica mudou de direção" e "= estável" em todos os indicadores;
+- o Dashboard marcava a GAMA como "Estável".
+
+**Entrega.**
+- **Autoridade única** em `efos/application/history/resolveTemporalComparison.ts` (exportada pelo barrel): `executionPeriodOf`, `resolvePreviousPeriodComparison`/`previousPeriodComparisonOf`, `resolvePeriodVersion`/`periodVersionAmong`, `selectLatestPeriodExecution`, `latestPeriodAmong`. É a regra da Evidence temporal e de D-133 tirada do módulo visual; `modules/reports/lib/report-period.ts` foi removido.
+- **Situação executiva:** versão mais recente do período mais recente, comparada com o período anterior canônico. Novo `comparisonState`. A Visão geral diz o motivo uma vez no cabeçalho, e por indicador só quando falta o valor anterior daquele indicador.
+- **Dashboard:**
+  - tendência real;
+  - a célula de tendência diz "Sem período anterior" ou "Histórico ambíguo";
+  - a frase do portfólio não diz mais "sem mudança de direção" quando nenhuma empresa tem comparação;
+  - "desde o período anterior".
+- **Histórico da Análise** (contrato aditivo):
+  - a "atual" é a versão mais recente do período mais recente;
+  - a comparação padrão é com o período anterior canônico; sem ele, o motivo aparece (`previousPeriodState`);
+  - a escolha explícita continua; `samePeriod` mostra "Diferença entre versões" com "maior/menor/sem diferença", sem melhora ou piora;
+  - chips e seletor marcam "versão anterior".
+- **Contexto da Executive AI:** o diagnóstico, o Chat e a fachada usam `previousPeriodComparisonOf`.
+- **Linguagem única** da ausência de comparação: `modules/analysis/lib/temporal-comparison-language.ts`, também usada pelo relatório.
+- **Índice de relatórios:** versão e período mais recente pela mesma autoridade, sobre metadados.
+
+**Testes.** `mission-209-canonical-temporal-comparison.test.ts` (18), com fixtures do pipeline real (`fixtures/temporal-fixtures.ts`).
+- **Matriz:**
+  - A, jan → fev;
+  - B, jan → fev v1 → fev v2: v2 compara com janeiro (−8,00 p.p.), nunca com fev v1; as duas são versões;
+  - C, jan → mar sem fevereiro;
+  - D, três versões equivalentes do mesmo período;
+  - E, anterior ambíguo: sem delta e sem "estável";
+  - F, ponto-in-time de um dia;
+  - G, indicador indisponível no anterior: "passou a estar disponível", nunca 0 p.p.;
+  - H, outra empresa com os mesmos períodos;
+  - reanálise de janeiro depois de fevereiro.
+- **Consistência entre superfícies:** Visão geral, Dashboard, relatório, índice, histórico e o contexto da IA, pela fachada real com repositório em memória, resolvem o mesmo período anterior.
+- **Fonte única:** ninguém usa `history.at(-2)` ou `priorExecutions[último]`; `compareExecutions()` só na autoridade, na escolha explícita do histórico e na janela de Outcome.
+- **Testes ajustados:** a fixture da Mission 204 passou a ter o snapshot real (com os indicadores da execução) e a frase "desde o período anterior"; os imports da Mission 208 passaram para a autoridade.
+
+**Revisão visual (Supabase local; `.env.development.local` temporário, apagado ao fim).**
+- **Dados criados:** reanálise de agosto da GAMA (versão 2) e a empresa LAMBDA com junho e agosto, sem julho.
+- **Depois da correção:**
+  - GAMA: "comparada com julho de 2026", 7 métricas pioraram, −5,69 p.p. (o mesmo número do relatório);
+  - Dashboard: GAMA "Piorando";
+  - LAMBDA: compara com junho;
+  - SIGMA: "Sem período anterior comparável";
+  - DELTA: consecutivos;
+  - histórico: "ago/2026 · versão anterior" e diferença entre versões;
+  - relatórios v1 e v2: "versão anterior" e "versão mais recente".
+- Sem overflow e sem erros de console.
+- Durante a revisão o Docker caiu duas vezes e foi reiniciado. Numa delas o dev server subiu sem o ambiente local e saiu antes de responder; foi parado e reiniciado com o ambiente local. Nenhuma requisição chegou ao Pilot.
+
+**Validação.** type-check e lint limpos; 448 testes no CI (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 307 · release-candidate 5) + 4 locais; build limpo, 20 entradas de rota (inalteradas); `supabase/` intocado; varredura de segredos e PII limpa; nenhuma chamada à Anthropic; nada no Pilot.
+
+**Limitações.**
+- A observação financeira de uma decisão pode observar uma reanálise do mesmo período (Outcome, fora do escopo).
+- A Análise continua abrindo a última análise executada (o resultado do botão "Executar análise"), que pode não ser o período mais recente; a comparação dela, que vai para a IA, já é canônica.
+- O ambiente local depende do Docker Desktop.
+
+**Origem.** Mission 209 — Canonical Temporal Comparison Alignment.

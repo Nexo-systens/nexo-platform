@@ -7,7 +7,7 @@ import { getCompanyById } from "@/modules/companies/services/company.service";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
-import { DefaultHistoricalExecutionService, compareExecutions } from "@/efos/application/history";
+import { DefaultHistoricalExecutionService, previousPeriodComparisonOf } from "@/efos/application/history";
 import { buildExecutiveFinancialContext } from "@/efos/application/executive-context";
 import { buildExecutiveKnowledgeContext } from "@/efos/application/executive-knowledge-context";
 import { executeExecutiveChatAnalysis, type ExecutiveChatAnswer } from "@/efos/application/executive-chat";
@@ -139,9 +139,8 @@ export async function askExecutiveChatQuestionAction(
     };
   }
 
-  const priorExecutions = history.filter((h) => h.executionId !== currentHistoricalExecution.executionId);
-  const comparison =
-    priorExecutions.length > 0 ? compareExecutions(priorExecutions[priorExecutions.length - 1], currentHistoricalExecution) : undefined;
+  // Mission 209 (D-134): período anterior canônico, nunca uma reanálise do mesmo período.
+  const comparison = previousPeriodComparisonOf(history, currentHistoricalExecution);
 
   const context = buildExecutiveFinancialContext(
     input.companyId,

@@ -2,7 +2,7 @@ import type { ApplicationResult } from "../contracts";
 import type { AnalyzeCompanyRequest } from "../dto";
 import { buildExecutiveFinancialContext } from "../executive-context";
 import type { ExecutiveFinancialContext } from "../executive-context";
-import { buildCanonicalPriorPeriods, compareExecutions } from "../history";
+import { buildCanonicalPriorPeriods, previousPeriodComparisonOf } from "../history";
 import type { HistoricalExecution, HistoricalExecutionService } from "../history";
 import type { ExecutionRepository, ExecutionSnapshot } from "../persistence";
 import type { ExecutiveReport } from "../report";
@@ -305,9 +305,10 @@ export class DefaultEFOSFacade implements EFOSFacade {
    * `historicalIntelligence.comparison` (Mission 114/D-045/D-046) é
    * computado reaproveitando o MESMO histórico já buscado — nenhuma
    * segunda consulta ao repositório (Etapa 10 da missão) — comparando
-   * a execução atual contra a execução prévia mais recente (mesmo
-   * critério de ordenação já usado por `HistoricalExecutionService`,
-   * inalterado por esta missão). Reanálise legítima do mesmo período
+   * a execução atual com o período anterior canônico
+   * (`previousPeriodComparisonOf`, Mission 209/D-134; antes, com a
+   * execução prévia mais recente, que podia ser uma reanálise do mesmo
+   * período). Reanálise legítima do mesmo período
    * (Mission 171) nunca é resolvida aqui — `history` é repassado
    * integralmente para `buildExecutiveFinancialContext()`/
    * `deriveFinancialEpisodeState()`, que já decidem colapso/conflito
@@ -340,13 +341,11 @@ export class DefaultEFOSFacade implements EFOSFacade {
     const history: readonly HistoricalExecution[] =
       await this.historicalExecutionService.getHistory(companyId);
 
-    const priorExecutions = history.filter((h) => h.executionId !== currentExecutionId);
     const currentExecution = history.find((h) => h.executionId === currentExecutionId);
 
-    const comparison =
-      priorExecutions.length > 0 && currentExecution
-        ? compareExecutions(priorExecutions[priorExecutions.length - 1], currentExecution)
-        : undefined;
+    // Mission 209 (D-134): o período anterior canônico, nunca a execução
+    // imediatamente anterior (que pode ser uma reanálise do mesmo mês).
+    const comparison = currentExecution ? previousPeriodComparisonOf(history, currentExecution) : undefined;
 
     return buildExecutiveFinancialContext(
       companyId,

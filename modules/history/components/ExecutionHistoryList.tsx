@@ -28,6 +28,7 @@ export function ExecutionHistoryList({ executions, currentExecutionId }: Executi
           >
             <span className="num font-medium">{description.short}</span>
             {current && <span className="text-[0.6875rem]">atual</span>}
+            {!current && execution.earlierVersion && <span className="text-[0.6875rem]">versão anterior</span>}
             <span className="sr-only">{description.detail}</span>
           </li>
         );
