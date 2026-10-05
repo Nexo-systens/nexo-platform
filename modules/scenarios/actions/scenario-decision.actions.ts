@@ -5,18 +5,9 @@ import { revalidatePath } from "next/cache";
 
 import { getCurrentUser } from "@/modules/auth/services/auth.service";
 import { getCompanyById } from "@/modules/companies/services/company.service";
-import { createHumanDecision } from "@/efos/application/decision-lifecycle/createHumanDecision";
-import type { CreateHumanDecisionCommand } from "@/efos/application/decision-lifecycle/CreateHumanDecisionCommand";
-import type { ScenarioDecisionContext } from "@/efos/application/decision-lifecycle/ScenarioDecisionContext";
-import type { ScenarioProjection } from "@/efos/application/scenario-simulation";
-import type { DecisionType, RecommendationConfidence, RecommendationPriority } from "@/efos/domain";
 import { saveHumanDecision, type PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import { resolveScenarioBaseline } from "./scenario-simulation.actions";
-import { runSingleScenario, type ScenarioRequest } from "@/modules/scenarios/lib/runSingleScenario";
-import {
-  scenarioBaselineIdentitiesMatch,
-  type ScenarioBaselineIdentity,
-} from "@/modules/scenarios/lib/scenarioBaselineIdentity";
+import { composeScenarioDecision, type ScenarioDecisionRequest } from "@/modules/scenarios/lib/composeScenarioDecision";
 
 /**
  * Mission 184 — Scenario-to-Decision Governance Bridge. Revisada pela
@@ -84,27 +75,14 @@ import {
  * `Decision`).
  */
 
-export interface CreateScenarioDecisionInput {
-  readonly companyId: string;
-  /**
-   * Mission 184 Closure — a identidade EXATA (período + impressão
-   * digital do `FinancialModel`) que o cenário/comparação já exibido
-   * ao executivo carregava — nunca tratada como autoritativa, apenas
-   * como a reivindicação a ser reverificada contra o baseline atual
-   * (Seção 7/19). Substitui `evaluatedPeriod` (Mission 184 original) —
-   * `Period` sozinho nunca provava identidade exata (D-088).
-   */
-  readonly evaluatedBaselineIdentity: ScenarioBaselineIdentity;
-  readonly request: ScenarioRequest;
-  /** Presente apenas quando a Decision se origina de uma comparação (Seção 12/29) — a alternativa NÃO escolhida, nunca convertida em uma segunda Decision. */
-  readonly alternative?: ScenarioRequest;
-  readonly type: DecisionType;
-  readonly priority: RecommendationPriority;
-  readonly confidence: RecommendationConfidence;
-  readonly title: string;
-  readonly description: string;
-  readonly rationale: string;
-}
+/**
+ * Mission 210 (D-135): o miolo puro (origem, identidade exata do baseline,
+ * recomputação e composição) vive em `composeScenarioDecision()` — o mesmo
+ * código que os testes executam. `proposedBy` só aceita o vocabulário
+ * fechado; a decisão vinda do Executive Chat passa por este mesmo caminho,
+ * nunca por um segundo.
+ */
+export type CreateScenarioDecisionInput = ScenarioDecisionRequest;
 
 export type CreateScenarioDecisionResult =
   | { readonly success: true; readonly decision: PersistedDecision }
@@ -115,28 +93,6 @@ export type CreateScenarioDecisionResult =
       readonly errors?: readonly string[];
     };
 
-function toScenarioDecisionContext(
-  primary: ScenarioProjection,
-  baselineFingerprint: string,
-  alternative?: ScenarioProjection
-): ScenarioDecisionContext {
-  return {
-    nature: "hypothetical",
-    scenarioType: primary.scenarioType,
-    assumption: primary.assumption,
-    period: primary.period,
-    comparison: primary.comparison,
-    baselineFingerprint,
-    alternative: alternative
-      ? {
-          scenarioType: alternative.scenarioType,
-          assumption: alternative.assumption,
-          comparison: alternative.comparison,
-        }
-      : undefined,
-  };
-}
-
 export async function createScenarioDecisionAction(
   input: CreateScenarioDecisionInput
 ): Promise<CreateScenarioDecisionResult> {
@@ -145,6 +101,10 @@ export async function createScenarioDecisionAction(
     return { success: false, stage: "auth", error: "Sessão expirada. Faça login novamente." };
   }
 
+  // Empresa sob RLS e ainda ativa: `getCompanyById()` exclui empresa
+  // encerrada (`deleted_at`) — mesma resposta de inexistente ou de outra
+  // empresa (Missions 200/202). A policy de INSERT de `decisions` repete a
+  // checagem no banco.
   const company = await getCompanyById(input.companyId);
   if (!company) {
     return { success: false, stage: "access", error: "Empresa não encontrada ou sem acesso." };
@@ -155,68 +115,12 @@ export async function createScenarioDecisionAction(
     return { success: false, stage: "financial-truth", error: baseline.error };
   }
 
-  // Seção 19/20 — "Baseline Drift", corrigido pela Mission 184 Closure
-  // (Seção 6/7): nunca recomputa silenciosamente contra um baseline
-  // diferente daquele que o executivo viu ao simular/comparar o
-  // cenário. `resolveScenarioBaseline()` acima já rejeitou
-  // (`stage: "financial-truth"`) se existirem execuções conflitantes
-  // para o período mais recente (D-088/Mission 170C/176 Closure) — a
-  // checagem abaixo é uma SEGUNDA camada, ortogonal: mesmo quando o
-  // baseline resolve sem ambiguidade, ele precisa ser EXATAMENTE o
-  // mesmo (período E impressão digital do FinancialModel, nunca
-  // período sozinho) que o executivo de fato avaliou.
-  if (!scenarioBaselineIdentitiesMatch(baseline.identity, input.evaluatedBaselineIdentity)) {
-    return {
-      success: false,
-      stage: "stale-baseline",
-      error:
-        "A verdade financeira desta empresa foi atualizada desde que este cenário foi simulado — execute a simulação novamente antes de levá-la para uma decisão.",
-    };
+  const composed = composeScenarioDecision(input, user.id, baseline, randomUUID(), new Date().toISOString());
+  if (!composed.success) {
+    return composed;
   }
 
-  const primaryOutcome = runSingleScenario(input.companyId, baseline.financialModel, baseline.period, input.request);
-  if (primaryOutcome.outcome === "rejected") {
-    return { success: false, stage: "assumption", error: primaryOutcome.error };
-  }
-
-  let alternativeProjection: ScenarioProjection | undefined;
-  if (input.alternative) {
-    const alternativeOutcome = runSingleScenario(
-      input.companyId,
-      baseline.financialModel,
-      baseline.period,
-      input.alternative
-    );
-    if (alternativeOutcome.outcome === "rejected") {
-      return { success: false, stage: "assumption", error: alternativeOutcome.error };
-    }
-    alternativeProjection = alternativeOutcome.projection;
-  }
-
-  const scenarioContext = toScenarioDecisionContext(
-    primaryOutcome.projection,
-    baseline.identity.financialModelFingerprint,
-    alternativeProjection
-  );
-
-  const command: CreateHumanDecisionCommand = {
-    humanActorId: user.id,
-    companyId: input.companyId,
-    type: input.type,
-    priority: input.priority,
-    confidence: input.confidence,
-    title: input.title,
-    description: input.description,
-    rationale: input.rationale,
-    scenarioContext,
-  };
-
-  const result = createHumanDecision(command, randomUUID(), new Date().toISOString());
-  if (!result.success) {
-    return { success: false, stage: "command", error: "Comando de decisão inválido.", errors: result.error.errors };
-  }
-
-  const persisted = await saveHumanDecision(result.value);
+  const persisted = await saveHumanDecision(composed.decision);
   revalidatePath(`/companies/${input.companyId}`);
   return { success: true, decision: persisted };
 }

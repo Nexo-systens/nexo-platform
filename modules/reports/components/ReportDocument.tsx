@@ -435,11 +435,12 @@ export function ReportDocument({ company, reading }: { company: ReportCompany; r
           id="cenarios"
           number={number}
           title="Cenários avaliados"
-          lead="Hipóteses simuladas no Scenario Lab sobre os números deste período e que viraram decisão. Cenário não é previsão: mostra o efeito da hipótese sobre a base, nada mais."
+          lead="Hipóteses simuladas sobre os números deste período — no Scenario Lab ou propostas pelo Executive Chat — e que viraram decisão da empresa. Cenário não é previsão: mostra o efeito da hipótese sobre a base, nada mais."
         >
           {reading.scenarios.map((scenario) => (
             <DocBlock key={scenario.decisionId} kind="hypothesis" title={scenario.assumption} aside={`Base: ${scenario.period.long}`}>
               <p className="type-meta">
+                {scenario.proposedBy ? `Origem: ${scenario.proposedBy} · ` : ""}
                 Decisão registrada a partir deste cenário: <span className="text-foreground-secondary">{scenario.decisionTitle}</span>
                 {scenario.alternative ? ` · Alternativa considerada e não escolhida: ${scenario.alternative}` : ""}
               </p>

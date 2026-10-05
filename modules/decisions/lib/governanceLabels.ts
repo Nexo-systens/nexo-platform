@@ -5,6 +5,7 @@ import type {
   RecommendationPriority,
 } from "@/efos/domain";
 import type { DecisionExecutionStatus } from "@/efos/application/decision-execution/DecisionExecutionEvent";
+import type { ScenarioDecisionProposer } from "@/efos/application/decision-lifecycle/ScenarioDecisionContext";
 import type { RecommendationReferenceTrace } from "@/efos/application/executive-diagnosis";
 import type { RecommendationGovernanceState } from "@/efos/application/recommendation-governance";
 import type { RecommendationOutcomeReconciliation } from "@/efos/application/recommendation-outcome-reconciliation";
@@ -36,6 +37,18 @@ export const DECISION_CONFIDENCE_LABELS: Record<RecommendationConfidence, string
   high: "Alta",
   verified: "Verificada",
 };
+
+/**
+ * Mission 210 (D-135) — origem de uma decisão tomada a partir de um cenário
+ * proposto por outra superfície. Uma única fonte para o Executive Chat, a
+ * Central de Decisões e o relatório: "Origem: Executive Chat", nunca
+ * "decisão da IA" — quem decide é a empresa.
+ */
+export const DECISION_PROPOSER_LABELS: Readonly<Record<ScenarioDecisionProposer, string>> = {
+  "executive-chat": "Executive Chat",
+};
+
+export const PROPOSED_DECISION_NOTE = "proposta na conversa e confirmada pela empresa";
 
 /**
  * Rótulos de governança de Recommendation/Decision (Missions 150-155) —

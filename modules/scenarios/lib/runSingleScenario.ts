@@ -61,6 +61,8 @@ const COLLECTION_PERIOD_REJECTION_MESSAGES = {
     "O aumento de prazo informado exigiria mais caixa do que a empresa atualmente possui.",
 } as const;
 
+const SCENARIO_CURRENCY = "BRL";
+
 export type SingleScenarioOutcome =
   | { readonly outcome: "simulated"; readonly projection: ScenarioProjection }
   | { readonly outcome: "rejected"; readonly error: string };
@@ -72,6 +74,11 @@ export type SingleScenarioOutcome =
  * `financialModel`/`period`) e `createScenarioDecisionAction()`
  * (Mission 184, recomputação server-side no momento de formalizar uma
  * Decision) — nunca duas implementações de despacho.
+ *
+ * Mission 210 (D-135): a requisição chega do cliente e pode vir adulterada.
+ * O despacho é fechado — tipo fora do catálogo é rejeitado (antes caía no
+ * ramo de prazo de recebimento) e a moeda dos cenários é sempre BRL, a
+ * única que o Scenario Lab e o Executive Chat produzem.
  */
 export function runSingleScenario(
   companyId: string,
@@ -79,7 +86,14 @@ export function runSingleScenario(
   period: Period,
   request: ScenarioRequest
 ): SingleScenarioOutcome {
+  if (request.kind !== "operating_cost_change" && request.kind !== "collection_period_change") {
+    return { outcome: "rejected", error: "Tipo de cenário inválido." };
+  }
+
   if (request.kind === "operating_cost_change") {
+    if (request.operatingExpensesDeltaCurrency !== SCENARIO_CURRENCY) {
+      return { outcome: "rejected", error: "Moeda inválida — os cenários são calculados em reais (BRL)." };
+    }
     const outcome = simulateOperatingCostScenario(companyId, financialModel, period, {
       kind: "operating_cost_change",
       scenarioType: "adjust_operating_costs",

@@ -35,6 +35,10 @@ Devolve `Result<Decision, CreateHumanDecisionError>` (reaproveita `Result<T,E>` 
 - **F** — uma `Decision` humana pode existir sem nenhum `diagnosisId`/`reviewId` — totalmente independente da IA.
 - **G** — múltiplas `Decision`s podem referenciar o mesmo `reviewId`/`diagnosisId` — nenhuma restrição de cardinalidade.
 
+## Origem de um cenário (Mission 210, D-135)
+
+`ScenarioDecisionContext.proposedBy?` diz quem propôs o cenário que a pessoa confirmou: ausente = Scenario Lab; `"executive-chat"` = proposta de uma ação governada do Executive Chat. Vocabulário fechado (`SCENARIO_DECISION_PROPOSERS`), validado por quem compõe a decisão (`composeScenarioDecision()`) e reconferido na leitura (`isScenarioDecisionContext()`). A decisão continua sendo humana e da empresa.
+
 ## O que este módulo NÃO faz
 
 - Não integra UI, banco, Supabase, API route, autenticação.

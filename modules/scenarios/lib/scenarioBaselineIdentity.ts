@@ -107,3 +107,29 @@ export function scenarioBaselineIdentitiesMatch(
 ): boolean {
   return periodsEqual(a.period, b.period) && a.financialModelFingerprint === b.financialModelFingerprint;
 }
+
+function isPeriodShape(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const period = value as Record<string, unknown>;
+  return typeof period.startDate === "string" && typeof period.endDate === "string";
+}
+
+/**
+ * Mission 210 (D-135) — recusa quando a verdade financeira mudou depois que
+ * uma proposta do Executive Chat foi feita. A proposta nunca é reassociada à
+ * análise nova: a pessoa pergunta de novo e recebe uma proposta ancorada nela.
+ */
+export const PROPOSAL_BASELINE_CHANGED_MESSAGE =
+  "A análise desta empresa mudou desde esta resposta do Executive Chat. Faça a pergunta de novo para receber uma proposta sobre a análise atual.";
+
+/**
+ * Mission 210 (D-135) — uma identidade que chega do cliente é só uma
+ * reivindicação, e pode chegar adulterada ou malformada. Uma forma
+ * inválida nunca vira exceção: vale como "não confere".
+ */
+export function baselineClaimMatches(claim: unknown, current: ScenarioBaselineIdentity): boolean {
+  if (typeof claim !== "object" || claim === null) return false;
+  const candidate = claim as Record<string, unknown>;
+  if (!isPeriodShape(candidate.period) || typeof candidate.financialModelFingerprint !== "string") return false;
+  return scenarioBaselineIdentitiesMatch(candidate as unknown as ScenarioBaselineIdentity, current);
+}

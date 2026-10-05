@@ -45,7 +45,12 @@ import {
   EXPECTED_ACTUAL_DIRECTION_CONSISTENCY_LABELS,
   EXPECTED_ACTUAL_ELIGIBILITY_LABELS,
 } from "@/modules/decisions/lib/expectedActualLabels";
-import { DECISION_EXECUTION_STATUS_LABELS, OUTCOME_STATUS_LABELS } from "@/modules/decisions/lib/governanceLabels";
+import {
+  DECISION_EXECUTION_STATUS_LABELS,
+  DECISION_PROPOSER_LABELS,
+  OUTCOME_STATUS_LABELS,
+  PROPOSED_DECISION_NOTE,
+} from "@/modules/decisions/lib/governanceLabels";
 import type { PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import {
   SCENARIO_IMPACT_TONE_CLASSNAME,
@@ -524,6 +529,12 @@ export function DecisionExecutionCard({
                 </Badge>
               </div>
               <p className="text-sm text-foreground">{describeScenarioAssumption(scenarioContext.assumption)}</p>
+              {/* Mission 210 (D-135) — origem discreta: a decisão é da empresa; o Chat só propôs o cenário. */}
+              {scenarioContext.proposedBy && (
+                <p className="text-xs text-muted-foreground">
+                  Origem: {DECISION_PROPOSER_LABELS[scenarioContext.proposedBy]} — {PROPOSED_DECISION_NOTE}.
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Avaliado contra o período de {formatCalendarDate(scenarioContext.period.startDate)} a{" "}
                 {formatCalendarDate(scenarioContext.period.endDate)}.

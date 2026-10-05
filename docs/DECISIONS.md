@@ -2128,6 +2128,80 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 ---
 
+## D-135 — Decisão a partir de uma proposta do Executive Chat: a pessoa confirma pela ponte Cenário → Decisão que já existe; a resposta do Chat carrega a âncora financeira (`ScenarioBaselineIdentity`) como reivindicação e a origem fica em `scenarioContext.proposedBy` (revisa um ponto de D-104; resolve a limitação de D-133)
+
+**Problema.** A Mission 208 registrou em D-133 ("Limitação conhecida") que decisões "vindas do Chat" não entravam em nenhum relatório. A auditoria da Mission 210 mostrou que a premissa era imprecisa: nenhuma ação do Executive Chat virava decisão.
+- **Sem caminho de decisão.** D-103 e D-104 deixaram o Chat sem autoridade de criação e adiaram a "criação direta de Decision". A simulação proposta pelo Chat era um beco sem saída: para decidir, a pessoa ia ao Scenario Lab, simulava de novo e perdia a conversa.
+- **Sem âncora.** D-104 escolheu de propósito que a ponte "nunca carrega uma identidade de baseline". A simulação resolvia a verdade financeira de novo no clique: se uma análise nova (setembro) chegasse entre a resposta (sobre agosto) e o clique, a proposta rodava em silêncio sobre setembro.
+
+**Decisão.**
+1. **Sem caminho novo de criação.**
+   - A decisão vinda do Chat passa pela ponte da Mission 184/184 Closure: o mesmo `ScenarioDecisionForm`, a mesma `createScenarioDecisionAction()` e a mesma `createHumanDecision()`.
+   - O Chat continua estruturalmente incapaz de criar decisão (D-103): o modelo não ganha nenhum campo, nenhum tipo de ação novo e nenhuma importação de criação.
+   - O fluxo é "Chat propõe → pessoa simula → pessoa registra → decisão da empresa".
+2. **Âncora financeira = `ScenarioBaselineIdentity`.**
+   - É a identidade que já existe: período + impressão do Financial Model, a mesma da ponte Cenário → Decisão e da linhagem do relatório (D-133). Não há id novo, execução copiada nem contexto financeiro em texto livre.
+   - `askExecutiveChatQuestionAction()` devolve a âncora de cada resposta fora do `ExecutiveChatAnswer` (que é saída do modelo).
+   - A âncora é calculada pela mesma função pura da simulação e da decisão, sobre o mesmo histórico da resposta: `resolveScenarioBaselineFromHistory()`, a parte pura de `resolveScenarioBaseline()`, extraída sem mudar comportamento.
+   - A âncora nunca volta ao modelo como contexto.
+3. **Revisão de D-104, item (1).** A ponte passa a carregar a âncora da resposta, sempre como reivindicação.
+   - A simulação e a comparação aceitam `expectedBaselineIdentity?`; a decisão usa a âncora como `evaluatedBaselineIdentity`.
+   - Se a verdade financeira atual não for exatamente a da âncora, a simulação ou a decisão é recusada (`stage: "stale-baseline"`) com "a análise mudou desde esta resposta; pergunte de novo". É a mesma regra fail-closed de D-094/D-095.
+   - A proposta nunca é reassociada à análise nova e nunca roda contra uma verdade antiga: a simulação continua sempre contra a verdade atual.
+   - O Scenario Lab não envia a âncora e não muda.
+4. **Origem = `scenarioContext.proposedBy: "executive-chat"`.**
+   - Vocabulário fechado (`SCENARIO_DECISION_PROPOSERS`), dentro do `ScenarioDecisionContext` que já vive em `Decision.supportingData` (D-094). Não há coluna, enum de origem em `Decision` nem migration.
+   - Ausente significa que a pessoa montou o cenário no Scenario Lab.
+   - Na escrita, um valor fora do vocabulário recusa a decisão inteira. Na leitura, um contexto com valor desconhecido não é reconhecido (falha fechada).
+5. **Proveniência sem transcript.** A conversa continua só na sessão (D-103). A decisão responde:
+   - qual empresa: `companyId`;
+   - qual contexto financeiro: período + impressão;
+   - qual ação governada: tipo de cenário + presença de alternativa + `proposedBy`;
+   - qual decisão: `id`;
+   - quando: `audit.createdAt`.
+6. **Relatório pela mesma linhagem.**
+   - A decisão entra no relatório da execução cuja verdade financeira é a da âncora: período igual e impressão igual (D-133, item 4). Não há busca específica do Chat.
+   - Relatórios persistidos não mudam (`executions.report` intocado); a decisão só aparece na leitura derivada dos relatórios daquela verdade financeira.
+   - Rótulos: "Decisão da empresa" com "Origem: Executive Chat — proposta na conversa e confirmada pela empresa", vindos de uma única fonte (`DECISION_PROPOSER_LABELS`).
+7. **Endurecimento do caminho de escrita.**
+   - `createHumanDecisionAction()` deixa de repassar `supportingData` vindo do cliente. Antes, um request adulterado podia gravar um `scenarioContext` fabricado (cenário, impressão ou origem), que entraria no relatório e no Esperado × Observado e contradiria a garantia de D-096. Nenhuma tela usava o campo.
+   - `runSingleScenario()` passa a ter despacho fechado: tipo fora do catálogo é recusado (antes caía no ramo de prazo de recebimento) e a moeda é sempre BRL.
+   - Uma identidade reivindicada malformada vale como "não confere", nunca como exceção (`baselineClaimMatches()`).
+
+**Fora do escopo, deliberadamente.**
+- **Idempotência no servidor.** Nenhum fluxo de decisão tem chave de idempotência (paridade registrada em D-096).
+  - O duplo envio acidental continua bloqueado no cliente (`submittingRef`).
+  - Depois de registrada, o cartão do Chat troca o formulário pela confirmação, então a mesma proposta não oferece outra decisão.
+  - Deduplicar no servidor exigiria um contrato persistido novo.
+- **Proveniência "veio do Chat".** É uma reivindicação do próprio ator autenticado sobre o caminho que usou no produto, a mesma fronteira de D-096: não dá autoridade nem muda número.
+- **Decisões manuais** sem diagnóstico e sem cenário continuam sem vínculo com execução.
+- **Inalterados:** prompts, D-132, provider, Outcome, Knowledge, RLS e migrations.
+
+**Justificativa.** A identidade, a recomputação, a regra de baseline desatualizado e a linhagem do relatório já existiam. A lacuna era a composição: a resposta do Chat não dizia sobre qual verdade financeira falava, e a proposta não tinha como virar decisão sem abandonar a conversa. Reusar a ponte de cenário mantém uma única forma de produzir decisão humana e uma única linhagem para o relatório.
+
+**Impacto.**
+- **Criados:**
+  - `modules/scenarios/lib/resolveScenarioBaselineFromHistory.ts`;
+  - `modules/scenarios/lib/composeScenarioDecision.ts` (miolo puro de `createScenarioDecisionAction()`);
+  - `modules/executive-chat/components/ChatDecisionNotes.tsx`;
+  - `tests/production-surface/mission-210-chat-decision-lineage.test.ts`;
+  - `tests/reports-local/chat-decision-boundary.local.test.ts`.
+- **Alterados:**
+  - `ScenarioDecisionContext` (`proposedBy?`);
+  - `scenarioBaselineIdentity.ts` (`baselineClaimMatches`, mensagem);
+  - `runSingleScenario.ts`;
+  - as duas ações de cenário;
+  - a ação e os cartões do Chat;
+  - `ScenarioDecisionForm` (origem e selects empilhados no celular);
+  - `human-review.actions.ts`;
+  - rótulos de governança;
+  - cartão da Central de Decisões;
+  - leitura e documento do relatório.
+
+**Origem.** Mission 210 — Governed Chat-to-Decision Lineage.
+
+---
+
 ## Próximas decisões
 
 Estrutura preparada para D-006 em diante. Toda nova decisão arquitetural permanente segue o mesmo formato: `## D-XXX — Título`, depois `**Descrição.**`, `**Justificativa.**`, `**Impacto.**`, `**Origem.**` (missão que originou a decisão). Nunca remover ou reescrever uma decisão existente — apenas adicionar uma nova entrada, mesmo que ela substitua o entendimento anterior (nesse caso, a nova entrada deve referenciar explicitamente a decisão que está revisando).

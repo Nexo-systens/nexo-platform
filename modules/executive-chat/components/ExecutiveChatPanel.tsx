@@ -11,7 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import type { ExecutiveChatAnswer, ExecutiveChatGroundingStatus } from "@/efos/application/executive-chat";
 import { presentExecutiveChatProviderError } from "@/modules/analysis/lib/analysis-error-message";
+import { formatPeriodLabel } from "@/modules/analysis/lib/period-label";
 import { CONFIDENCE_LABELS } from "@/modules/decisions/lib/diagnosis-references";
+import type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
 import { askExecutiveChatQuestionAction } from "../actions/executive-chat.actions";
 import { ExecutiveChatActionCard } from "./ExecutiveChatActionCard";
@@ -20,6 +22,12 @@ interface ChatTurn {
   readonly role: "user" | "assistant";
   readonly content: string;
   readonly answer?: ExecutiveChatAnswer;
+  /**
+   * Mission 210 (D-135) — a verdade financeira em que esta resposta se
+   * baseou, calculada pelo servidor. As ações desta resposta a carregam de
+   * volta como reivindicação; nunca é reenviada como contexto ao modelo.
+   */
+  readonly baselineIdentity?: ScenarioBaselineIdentity;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -90,7 +98,10 @@ export function ExecutiveChatPanel({ companyId }: { companyId: string }) {
         return;
       }
 
-      setTurns((current) => [...current, { role: "assistant", content: result.answer.answer, answer: result.answer }]);
+      setTurns((current) => [
+        ...current,
+        { role: "assistant", content: result.answer.answer, answer: result.answer, baselineIdentity: result.baselineIdentity },
+      ]);
       setStatus("idle");
     } catch (error) {
       setStatus("error");
@@ -295,9 +306,18 @@ function InquiryAnswer({ turn, companyId }: { turn: ChatTurn; companyId: string 
       */}
       {(answer.proposedActions ?? []).length > 0 && (
         <div className="flex flex-col gap-2 rounded-xl bg-surface-subtle p-4">
-          <p className="type-eyebrow">Ações sugeridas — só acontecem se você confirmar</p>
+          <p className="type-eyebrow">
+            Ações sugeridas
+            {turn.baselineIdentity ? ` sobre a análise de ${formatPeriodLabel(turn.baselineIdentity.period).long}` : ""} — só
+            acontecem se você confirmar
+          </p>
           {(answer.proposedActions ?? []).map((action, index) => (
-            <ExecutiveChatActionCard key={`${action.type}-${index}`} companyId={companyId} action={action} />
+            <ExecutiveChatActionCard
+              key={`${action.type}-${index}`}
+              companyId={companyId}
+              action={action}
+              baselineIdentity={turn.baselineIdentity}
+            />
           ))}
         </div>
       )}

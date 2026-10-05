@@ -35,6 +35,7 @@ Ele representa o estado atual do desenvolvimento.
 - **Página institucional** (Mission 205): `/` é a landing pública e estática da NEXO (`app/(site)/`, `modules/site/`) — tese, categoria EFOS, produto com quadros de telas reais e dados fictícios, segurança, Founding Company e conversa. Visitante fica em `/`; usuário autenticado continua indo para `/dashboard`. Canal comercial (`NEXT_PUBLIC_NEXO_CONTACT_URL`) e URL pública (`NEXT_PUBLIC_SITE_URL`) são configuráveis e ainda não definidos. Sem domínio, DNS ou deploy.
 - **Governança de saída da Executive AI** (Mission 206, D-132): toda saída textual de Diagnosis e Executive Chat é contratualmente pt-BR, com invariantes comuns (tom executivo, terminologia, números canônicos sem cálculo, indisponível nunca vira número, hipótese/ação como possibilidade/sugestão) definidas uma vez em `efos/application/executive-output-policy/` e verificadas em runtime (idioma e fidelidade numérica) antes de persistir ou exibir. Acima de qualquer provider; schema das tools e ações governadas inalterados.
 - **Validação real da Executive AI** (Mission 207): provider real validado com contextos sintéticos; prompts de Diagnosis e Chat listam as referências citáveis de cada chamada (fim da confusão do prefixo "context:").
+- **Decisão a partir do Executive Chat** (Mission 210, D-135): a proposta de cenário do Chat vira decisão da empresa pela ponte Cenário → Decisão existente, com a âncora financeira da resposta (`ScenarioBaselineIdentity`) — análise nova depois da resposta recusa, nunca reassocia — e origem em `scenarioContext.proposedBy`; o relatório a encontra pela mesma linhagem de cenário.
 - **Comparação temporal canônica** (Mission 209, D-134): toda variação "desde" — Visão geral, Dashboard, histórico da Análise, relatório e contexto da Executive AI — é contra o período anterior canônico, por uma autoridade única (`efos/application/history/resolveTemporalComparison.ts`). Reanálise do mesmo mês é versão, nunca "período anterior"; histórico anterior ambíguo é dito, sem delta.
 - **Relatórios executivos** (Mission 208, D-133): `/reports` lista os relatórios por empresa e período e `/reports/[executionId]` abre o documento. O relatório é o `ExecutiveReport` gravado pela análise (imutável, versão = execução); a leitura (`modules/reports/`) liga por linhagem a leitura da IA, decisões, resultados e aprendizados, com o ciclo de decisão derivado na leitura. Sem IA nova, sem persistência nova, impressão/PDF pelo navegador.
 - **Banco de dados**: `companies`, `users`, `documents` (com RLS) e `financial_metrics` (RLS habilitada numa auditoria de segurança) existem e estão em uso pela Plataforma. Na Mission 036, `public.executions` (com RLS) foi criada — primeira tabela que sustenta o EFOS Core (`ExecutionSnapshot`, via `SupabaseExecutionRepository`/`SupabasePersistenceClient`); nenhuma migration foi de fato aplicada contra um banco real nesta sessão (sem Docker local disponível). Nenhuma tabela de Domain/Engine foi criada — por instrução explícita de todas as missões EFOS até agora ("não acessar banco").
@@ -48,7 +49,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 209 — Canonical Temporal Comparison Alignment (2026-10-03).** Ver `docs/DECISIONS.md` (D-134, revisa o padrão de D-047), `docs/ENGINEERING_LOG.md` e `docs/DESIGN_SYSTEM.md` ("Comparação temporal"). **Status: `MISSION_209_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 448 testes no CI (production-surface 307, com 18 em `mission-209-canonical-temporal-comparison.test.ts`) + 4 locais. Nenhuma migration.
+**Mission 210 — Governed Chat-to-Decision Lineage (2026-10-05).** Ver `docs/DECISIONS.md` (D-135, revisa o item (1) de D-104 e resolve a limitação de D-133), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_210_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 482 testes no CI (production-surface 341, com 34 em `mission-210-chat-decision-lineage.test.ts`) + 7 locais (3 novos em `tests/reports-local/chat-decision-boundary.local.test.ts`). Nenhuma migration.
+
+- **Premissa corrigida:** nenhuma ação do Chat virava decisão; a simulação do Chat era um beco sem saída e não sabia sobre qual análise a resposta falava.
+- **Entrega:** âncora financeira por resposta; "Levar para decisão" no cartão do Chat pelo mesmo formulário e ação do Scenario Lab; origem "Executive Chat" na Central de Decisões e no relatório; recusa quando a análise muda entre a proposta e a confirmação.
+- **Segurança:** a decisão manual não aceita mais `supportingData` do cliente; cenário com despacho fechado (tipo e moeda).
+
+**Anterior — Mission 209 — Canonical Temporal Comparison Alignment (2026-10-03).** Ver `docs/DECISIONS.md` (D-134, revisa o padrão de D-047), `docs/ENGINEERING_LOG.md` e `docs/DESIGN_SYSTEM.md` ("Comparação temporal"). **Status: `MISSION_209_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 448 testes no CI (production-surface 307, com 18 em `mission-209-canonical-temporal-comparison.test.ts`) + 4 locais. Nenhuma migration.
 
 - **Defeito reproduzido:** reanálise de agosto fazia a Visão geral comparar agosto com agosto ("= estável") e o Dashboard marcar "Estável".
 - **Correção:** uma autoridade temporal em `efos/application/history/`, usada por Visão geral, Dashboard, histórico, relatório, índice e contexto da IA; "atual" = versão mais recente do período mais recente.
@@ -444,12 +451,15 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 209):**
+**Próximo passo (após a Mission 210):**
 1. Observação financeira de decisões (Outcome, Mission 139): exigir que a execução de observação seja de um período posterior ao da base — hoje uma reanálise do mesmo mês pode virar "observação". Exige decisão sobre a semântica de Outcome.
-2. Conferir no Pilot, só leitura, relatórios e comparações com dados reais (períodos, reanálises, linhagem).
-3. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
+2. Conferir no Pilot, só leitura, a jornada Chat → decisão → relatório com dados reais (sem criar decisão sintética no Pilot).
+3. Se o produto precisar de garantia contra reenvio no servidor (hoje só no cliente, em todos os fluxos de decisão): decidir o contrato persistido de idempotência — exige migration e STOP prévio.
+4. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
 
-Nenhuma Mission 210 foi iniciada.
+Nenhuma Mission 211 foi iniciada.
+
+Histórico (Mission 209): **Próximo passo (após a Mission 209):** (1) observação financeira com período posterior; (2) conferir no Pilot; (3) itens após a Mission 207.
 
 Histórico (Mission 208): **Próximo passo (após a Mission 208):** (1) conferir relatórios no Pilot; (2) Visão geral com o período anterior canônico — feito na Mission 209; (3) itens após a Mission 207.
 
@@ -623,12 +633,17 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Pendências
 
+- **Mission 210:**
+  - sem idempotência no servidor para decisões (paridade com todos os fluxos, D-096): duplo envio bloqueado no cliente e no cartão do Chat;
+  - a origem "Executive Chat" é uma reivindicação do próprio ator autenticado (fronteira de D-096);
+  - decisões manuais sem diagnóstico e sem cenário continuam sem vínculo com execução e fora dos relatórios;
+  - jornada não conferida contra dados reais do Pilot.
 - **Mission 209:**
   - observação financeira de decisão pode usar uma reanálise do mesmo período como "observação" (semântica de Outcome, fora do escopo);
   - a Análise abre a última análise executada (pode não ser o período mais recente); a comparação enviada à IA já é canônica;
   - comparações ainda não conferidas contra dados reais do Pilot.
 - **Mission 208:**
-  - decisões sem diagnóstico e sem cenário (ex.: vindas do Chat) não têm vínculo com execução e não aparecem em relatório;
+  - ~~decisões sem diagnóstico e sem cenário (ex.: vindas do Chat) não têm vínculo com execução~~ — premissa corrigida na Mission 210: o Chat não criava decisões; agora cria pela ponte de cenário, com linhagem (D-135). Decisões manuais sem vínculo continuam fora dos relatórios;
   - cenários simulados e não decididos não são guardados (Mission 183), então não aparecem;
   - ~~Visão geral ainda compara com a execução imediatamente anterior~~ — corrigido na Mission 209 (D-134);
   - texto de algumas propostas do Decision Engine tem termos crus ("prioridade high", "Recommendation");

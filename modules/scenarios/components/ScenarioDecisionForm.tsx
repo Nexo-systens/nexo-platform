@@ -23,9 +23,12 @@ import {
   type RecommendationConfidence,
   type RecommendationPriority,
 } from "@/efos/domain";
+import type { ScenarioDecisionProposer } from "@/efos/application/decision-lifecycle/ScenarioDecisionContext";
+import { formatPeriodLabel } from "@/modules/analysis/lib/period-label";
 import {
   DECISION_CONFIDENCE_LABELS,
   DECISION_PRIORITY_LABELS,
+  DECISION_PROPOSER_LABELS,
   DECISION_TYPE_LABELS,
 } from "@/modules/decisions/lib/governanceLabels";
 import { createScenarioDecisionAction } from "@/modules/scenarios/actions/scenario-decision.actions";
@@ -52,6 +55,12 @@ import type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioB
  * verdade — são apenas a REIVINDICAÇÃO que `createScenarioDecisionAction()`
  * recomputa e reverifica inteiramente no servidor (Seção 17/18/19).
  * Este componente nunca calcula nenhum valor financeiro.
+ *
+ * Mission 210 (D-135): `proposedBy` marca um cenário proposto pelo
+ * Executive Chat. O formulário diz de onde veio a proposta, sobre qual
+ * análise foi calculada e que só a pessoa registra a decisão — que passa a
+ * ser da empresa. `proposedBy` é enviado como reivindicação de vocabulário
+ * fechado; o servidor valida.
  */
 export function ScenarioDecisionForm({
   companyId,
@@ -60,6 +69,7 @@ export function ScenarioDecisionForm({
   alternative,
   assumptionDescription,
   alternativeDescription,
+  proposedBy,
   onCreated,
 }: {
   companyId: string;
@@ -68,6 +78,7 @@ export function ScenarioDecisionForm({
   alternative?: ScenarioRequest;
   assumptionDescription: string;
   alternativeDescription?: string;
+  proposedBy?: ScenarioDecisionProposer;
   onCreated?: () => void;
 }) {
   const router = useRouter();
@@ -98,6 +109,7 @@ export function ScenarioDecisionForm({
         evaluatedBaselineIdentity,
         request,
         alternative,
+        proposedBy,
         type: type as DecisionType,
         priority: priority as RecommendationPriority,
         confidence: confidence as RecommendationConfidence,
@@ -134,6 +146,13 @@ export function ScenarioDecisionForm({
         <CardTitle className="text-sm">Levar para decisão</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {proposedBy && (
+          <p className="text-xs text-foreground">
+            <span className="font-medium">Origem: {DECISION_PROPOSER_LABELS[proposedBy]}.</span> Cenário calculado sobre a
+            análise de {formatPeriodLabel(evaluatedBaselineIdentity.period).long}. A proposta só vira decisão quando você a
+            registrar, e passa a ser uma decisão da empresa.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Este cenário é registrado como contexto hipotético da decisão — nunca como um resultado real. O
           resultado efetivo continua dependendo da execução e é registrado separadamente, mais tarde, como
@@ -146,7 +165,7 @@ export function ScenarioDecisionForm({
           </p>
         )}
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <Label>Tipo</Label>
             <Select items={DECISION_TYPE_LABELS} value={type} onValueChange={(value) => setType(value as DecisionType)}>

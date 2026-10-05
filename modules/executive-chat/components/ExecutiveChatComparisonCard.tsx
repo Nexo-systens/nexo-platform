@@ -10,11 +10,14 @@ import type { ExecutiveChatResolvedAction } from "@/efos/application/executive-c
 import type { ExecutiveScenarioComparison } from "@/efos/application/scenario-simulation";
 import { formatIndicatorValue } from "@/lib/format-indicator";
 import { cn } from "@/lib/utils";
-import { compareScenariosAction } from "@/modules/scenarios/actions/scenario-simulation.actions";
+import { compareScenariosAction, type ScenarioRequest } from "@/modules/scenarios/actions/scenario-simulation.actions";
+import { ScenarioDecisionForm } from "@/modules/scenarios/components/ScenarioDecisionForm";
 import { SCENARIO_IMPACT_TONE_CLASSNAME, formatScenarioMetricDelta } from "@/modules/scenarios/lib/scenario-language";
+import type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
 import { describeChatComparisonAction } from "../lib/chatActionPresentation";
 import { toScenarioRequest } from "../lib/toScenarioRequest";
+import { ChatDecisionRecorded, ChatProposalWithoutBaseline } from "./ChatDecisionNotes";
 
 import { companyWorkspaceHref } from "@/modules/companies/lib/workspace-views";
 
@@ -45,22 +48,33 @@ import { companyWorkspaceHref } from "@/modules/companies/lib/workspace-views";
  * Nenhum vencedor/pontuação em lugar algum (Seção 11/16) — apenas a
  * apresentação já canônica de `ExecutiveScenarioComparison.metrics`
  * (união causal, Mission 183), nunca uma segunda lógica de comparação.
+ *
+ * Mission 210 (D-135): a comparação leva a âncora financeira da resposta
+ * (recusa se a análise mudou). Depois de comparar, a pessoa pode levar A ou
+ * B para decisão — a mesma escolha explícita do Scenario Lab, pelo mesmo
+ * `ScenarioDecisionForm`, com a outra alternativa guardada só como
+ * contexto e `proposedBy: "executive-chat"`. Nenhum vencedor sugerido.
  */
 export function ExecutiveChatComparisonCard({
   companyId,
   action,
+  baselineIdentity,
 }: {
   companyId: string;
   action: Extract<ExecutiveChatResolvedAction, { kind: "comparison" }>;
+  baselineIdentity?: ScenarioBaselineIdentity;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [comparison, setComparison] = useState<ExecutiveScenarioComparison | undefined>();
+  const [comparedRequests, setComparedRequests] = useState<readonly [ScenarioRequest, ScenarioRequest] | undefined>();
+  const [decisionSlot, setDecisionSlot] = useState<"A" | "B" | undefined>();
+  const [decided, setDecided] = useState(false);
 
   const { title, alternativeADescription, alternativeBDescription } = describeChatComparisonAction(action);
 
   async function handleConfirm() {
-    if (submitting) return;
+    if (submitting || !baselineIdentity) return;
     setSubmitting(true);
     setError(undefined);
     setComparison(undefined);
@@ -68,12 +82,17 @@ export function ExecutiveChatComparisonCard({
     try {
       const requestA = toScenarioRequest(action.alternativeA);
       const requestB = toScenarioRequest(action.alternativeB);
-      const result = await compareScenariosAction({ companyId, scenarios: [requestA, requestB] });
+      const result = await compareScenariosAction({
+        companyId,
+        scenarios: [requestA, requestB],
+        expectedBaselineIdentity: baselineIdentity,
+      });
       if (!result.success) {
         setError(result.error);
         return;
       }
       setComparison(result.comparison);
+      setComparedRequests([requestA, requestB]);
     } catch {
       setError("Erro inesperado ao comparar os cenários. Tente novamente.");
     } finally {
@@ -97,7 +116,9 @@ export function ExecutiveChatComparisonCard({
         </div>
       </div>
 
-      {!comparison && (
+      {!comparison && !baselineIdentity && <ChatProposalWithoutBaseline />}
+
+      {!comparison && baselineIdentity && (
         <Button variant="outline" size="sm" className="w-fit gap-1.5" onClick={handleConfirm} disabled={submitting}>
           {submitting && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
           {submitting ? "Comparando..." : "Comparar cenários"}
@@ -136,10 +157,36 @@ export function ExecutiveChatComparisonCard({
           </Badge>
           <p className="text-xs text-muted-foreground">{comparison.disclaimer}</p>
 
-          <Button variant="ghost" size="sm" className="w-fit gap-1" render={<Link href={companyWorkspaceHref(companyId, "cenarios")} />} nativeButton={false}>
-            Ver no Scenario Lab completo
-            <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Button>
+          {decided ? (
+            <ChatDecisionRecorded companyId={companyId} />
+          ) : decisionSlot && comparedRequests && baselineIdentity ? (
+            <ScenarioDecisionForm
+              companyId={companyId}
+              evaluatedBaselineIdentity={baselineIdentity}
+              request={decisionSlot === "A" ? comparedRequests[0] : comparedRequests[1]}
+              alternative={decisionSlot === "A" ? comparedRequests[1] : comparedRequests[0]}
+              assumptionDescription={decisionSlot === "A" ? alternativeADescription : alternativeBDescription}
+              alternativeDescription={decisionSlot === "A" ? alternativeBDescription : alternativeADescription}
+              proposedBy="executive-chat"
+              onCreated={() => {
+                setDecisionSlot(undefined);
+                setDecided(true);
+              }}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" className="w-fit" onClick={() => setDecisionSlot("A")}>
+                Levar A para decisão
+              </Button>
+              <Button variant="outline" size="sm" className="w-fit" onClick={() => setDecisionSlot("B")}>
+                Levar B para decisão
+              </Button>
+              <Button variant="ghost" size="sm" className="w-fit gap-1" render={<Link href={companyWorkspaceHref(companyId, "cenarios")} />} nativeButton={false}>
+                Ver no Scenario Lab completo
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

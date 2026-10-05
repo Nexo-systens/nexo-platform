@@ -27,9 +27,11 @@ import { EXPECTED_ACTUAL_ALIGNMENT_LABELS } from "@/modules/decisions/lib/expect
 import {
   DECISION_EXECUTION_STATUS_LABELS,
   DECISION_PRIORITY_LABELS,
+  DECISION_PROPOSER_LABELS,
   DECISION_TYPE_LABELS,
   GOVERNANCE_LIFECYCLE_LABELS,
   OUTCOME_STATUS_LABELS,
+  PROPOSED_DECISION_NOTE,
   RECOMMENDATION_CATEGORY_LABELS,
 } from "@/modules/decisions/lib/governanceLabels";
 import { KNOWLEDGE_CATEGORY_LABELS } from "@/modules/decisions/lib/knowledgeLabels";
@@ -124,6 +126,8 @@ export interface ScenarioEntry {
   readonly decisionTitle: string;
   readonly assumption: string;
   readonly alternative?: string;
+  /** Mission 210 (D-135) — "Executive Chat" quando o cenário foi proposto na conversa; ausente quando montado no Scenario Lab. */
+  readonly proposedBy?: string;
   readonly period: PeriodLabel;
   readonly metricKeys: readonly string[];
   readonly comparison: Readonly<Record<string, ScenarioMetricComparison>>;
@@ -440,6 +444,7 @@ export function buildReportReading(inputs: ReportReadingInputs): ReportReading |
             decisionTitle: link.decision.decision.title,
             assumption: describeScenarioAssumption(link.origin.scenario.assumption),
             alternative: link.origin.scenario.alternative ? describeScenarioAssumption(link.origin.scenario.alternative.assumption) : undefined,
+            proposedBy: link.origin.scenario.proposedBy ? DECISION_PROPOSER_LABELS[link.origin.scenario.proposedBy] : undefined,
             period: formatPeriodLabel(link.origin.scenario.period),
             metricKeys: link.origin.scenario.comparison.map((entry) => entry.metricKey),
             comparison: Object.fromEntries(link.origin.scenario.comparison.map((entry) => [entry.metricKey, entry])),
@@ -453,7 +458,11 @@ export function buildReportReading(inputs: ReportReadingInputs): ReportReading |
     const state = deriveDecisionExecutionState(executionEvents.filter((event) => event.decisionId === link.decision.id));
     let originLabel: string;
     if (link.origin.kind === "scenario") {
-      originLabel = `Cenário avaliado no Scenario Lab: ${describeScenarioAssumption(link.origin.scenario.assumption)}`;
+      const assumption = describeScenarioAssumption(link.origin.scenario.assumption);
+      // Mission 210 (D-135): mesma linhagem de cenário; só o rótulo diz quem propôs.
+      originLabel = link.origin.scenario.proposedBy
+        ? `Origem: ${DECISION_PROPOSER_LABELS[link.origin.scenario.proposedBy]} — ${PROPOSED_DECISION_NOTE}. Cenário: ${assumption}`
+        : `Cenário avaliado no Scenario Lab: ${assumption}`;
     } else {
       const reference = decision.basedOnRecommendationId ? referenceStatements.get(decision.basedOnRecommendationId) : undefined;
       originLabel = reference

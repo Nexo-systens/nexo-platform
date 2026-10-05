@@ -10509,3 +10509,90 @@ Reproduzido ao vivo (Supabase local, dados sintéticos), depois de reanalisar ag
 - O ambiente local depende do Docker Desktop.
 
 **Origem.** Mission 209 — Canonical Temporal Comparison Alignment.
+
+
+---
+
+## Mission 210 — Governed Chat-to-Decision Lineage
+
+**Status.** Fechada (`MISSION_210_CLOSED`). Decisão nova: **D-135**, que revisa o item (1) de D-104 ("a ponte nunca carrega uma identidade de baseline") e resolve a limitação registrada em D-133. Não houve migration, RLS, mudança de schema, Executive AI (prompts, D-132, provider), Outcome, Knowledge nem relatório persistido.
+
+**Checagem de premissas.** Nenhuma ação do Executive Chat virava decisão:
+- **O que existia.** O Chat propunha seis tipos de ação (três de navegação, dois cenários e uma comparação). "Simular" e "Comparar" só liam, e para decidir a pessoa ia ao Scenario Lab e simulava de novo.
+- **Nota imprecisa.** A nota da Mission 208 ("decisões vindas do Chat não aparecem no relatório") estava imprecisa.
+- **Sem âncora.** A identidade financeira da resposta não saía do servidor. A simulação resolvia a verdade de novo no clique; se uma análise nova chegasse no meio, rodava sobre ela sem avisar.
+- **Achado de segurança.** `createHumanDecisionAction()` repassava `supportingData` do cliente, o que permitia gravar um `scenarioContext` fabricado: um cenário, uma impressão de baseline ou, a partir desta missão, uma origem.
+
+| Origem | Linhagem | Campos gravados | No relatório |
+|---|---|---|---|
+| Recomendação → decisão | diagnóstico + item | `diagnosis_id`, `basedOnRecommendationId` | sim, pelo `diagnosis_id` |
+| Cenário (Scenario Lab) → decisão | baseline exato | `scenarioContext` (período, impressão, comparação) | sim, por período + impressão |
+| Executive Chat → decisão | **não existia** | — | — |
+| Manual sem vínculo | nenhuma | autor | não |
+
+**Entrega.**
+- **Âncora financeira.** Cada resposta do Chat devolve `baselineIdentity`, uma `ScenarioBaselineIdentity` (período + impressão do Financial Model), fora do `ExecutiveChatAnswer`.
+  - Ela é calculada por `resolveScenarioBaselineFromHistory()`: a parte pura de `resolveScenarioBaseline()`, extraída sem mudar comportamento.
+  - É a mesma função da simulação e da decisão, sobre o mesmo histórico.
+  - A âncora nunca volta ao modelo como contexto.
+- **Simulação e comparação do Chat** reenviam a âncora (`expectedBaselineIdentity`). Se a verdade financeira mudou, o servidor recusa (`stale-baseline`) e pede uma nova pergunta. O Scenario Lab não envia a âncora e não muda.
+- **Da proposta à decisão.**
+  - Depois de simular, "Levar para decisão" abre o `ScenarioDecisionForm` do Scenario Lab com `proposedBy: "executive-chat"`.
+  - Na comparação, a pessoa escolhe A ou B, e a outra alternativa fica como contexto.
+  - Tudo passa por `createScenarioDecisionAction()`, cujo miolo puro agora é `composeScenarioDecision()`: valida a origem, compara a identidade exata, recomputa e chama `createHumanDecision()`.
+  - Registrada a decisão, o cartão troca o formulário pela confirmação; a mesma proposta não oferece outra.
+- **Origem.** `ScenarioDecisionContext.proposedBy?` tem vocabulário fechado. Valor inválido recusa a decisão; na leitura, um contexto com valor desconhecido não é reconhecido.
+- **Apresentação.**
+  - **Chat:** "Ações sugeridas sobre a análise de {período}" e, no formulário, "Origem: Executive Chat… só vira decisão quando você a registrar, e passa a ser uma decisão da empresa".
+  - **Central de Decisões:** "Origem: Executive Chat — proposta na conversa e confirmada pela empresa".
+  - **Relatório:** "Decisão da empresa" com a mesma origem, inclusive na seção de cenários.
+  - Os rótulos vêm de uma única fonte (`DECISION_PROPOSER_LABELS`).
+  - O formulário empilha os selects no celular.
+- **Endurecimento.**
+  - `createHumanDecisionAction()` não aceita mais `supportingData` do cliente.
+  - `runSingleScenario()` tem despacho fechado: tipo fora do catálogo é recusado (antes caía no ramo de prazo de recebimento) e a moeda é sempre BRL.
+  - Uma identidade reivindicada malformada vale como "não confere" (`baselineClaimMatches()`), nunca como exceção.
+
+**Testes.**
+- **`mission-210-chat-decision-lineage.test.ts` (34).** Usa fixtures do pipeline real, o provider determinístico da Mission 160 e as mesmas funções que o produto executa.
+  - Contrato: contexto A → Chat → ação governada → confirmação → decisão → relatório de A, e não o de julho. Proveniência. Comparação.
+  - Âncora canônica: é igual à identidade do baseline; não existe com histórico ambíguo; é da empresa da conversa.
+  - Contexto desatualizado: análise nova entre a proposta e a confirmação é recusada; uma nova pergunta ancora no período novo.
+  - Adulteração: tipo, parâmetro (NaN, moeda, corte excessivo), âncora (adulterada e nove formas malformadas), empresa, referência de outra empresa, referência inexistente, origem (cinco valores), origem forjada na leitura, `supportingData` na decisão manual.
+  - Servidor como autoridade: ordem das checagens, empresa encerrada, âncora checada antes de simular, âncora calculada no servidor e nunca reenviada ao modelo.
+  - Duplo envio.
+  - Fonte única: uma composição, uma gravação, Chat sem criação, relatório sem busca do Chat.
+  - Pontes de recomendação e de cenário intactas.
+  - Outcome, observação financeira, Esperado × Observado e Knowledge.
+  - Fronteira na leitura e apresentação.
+- **`tests/reports-local/chat-decision-boundary.local.test.ts` (3, Supabase local).**
+  - A âncora é calculada sobre o histórico lido do banco; a decisão passa por `public.decisions` sob RLS e é encontrada pela linhagem.
+  - B não grava na empresa de A, não lê as decisões de A e não assina como A.
+  - Empresa encerrada não recebe decisão.
+
+**Revisão visual (Supabase local; `.env.development.local` e script de seed temporários, apagados ao fim).**
+- **DELTA:** pergunta "E se eu reduzir as despesas operacionais em 20 mil?" → proposta sobre agosto → simulação → formulário com a origem → decisão registrada.
+  - Central de Decisões: mostra a origem e o Esperado × Observado.
+  - Relatório de agosto: decisão e cenário com "Origem: Executive Chat".
+  - Relatório de julho: sem a decisão.
+  - Execução concluída e resultado "Positivo" aparecem no relatório.
+- **LAMBDA:** análise nova gravada entre a proposta e a confirmação.
+  - O registro da decisão e a simulação são recusados com a mensagem da âncora.
+  - Uma pergunta nova ancora no período novo.
+  - Nenhuma decisão gravada.
+- Sem overflow (inclusive a 390 px) e sem erros de console.
+- Incidente: o cache de desenvolvimento do Turbopack (`.next/dev/cache/turbopack`) estava corrompido e o servidor saía com código 1 antes de responder. O cache foi apagado e o servidor reiniciado com o ambiente local. Nada chegou ao Pilot.
+
+**Validação.**
+- type-check e lint limpos.
+- 482 testes no CI (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 341 · release-candidate 5) + 7 locais.
+- Build limpo, 20 entradas de rota (inalteradas).
+- `supabase/` intocado. Varredura de segredos e PII limpa. Nenhuma chamada à Anthropic.
+
+**Limitações.**
+- Não há idempotência no servidor (paridade com todos os fluxos de decisão, D-096): o duplo envio acidental é bloqueado no cliente e no cartão. Deduplicar no servidor exigiria contrato persistido.
+- A origem "Executive Chat" é uma reivindicação do próprio ator autenticado (fronteira de D-096).
+- Decisões manuais sem diagnóstico e sem cenário continuam sem vínculo com execução.
+- A mensagem de recusa não diz qual período novo chegou.
+
+**Origem.** Mission 210 — Governed Chat-to-Decision Lineage.

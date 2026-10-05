@@ -54,6 +54,23 @@ import type { ScenarioAssumption, ScenarioMetricComparison } from "@/efos/applic
  * `FinancialModel` realmente usado nunca foi silenciosamente trocado
  * por um reprocessamento posterior do mesmo período.
  */
+/**
+ * Mission 210 — Governed Chat-to-Decision Lineage (D-135). Quem PROPÔS o
+ * cenário que a pessoa confirmou. Ausente = a própria pessoa montou o
+ * cenário no Scenario Lab. `"executive-chat"` = o cenário veio de uma ação
+ * governada do Executive Chat e foi simulado e registrado por uma pessoa —
+ * a decisão continua sendo da empresa, nunca "da IA". Vocabulário fechado:
+ * qualquer outro valor é rejeitado na escrita; na leitura, um contexto com
+ * valor desconhecido não é reconhecido (falha fechada, nunca uma origem
+ * inventada).
+ */
+export const SCENARIO_DECISION_PROPOSERS = ["executive-chat"] as const;
+export type ScenarioDecisionProposer = (typeof SCENARIO_DECISION_PROPOSERS)[number];
+
+export function isScenarioDecisionProposer(value: unknown): value is ScenarioDecisionProposer {
+  return typeof value === "string" && (SCENARIO_DECISION_PROPOSERS as readonly string[]).includes(value);
+}
+
 export interface ScenarioDecisionAlternative {
   readonly scenarioType: ScenarioType;
   readonly assumption: ScenarioAssumption;
@@ -75,6 +92,8 @@ export interface ScenarioDecisionContext {
    * Decision, nunca um "vencedor"/"perdedor".
    */
   readonly alternative?: ScenarioDecisionAlternative;
+  /** Mission 210 (D-135) — ver `SCENARIO_DECISION_PROPOSERS`. Gravado só pelo servidor, a partir de um valor do vocabulário fechado. */
+  readonly proposedBy?: ScenarioDecisionProposer;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -96,7 +115,8 @@ export function isScenarioDecisionContext(value: unknown): value is ScenarioDeci
     isPlainObject(value.assumption) &&
     isPlainObject(value.period) &&
     Array.isArray(value.comparison) &&
-    typeof value.baselineFingerprint === "string"
+    typeof value.baselineFingerprint === "string" &&
+    (value.proposedBy === undefined || isScenarioDecisionProposer(value.proposedBy))
   );
 }
 

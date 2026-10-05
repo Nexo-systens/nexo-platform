@@ -105,7 +105,11 @@ export interface CreateHumanDecisionInput {
   readonly reasonings?: readonly string[];
   readonly contexts?: readonly string[];
   readonly evidences?: readonly string[];
-  readonly supportingData?: Readonly<Record<string, unknown>>;
+  // Mission 210 (D-135): sem `supportingData`. É ali que vive a linhagem
+  // gravada só pelo servidor (`scenarioContext`, com a origem
+  // `proposedBy`); aceitar o campo do cliente permitia gravar um cenário,
+  // uma impressão de baseline ou uma origem fabricados, que entrariam no
+  // relatório e no Esperado × Observado. Nenhuma tela o enviava.
 }
 
 export type CreateHumanDecisionResult =
@@ -189,7 +193,6 @@ export async function createHumanDecisionAction(
     reasonings: input.reasonings,
     contexts: input.contexts,
     evidences: input.evidences,
-    supportingData: input.supportingData,
   };
 
   const result = createHumanDecision(command, randomUUID(), new Date().toISOString());

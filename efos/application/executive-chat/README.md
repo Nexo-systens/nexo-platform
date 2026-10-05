@@ -120,6 +120,16 @@ teste mesmo sob prompt injection. Uma comparação nunca declara um vencedor —
 estruturalmente herdado de `ExecutiveScenarioComparison` (nenhum campo de
 pontuação existe), reforçado pela constraint `DO_NOT_DECLARE_COMPARISON_WINNER`.
 
+**Mission 210 (D-135) — da proposta à decisão.** A resposta do Chat passa a
+ter uma âncora financeira (`ScenarioBaselineIdentity`, devolvida por
+`askExecutiveChatQuestionAction()` FORA do `ExecutiveChatAnswer`), e os cartões a
+reenviam como reivindicação: simulação, comparação e decisão recusam quando a
+verdade financeira mudou desde a resposta (isto revisa o "nunca uma identidade de
+baseline herdada" acima). Depois de simular, a pessoa pode "Levar para decisão"
+pelo `ScenarioDecisionForm` do Scenario Lab, com `proposedBy: "executive-chat"`.
+Este módulo continua sem criar nada: nenhum tipo de ação novo, nenhum campo novo
+para o modelo.
+
 ## O que este módulo NÃO faz
 
 - Não persiste nenhuma conversa/mensagem, nem propostas de ação (Seção 39/61,

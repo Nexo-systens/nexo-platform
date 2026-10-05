@@ -6,22 +6,25 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseExecutionRepository } from "@/efos/infrastructure/repositories";
 import { SupabasePersistenceClient } from "@/efos/infrastructure/providers";
 import { DefaultHistoricalExecutionService } from "@/efos/application/history";
-import type { FinancialModelAggregate, Period } from "@/efos/domain";
 import {
   buildExecutiveScenarioComparison,
   type ExecutiveScenarioComparison,
   type ScenarioProjection,
 } from "@/efos/application/scenario-simulation";
 import {
-  derivePeriodFromIndicators,
-  hasCompleteFinancialTruth,
-  resolveCurrentFinancialExecution,
-} from "@/modules/decisions/lib/selectCurrentFinancialExecution";
+  resolveScenarioBaselineFromHistory,
+  type ScenarioBaselineResolution,
+} from "@/modules/scenarios/lib/resolveScenarioBaselineFromHistory";
 import { runSingleScenario, type ScenarioRequest, type SingleScenarioOutcome } from "@/modules/scenarios/lib/runSingleScenario";
-import { computeScenarioBaselineIdentity, type ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
+import {
+  PROPOSAL_BASELINE_CHANGED_MESSAGE,
+  baselineClaimMatches,
+  type ScenarioBaselineIdentity,
+} from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
 export type { ScenarioRequest } from "@/modules/scenarios/lib/runSingleScenario";
 export type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
+export type { ScenarioBaselineResolution } from "@/modules/scenarios/lib/resolveScenarioBaselineFromHistory";
 
 /**
  * Mission 180 — Scenario Intelligence Foundation & First Real
@@ -76,7 +79,18 @@ export type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioB
  * precisasse mudar.
  */
 
-export type SimulateScenarioInput = ScenarioRequest & { readonly companyId: string };
+/**
+ * Mission 210 (D-135) — `expectedBaselineIdentity?`: a âncora financeira da
+ * resposta do Executive Chat que propôs este cenário (uma reivindicação,
+ * nunca autoridade). Quando presente e diferente da verdade financeira
+ * atual, a simulação é recusada (`stage: "stale-baseline"`) — nunca roda
+ * em silêncio sobre uma análise que a proposta não conheceu. O Scenario
+ * Lab não envia este campo; seu comportamento não muda.
+ */
+export type SimulateScenarioInput = ScenarioRequest & {
+  readonly companyId: string;
+  readonly expectedBaselineIdentity?: ScenarioBaselineIdentity;
+};
 
 export type SimulateScenarioActionResult =
   | {
@@ -95,11 +109,13 @@ export type SimulateScenarioActionResult =
   | {
       readonly success: false;
       readonly error: string;
-      readonly stage: "auth" | "access" | "financial-truth" | "assumption";
+      readonly stage: "auth" | "access" | "financial-truth" | "stale-baseline" | "assumption";
     };
 
 export type CompareScenariosInput = {
   readonly companyId: string;
+  /** Mission 210 (D-135) — mesma âncora opcional de `SimulateScenarioInput`. */
+  readonly expectedBaselineIdentity?: ScenarioBaselineIdentity;
   /** Exatamente 2 (Seção 12 — a missão prova baseline+A+B; N permanece possível na Application Layer sem complexidade adicional, mas o produto/testes ficam focados em 2). */
   readonly scenarios: readonly [ScenarioRequest, ScenarioRequest];
 };
@@ -114,18 +130,8 @@ export type CompareScenariosActionResult =
   | {
       readonly success: false;
       readonly error: string;
-      readonly stage: "auth" | "access" | "financial-truth" | "assumption";
+      readonly stage: "auth" | "access" | "financial-truth" | "stale-baseline" | "assumption";
     };
-
-export type ScenarioBaselineResolution =
-  | {
-      readonly outcome: "ready";
-      readonly financialModel: FinancialModelAggregate;
-      readonly period: Period;
-      /** Mission 184 Closure — computada uma única vez junto da resolução, nunca uma segunda leitura do `FinancialModel`. */
-      readonly identity: ScenarioBaselineIdentity;
-    }
-  | { readonly outcome: "rejected"; readonly error: string };
 
 /**
  * Passos 1-3 do cabeçalho acima, extraídos por serem genuinamente
@@ -146,58 +152,9 @@ export async function resolveScenarioBaseline(companyId: string): Promise<Scenar
   const historicalExecutionService = new DefaultHistoricalExecutionService(executionRepository);
 
   const history = await historicalExecutionService.getHistory(companyId);
-  const resolution = resolveCurrentFinancialExecution(companyId, history);
-
-  if (resolution.outcome === "no-history") {
-    return {
-      outcome: "rejected",
-      error: "Nenhuma análise executada ainda para esta empresa — execute a análise antes de simular um cenário.",
-    };
-  }
-
-  if (resolution.outcome === "ambiguous") {
-    const detail =
-      resolution.reason === "malformed"
-        ? "uma execução do período financeiro mais recente está incompleta"
-        : resolution.reason === "unpositionable"
-          ? "existe uma execução real desta empresa cujo período financeiro não pôde ser determinado"
-          : "existem execuções conflitantes para o período financeiro mais recente, sem uma verdade financeira única defensável";
-    return {
-      outcome: "rejected",
-      error: `Não é possível estabelecer a verdade financeira atual desta empresa (${detail}) — a simulação não pode partir de um baseline ambíguo.`,
-    };
-  }
-
-  const currentHistoricalExecution = resolution.execution;
-  const execution = currentHistoricalExecution.snapshot.execution;
-  if (!hasCompleteFinancialTruth(execution)) {
-    return {
-      outcome: "rejected",
-      error: "A execução mais recente está incompleta — não é possível simular a partir dela.",
-    };
-  }
-
-  const period = derivePeriodFromIndicators(execution.indicators);
-  if (!period) {
-    return {
-      outcome: "rejected",
-      error: "A execução mais recente não possui indicadores — não é possível derivar o período de referência.",
-    };
-  }
-
-  if (!execution.financialModel) {
-    return {
-      outcome: "rejected",
-      error: "A execução mais recente não possui o Modelo Financeiro completo — não é possível simular a partir dela.",
-    };
-  }
-
-  return {
-    outcome: "ready",
-    financialModel: execution.financialModel,
-    period,
-    identity: computeScenarioBaselineIdentity(execution.financialModel, period),
-  };
+  // Mission 210 — a parte pura vive em `resolveScenarioBaselineFromHistory()`,
+  // reaproveitada pela âncora de cada resposta do Executive Chat.
+  return resolveScenarioBaselineFromHistory(companyId, history);
 }
 
 export async function simulateScenarioAction(
@@ -216,6 +173,10 @@ export async function simulateScenarioAction(
   const baseline = await resolveScenarioBaseline(input.companyId);
   if (baseline.outcome === "rejected") {
     return { success: false, stage: "financial-truth", error: baseline.error };
+  }
+
+  if (input.expectedBaselineIdentity !== undefined && !baselineClaimMatches(input.expectedBaselineIdentity, baseline.identity)) {
+    return { success: false, stage: "stale-baseline", error: PROPOSAL_BASELINE_CHANGED_MESSAGE };
   }
 
   const outcome = runSingleScenario(input.companyId, baseline.financialModel, baseline.period, input);
@@ -252,6 +213,10 @@ export async function compareScenariosAction(
   const baseline = await resolveScenarioBaseline(input.companyId);
   if (baseline.outcome === "rejected") {
     return { success: false, stage: "financial-truth", error: baseline.error };
+  }
+
+  if (input.expectedBaselineIdentity !== undefined && !baselineClaimMatches(input.expectedBaselineIdentity, baseline.identity)) {
+    return { success: false, stage: "stale-baseline", error: PROPOSAL_BASELINE_CHANGED_MESSAGE };
   }
 
   const outcomes = input.scenarios.map((request) =>

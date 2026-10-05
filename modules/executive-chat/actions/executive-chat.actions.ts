@@ -21,6 +21,8 @@ import {
   resolveCurrentFinancialExecution,
 } from "@/modules/decisions/lib/selectCurrentFinancialExecution";
 import { sanitizePriorMessages, validateChatQuestion } from "@/modules/executive-chat/lib/sanitizeChatInput";
+import { resolveScenarioBaselineFromHistory } from "@/modules/scenarios/lib/resolveScenarioBaselineFromHistory";
+import type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
 /**
  * Mission 188 — Executive Chat over Canonical EFOS Intelligence.
@@ -52,6 +54,15 @@ import { sanitizePriorMessages, validateChatQuestion } from "@/modules/executive
  * invoca o Scenario Engine (`runSingleScenario()` nunca importado);
  * persiste a conversa (Seção 39/D-103 — `ExecutiveChatAnswer` é
  * devolvido ao client e nunca gravado).
+ *
+ * **Âncora financeira (Mission 210, D-135)**: cada resposta devolve, fora
+ * do `ExecutiveChatAnswer` (que é saída do modelo), a identidade da verdade
+ * financeira em que se baseou — `ScenarioBaselineIdentity`, a mesma
+ * identidade da ponte Cenário → Decisão, calculada aqui pela mesma função
+ * (`resolveScenarioBaselineFromHistory()`) sobre o mesmo histórico. As
+ * ações propostas a carregam de volta como reivindicação: simulação e
+ * decisão recusam se a verdade financeira tiver mudado desde a resposta.
+ * Nada é persistido; nenhum id novo.
  */
 
 export interface AskExecutiveChatQuestionInput {
@@ -61,7 +72,12 @@ export interface AskExecutiveChatQuestionInput {
 }
 
 export type AskExecutiveChatQuestionResult =
-  | { readonly success: true; readonly answer: ExecutiveChatAnswer }
+  | {
+      readonly success: true;
+      readonly answer: ExecutiveChatAnswer;
+      /** Mission 210 (D-135) — ausente quando a análise usada não tem Modelo Financeiro (nenhum cenário pode partir dela). */
+      readonly baselineIdentity?: ScenarioBaselineIdentity;
+    }
   | {
       readonly success: false;
       readonly stage: "auth" | "access" | "input" | "financial-truth" | "provider";
@@ -186,5 +202,10 @@ export async function askExecutiveChatQuestionAction(
     return { success: false, stage: "provider", error: result.error.message };
   }
 
-  return { success: true, answer: result.value };
+  const anchor = resolveScenarioBaselineFromHistory(input.companyId, history);
+  return {
+    success: true,
+    answer: result.value,
+    baselineIdentity: anchor.outcome === "ready" ? anchor.identity : undefined,
+  };
 }
