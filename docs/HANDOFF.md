@@ -50,7 +50,9 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 211 — Outcome Temporal Integrity (2026-10-05).** Ver `docs/DECISIONS.md` (D-136, revisa a janela de D-071), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_211_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 506 testes no CI (production-surface 365, com 24 em `mission-211-outcome-temporal-integrity.test.ts`) + 10 locais (3 novos em `tests/reports-local/outcome-temporal-boundary.local.test.ts`). Nenhuma migration.
+**Mission 212 — Pilot Historical Outcome Integrity Audit (2026-10-06).** Ver `docs/ENGINEERING_LOG.md`. **Status: `MISSION_212_CLOSED`.** Auditoria SOMENTE LEITURA do NEXO Pilot (`ca-central-1`, reativado pelo usuário): consultas em `begin transaction read only … rollback` pela API de gestão; migrations 18/18 por SELECT. Resultado: 2 empresas, 7 execuções, 0 decisões, 0 observações financeiras, 0 resultados, 0 aprendizados, 0 knowledge — nenhum dado historicamente inválido, nenhum impacto. Reprodução local provou que a porta de leitura atual esconde observações antigas inválidas. Nenhuma mudança de código; nenhuma migration.
+
+**Anterior — Mission 211 — Outcome Temporal Integrity (2026-10-05).** Ver `docs/DECISIONS.md` (D-136, revisa a janela de D-071), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_211_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 506 testes no CI (production-surface 365, com 24 em `mission-211-outcome-temporal-integrity.test.ts`) + 10 locais (3 novos em `tests/reports-local/outcome-temporal-boundary.local.test.ts`). Nenhuma migration.
 
 - **Defeito:** a observação financeira escolhia base e observação por instante de processamento; reanálise do mesmo mês ou mês anterior processado tarde viravam "resultado".
 - **Correção:** base por linhagem, observação = verdade atual canônica, período estritamente posterior (D-090), porta única de leitura que só entrega resultados válidos com período.
@@ -458,13 +460,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 211):**
-1. Conferir no Pilot, só leitura, se existem observações financeiras antigas que a nova regra deixa de mostrar (e learning records derivados delas) — nenhuma escrita.
+**Próximo passo (após a Mission 212):**
+1. ~~Conferir no Pilot, só leitura, observações antigas~~ — feito na Mission 212: nenhuma existe (o Pilot ainda não tem decisões). Repetir a mesma auditoria somente leitura quando houver decisões reais.
 2. Se o produto precisar de garantia contra reenvio no servidor (hoje só no cliente, em todos os fluxos de decisão): decidir o contrato persistido de idempotência — exige migration e STOP prévio.
 3. Decisões manuais sem base financeira: decidir se devem poder ser vinculadas explicitamente a uma análise (contrato novo) para ter resultado financeiro.
 4. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
 
-Nenhuma Mission 212 foi iniciada.
+Nenhuma Mission 213 foi iniciada.
 
 Histórico (Mission 210): **Próximo passo (após a Mission 210):** (1) observação financeira com período posterior — feito na Mission 211; (2) conferir no Pilot; (3) idempotência; (4) itens após a Mission 207.
 
@@ -642,6 +644,9 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Pendências
 
+- **Mission 212:**
+  - o Pilot ainda não tem decisões/observações — a integridade histórica foi provada por ausência e por reprodução local; repetir a auditoria quando houver dados reais;
+  - o Pilot volta a pausar por inatividade (plano gratuito): auditorias e validações remotas dependem de reativação manual.
 - **Mission 211:**
   - learning records/Knowledge derivados, antes desta missão, de uma observação temporalmente inválida são imutáveis e não foram reescritos;
   - decisões manuais sem diagnóstico e sem cenário não têm resultado financeiro (só o resultado humano);

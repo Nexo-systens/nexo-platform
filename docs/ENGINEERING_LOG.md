@@ -10679,3 +10679,51 @@ Reproduzido ao vivo (Supabase local, dados sintéticos), depois de reanalisar ag
 - A leitura usa a base gravada na observação. Uma observação antiga cuja base gravada divergia da linhagem da decisão é julgada pela base gravada.
 
 **Origem.** Mission 211 — Outcome Temporal Integrity.
+
+
+---
+
+## Mission 212 — Pilot Historical Outcome Integrity Audit
+
+**Status.** Fechada (`MISSION_212_CLOSED`). Auditoria SOMENTE LEITURA do NEXO Pilot (`ca-central-1`). Não houve correção, migration, RLS, chamada à Anthropic nem dado sintético no Pilot. Nenhuma decisão arquitetural nova.
+
+**Escopo e acesso.**
+- **Projeto:** o Pilot estava pausado (`INACTIVE`) e a missão parou no baseline. O usuário reativou o projeto e autorizou leitura com acesso elevado.
+- **Identidade confirmada:** projeto vinculado = NEXO Pillot, `ca-central-1`, `ACTIVE_HEALTHY`. O projeto histórico `sa-east-1` não foi tocado.
+- **Caminho de leitura:** `npx supabase db query --linked`, pela API de gestão. Cada consulta rodou dentro de `begin transaction read only … rollback`, e a própria transação confirmou `transaction_read_only = on`.
+- **Papel do CLI:** ignora a RLS (`rolbypassrls`), então as contagens são completas. O CLI inicializa um papel temporário de login gerenciado pela plataforma para a conexão; nenhuma tabela da aplicação foi escrita. `migration list --linked` não foi usado para dados.
+- **Paridade de migrations:** conferida por SELECT em `supabase_migrations.schema_migrations`: 18 de 18, sem diferença nos dois sentidos.
+
+**Resultado (anonimizado).**
+- **O que o Pilot tem:** 2 empresas (0 encerradas) e 7 execuções, todas com relatório persistido.
+- **O que não tem:** 0 diagnósticos, 0 decisões, 0 eventos de execução, 0 resultados humanos, 0 observações financeiras, 0 learning records, 0 knowledge e 0 avaliações de knowledge.
+- **Relatórios persistidos que citam observação:** 0. O `ExecutiveReport` persistido não contém observações; elas entram só na leitura derivada (D-133).
+
+| Classificação (D-136, funções da Mission 211) | Pilot |
+|---|---|
+| VALID_POSTERIOR | 0 |
+| SAME_PERIOD | 0 |
+| PREVIOUS_PERIOD | 0 |
+| OVERLAPPING | 0 |
+| MISSING_BASE | 0 |
+| BASE_MISMATCH | 0 |
+| UNRESOLVABLE | 0 |
+| CROSS_COMPANY_INVALID | 0 |
+
+**Impacto: nenhum.** Não há observação inválida armazenada, nem em uso por Esperado × Observado, Outcome, Learning, Knowledge ou relatório.
+
+**Reprodução local (dados sintéticos, Supabase local).** Duas observações "antigas" inválidas foram gravadas direto no banco local para a decisão sintética da Mission 211: uma de mesmo período e uma com base divergente e período anterior.
+- **Classificador** (mesma rotina usada no Pilot): 3 observações válidas; 1 `SAME_PERIOD`; 1 `BASE_MISMATCH` + `SAME_PERIOD` (pela linhagem) + `PREVIOUS_PERIOD` (pela base gravada). Nenhum learning contaminado.
+- **Central de Decisões:** mostrou só a válida (1 de 3 no banco). O Esperado × Observado formal continuou ancorado em setembro, embora as inválidas fossem mais recentes.
+- **Relatórios:** o da reanálise de agosto não ganhou "Resultados observados"; o de setembro mostra só o resultado válido.
+- **Defeito de ferramenta (não do produto):** a impressão do Financial Model depende da ordem das chaves, e o CLI reordena objetos ao serializar JSON. A rotina passou a ler o modelo como texto (`::text`), na ordem do jsonb, como o app lê.
+
+**Testes.** Nenhum teste novo: a auditoria não encontrou padrão fora da cobertura da Mission 211 (porta de leitura, mesmo período, período anterior, base divergente).
+
+**Validação.** type-check e lint limpos; 506 testes no CI; build limpo; varredura de segredos e PII limpa; nenhum dado real versionado.
+
+**Limitações.**
+- O Pilot ainda não tem decisões. A integridade foi provada por ausência e pela reprodução local; quando houver decisões reais, a mesma auditoria pode ser repetida.
+- A leitura atual julga observações antigas pela base gravada nelas (limitação da Mission 211): uma observação antiga com base gravada anterior à linhagem da decisão seria mostrada. Não existe nenhuma no Pilot.
+
+**Origem.** Mission 212 — Pilot Historical Outcome Integrity Audit.
