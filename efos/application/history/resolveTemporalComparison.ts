@@ -38,8 +38,21 @@ export function executionPeriodOf(execution: HistoricalExecution): Period | unde
   return indicators ? periodOf(indicators) : undefined;
 }
 
-function endsBefore(candidate: Period, current: Period): boolean {
-  return new Date(candidate.endDate).getTime() <= new Date(current.startDate).getTime();
+/**
+ * Precedência temporal canônica (D-090, reafirmada por D-134 e D-136): um
+ * período precede outro quando termina até o início do outro. É a mesma
+ * relação da Evidence temporal (`restrictToPeriodsStrictlyBeforeCurrent`) e
+ * do validador de `priorPeriods`: períodos iguais (reanálise) ou
+ * sobrepostos nunca se precedem. Períodos são instantes — um mês termina às
+ * 23:59:59 do último dia; uma posição de balanço é o instante do dia —, de
+ * modo que a posição de 31/08 não sucede o mês de agosto, mas sucede a de
+ * 30/08 e é sucedida pelo mês de setembro.
+ *
+ * Mission 211: exportada como a única regra de ordem entre períodos para
+ * "anterior" (comparação temporal) e "posterior" (resultado de uma decisão).
+ */
+export function periodPrecedes(earlier: Period, later: Period): boolean {
+  return new Date(earlier.endDate).getTime() <= new Date(later.startDate).getTime();
 }
 
 export type PreviousPeriodComparison =
@@ -77,7 +90,7 @@ export function resolvePreviousPeriodComparison(
   const candidates = history.filter((execution) => {
     if (execution.companyId !== current.companyId || execution.executionId === current.executionId) return false;
     const period = executionPeriodOf(execution);
-    return period === undefined || endsBefore(period, currentPeriod);
+    return period === undefined || periodPrecedes(period, currentPeriod);
   });
 
   const canonical = buildCanonicalPriorPeriods(current.companyId, candidates);
@@ -125,7 +138,7 @@ export interface PeriodPositionedExecution {
   readonly period?: Period;
 }
 
-function positioned(execution: HistoricalExecution): PeriodPositionedExecution {
+export function positionedExecutionOf(execution: HistoricalExecution): PeriodPositionedExecution {
   return {
     executionId: execution.executionId,
     companyId: execution.companyId,
@@ -140,7 +153,7 @@ function positioned(execution: HistoricalExecution): PeriodPositionedExecution {
  * anterior — só passa a existir uma mais recente.
  */
 export function resolvePeriodVersion(history: readonly HistoricalExecution[], current: HistoricalExecution): PeriodVersion {
-  return periodVersionAmong(history.map(positioned), positioned(current));
+  return periodVersionAmong(history.map(positionedExecutionOf), positionedExecutionOf(current));
 }
 
 /** `resolvePeriodVersion` sobre entradas posicionadas, na ordem canônica (`compareHistoricalExecutionOrder`). */
@@ -190,7 +203,7 @@ export function latestPeriodAmong(entries: readonly Pick<PeriodPositionedExecuti
  */
 export function selectLatestPeriodExecution(history: readonly HistoricalExecution[]): HistoricalExecution | undefined {
   const candidates = history.filter((execution) => execution.report !== undefined && executionPeriodOf(execution) !== undefined);
-  const latest = latestPeriodAmong(candidates.map(positioned));
+  const latest = latestPeriodAmong(candidates.map(positionedExecutionOf));
   if (!latest) return undefined;
   return candidates.filter((execution) => periodsEqual(executionPeriodOf(execution)!, latest)).at(-1);
 }

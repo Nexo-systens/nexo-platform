@@ -388,6 +388,7 @@ export function buildReportReading(inputs: ReportReadingInputs): ReportReading |
 
   const lineage = selectReportLineage({
     current,
+    history: scopedHistory,
     diagnoses: inputs.diagnoses,
     decisions: inputs.decisions,
     financialObservations: inputs.financialObservations,
@@ -400,7 +401,8 @@ export function buildReportReading(inputs: ReportReadingInputs): ReportReading |
   const linkedDecisionIds = new Set([...lineage.decisions.map((link) => link.decision.id), ...lineage.observedDecisions.map((decision) => decision.id)]);
   const executionEvents = inputs.executionEvents.filter((event) => event.companyId === companyId && linkedDecisionIds.has(event.decisionId));
   const outcomes = inputs.outcomes.filter((outcome) => outcome.companyId === companyId && linkedDecisionIds.has(outcome.decisionId));
-  const observations = inputs.financialObservations.filter((observation) => observation.companyId === companyId);
+  // Mission 211 (D-136): só observações válidas (posteriores à base), já com períodos — resolvidas pela linhagem.
+  const observations = lineage.financialObservations;
   const observationsOf = (decisionId: string) =>
     observations
       .filter((observation) => observation.decisionId === decisionId)

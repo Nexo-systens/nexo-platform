@@ -2202,6 +2202,70 @@ Vocabulário de desfecho (`DocumentGovernanceOutcome`, `app/api/efos/_shared/doc
 
 ---
 
+## D-136 — Resultado de uma decisão só existe em período ESTRITAMENTE POSTERIOR à base financeira da decisão; a base vem da linhagem (diagnóstico ou cenário), nunca de "a última análise"; uma única regra de ordem entre períodos para resultado, relatório e Esperado × Observado (revisa a janela de D-071; complementa D-097/D-098)
+
+**Problema.** A janela de D-071 escolhia a base e a observação por instante de processamento: a base era "a execução mais recente com `executedAt <= decision.createdAt`" e a observação "a execução mais recente com `executedAt >= completedAt`". Não havia nenhuma checagem de período, o que gerava três falhas:
+- **Reanálise do mesmo mês.** "Agosto → decisão → reanálise de agosto" virava "resultado". Reproduzido na revisão local antes da correção.
+- **Mês anterior processado tarde.** "Agosto → decisão → julho processado depois" virava "resultado".
+- **Base errada.** Uma decisão que respondia à leitura de agosto, registrada depois que setembro já existia, ganhava setembro como base.
+
+Decisões manuais sem vínculo recebiam "a última análise" como base, por conveniência. A linha gravada de `financial_observations` não guarda período, então relatório e Central de Decisões nunca mostravam o período do resultado. O Esperado × Observado (Mission 185) tinha uma regra própria (`periodIsAfter`, comparando só o início) que aceitava um período sobreposto como posterior.
+
+**Decisão.**
+1. **Uma regra de ordem.** `periodPrecedes(earlier, later)` (`efos/application/history/resolveTemporalComparison.ts`): um período precede outro quando termina até o início do outro. É a relação de D-090, já usada pela Evidence temporal, pelo validador de `priorPeriods`, pelos episódios e por D-134; agora é exportada e reutilizada.
+   - Períodos são instantes: um mês termina às 23:59:59 do último dia; uma posição de balanço é o instante do dia.
+   - Logo, a posição de 31/08 está dentro de agosto, setembro sucede a posição de 31/08, e 01–31/08 × 15/08–15/09 se sobrepõem. Nenhuma semântica nova, por isso não houve STOP para sobreposição nem para posição de um dia.
+2. **Resultado posterior.** `classifyObservationTiming(base, observado)` (`efos/application/financial-observation/observationTiming.ts`) devolve `posterior` | `same-period` | `not-after-base` | `undetermined`.
+   - Só `posterior` é resultado. Lacuna de períodos é aceita (agosto → outubro sem setembro).
+   - O Esperado × Observado passa a usar a mesma função; `periodIsAfter` foi removida.
+3. **Base por linhagem** (`resolveDecisionFinancialBase()`, `modules/decisions/lib/`):
+   - **cenário** (Scenario Lab ou Executive Chat): a execução com o mesmo período e a mesma impressão do Financial Model que existia quando a decisão foi registrada — a mesma regra da linhagem do relatório (`scenarioContextMatchesExecution`);
+   - **recomendação**: a execução do diagnóstico citado;
+   - **manual sem diagnóstico e sem cenário**: nenhuma base, então nenhuma observação financeira (`NO_FINANCIAL_BASE`); o resultado humano (`Outcome`) continua.
+   - Base declarada e não localizável na mesma empresa: `unavailable`, que falha fechado.
+4. **Observação = verdade financeira atual canônica** (`resolveCurrentFinancialExecution()`, Mission 176), falha fechada com versões divergentes, nunca "a última execução gravada".
+   - O construtor recusa mesmo período, período anterior ou sobreposto (`NOT_AFTER_DECISION_BASE`).
+   - Mantém de D-071 a execução `COMPLETED` e a verdade observada processada depois da conclusão. É uma pré-condição de frescor, não a regra de ordem.
+   - O validador do contrato também exige período observado estritamente posterior.
+5. **Porta única de leitura.** `getFinancialObservationsByDecision()` é a única leitora de `financial_observations`.
+   - Ela posiciona as duas execuções citadas por id, na mesma empresa e sob RLS, e devolve só observações posteriores, com os períodos preenchidos (`keepPosteriorObservations`).
+   - A linhagem do relatório aplica a mesma função sobre o histórico.
+   - Registros imutáveis anteriores que não passem continuam no banco, mas nunca chegam como resultado à Central de Decisões, ao Esperado × Observado, à reconciliação (Mission 155), ao aprendizado/Knowledge ou ao relatório.
+6. **Apresentação.**
+   - A Central de Decisões mostra "Base da decisão: agosto de 2026 → Resultado observado — setembro de 2026"; o Esperado × Observado mostra "Resultado observado — {período} · base da decisão: {período}".
+   - Decisão manual mostra que não tem base financeira explícita, sem botão de cálculo.
+   - O relatório mostra os períodos do resultado.
+
+**Fora do escopo, deliberadamente.**
+- **Learning records e Knowledge já derivados** de uma observação inválida, antes desta missão, são imutáveis e não foram reescritos (nenhum no banco local).
+- **Decisões manuais** continuam sem resultado financeiro; ganhar uma base exigiria vínculo explícito a uma análise, o que é contrato novo.
+- **A regra de "qual é o período mais recente"** (`resolveCurrentFinancialExecution`, Mission 176) não mudou.
+- **Inalterados:** Outcome, Knowledge semantics, migrations, RLS e Executive AI.
+
+**Justificativa.** A pergunta "este número é resultado da decisão?" precisa da mesma noção de "depois" que o EFOS já usa para "antes" (D-090/D-134). Não basta "processado depois". A base precisa ser a verdade em que a decisão foi tomada, e a linhagem já a registrava (diagnóstico, cenário). Filtrar na única porta de leitura mantém a integridade antes de qualquer renderer, sem migration.
+
+**Impacto.**
+- **Criados:**
+  - `efos/application/financial-observation/observationTiming.ts`;
+  - `modules/decisions/lib/resolveDecisionFinancialBase.ts`;
+  - `tests/production-surface/mission-211-outcome-temporal-integrity.test.ts`;
+  - `tests/reports-local/outcome-temporal-boundary.local.test.ts`.
+- **Alterados:**
+  - autoridade temporal (`periodPrecedes`, `positionedExecutionOf`);
+  - construtor e validador da observação;
+  - ação de cálculo da observação;
+  - serviço de leitura;
+  - Esperado × Observado;
+  - linhagem e leitura do relatório;
+  - `scenarioBaselineIdentity.ts` (`scenarioContextMatchesExecution`);
+  - cartão da Central de Decisões;
+  - fixtures temporais (12 meses);
+  - testes das Missions 208/210 (nova assinatura do construtor e histórico na linhagem).
+
+**Origem.** Mission 211 — Outcome Temporal Integrity.
+
+---
+
 ## Próximas decisões
 
 Estrutura preparada para D-006 em diante. Toda nova decisão arquitetural permanente segue o mesmo formato: `## D-XXX — Título`, depois `**Descrição.**`, `**Justificativa.**`, `**Impacto.**`, `**Origem.**` (missão que originou a decisão). Nunca remover ou reescrever uma decisão existente — apenas adicionar uma nova entrada, mesmo que ela substitua o entendimento anterior (nesse caso, a nova entrada deve referenciar explicitamente a decisão que está revisando).

@@ -10596,3 +10596,86 @@ Reproduzido ao vivo (Supabase local, dados sintéticos), depois de reanalisar ag
 - A mensagem de recusa não diz qual período novo chegou.
 
 **Origem.** Mission 210 — Governed Chat-to-Decision Lineage.
+
+
+---
+
+## Mission 211 — Outcome Temporal Integrity
+
+**Status.** Fechada (`MISSION_211_CLOSED`). Decisão nova: **D-136**, que revisa a janela de D-071 e complementa D-097/D-098. Não houve migration, RLS, Executive AI nem mudança de semântica de Outcome ou Knowledge.
+
+**Checagem de premissas.**
+- **Janela antiga (D-071).** Base e observação eram escolhidas por instante de processamento: base = última executada antes da decisão; observação = última executada depois da conclusão. Não havia checagem de período.
+- **Base por origem.**
+  - recomendação: existia, pelo diagnóstico, que aponta a execução;
+  - cenário e Chat: existia, em `scenarioContext`;
+  - manual: não existia, e recebia "a última análise".
+- **Período não gravado.** A linha de `financial_observations` não guarda período; relatório e Central de Decisões nunca o mostravam a partir do banco.
+- **Regra divergente.** O Esperado × Observado tinha `periodIsAfter` (só o início), que aceitava um período sobreposto.
+- **A ordem já estava definida.** D-090 define precedência por `fim ≤ início`, com períodos como instantes (meses às 23:59:59, posições às 00:00). Sobreposição e posição de um dia já tinham semântica: não houve STOP.
+
+| Origem | Base disponível? | Período observado | Aceito antes? |
+|---|---|---|---|
+| Recomendação | sim (diagnóstico → execução) | última executada após a conclusão | qualquer um, inclusive o mesmo ou anterior |
+| Cenário | sim (`scenarioContext`) | idem | observação: qualquer; E×O: regra do início |
+| Chat | sim (= cenário) | idem | idem |
+| Manual | não | idem | sim, com base "última análise" |
+
+**Entrega.**
+- **Regra única.** `periodPrecedes` (autoridade temporal) e `classifyObservationTiming` (posterior / mesmo período / não posterior / indeterminado). O Esperado × Observado passa a usá-la e `periodIsAfter` foi removida.
+- **Base por linhagem** (`resolveDecisionFinancialBase`):
+  - cenário e Chat: a execução com o mesmo período e a mesma impressão que existia na decisão (`scenarioContextMatchesExecution`, compartilhada com o relatório);
+  - recomendação: a execução do diagnóstico;
+  - manual: sem base.
+- **Escrita.** A observação é a verdade atual canônica (`resolveCurrentFinancialExecution`).
+  - O construtor recusa mesmo período, período anterior ou sobreposto (`NOT_AFTER_DECISION_BASE`) e decisão sem base (`NO_FINANCIAL_BASE`).
+  - O validador exige período posterior.
+  - O frescor de D-071 (verdade processada depois da conclusão) foi mantido.
+- **Leitura.** `getFinancialObservationsByDecision`, a única leitora da tabela, devolve só observações posteriores, com períodos (`keepPosteriorObservations`). A linhagem do relatório aplica a mesma função.
+- **Interface.**
+  - **Central de Decisões:** "Base da decisão: agosto de 2026 → Resultado observado — setembro de 2026"; o Esperado × Observado diz "Resultado observado — {período} · base da decisão: {período}"; decisão manual mostra que não tem base, sem botão.
+  - **Relatório:** passa a mostrar os períodos do resultado.
+
+**Testes.**
+- **`mission-211-outcome-temporal-integrity.test.ts` (24).**
+  - Matriz A–L, mais as bordas de posição e mês.
+  - Sobreposição.
+  - Validador.
+  - Porta de leitura: anterior, mesmo período e execução desconhecida são descartados; posterior é mantido, com períodos.
+  - Relatório: só o posterior entra, com o período observado.
+  - Esperado × Observado: sobreposto e posição de 31/08 aguardam; setembro compara.
+  - Knowledge pela cadeia canônica.
+  - Ação: só empresa e decisão vêm do cliente; ordem das checagens.
+  - Empresa encerrada.
+  - Leitora única.
+  - Construtor sem seleção por instante.
+  - Nenhuma regra própria de ordem entre períodos fora da autoridade.
+- **`tests/reports-local/outcome-temporal-boundary.local.test.ts` (3, Supabase local).**
+  - Sem setembro nada é observado; com setembro, a observação é gravada sob RLS e relida como resultado.
+  - B não lê nem grava na decisão de A; A não cita execução de B.
+  - Empresa encerrada não recebe observação.
+- **Testes ajustados:** os das Missions 208/210 passaram para a nova assinatura do construtor e para o histórico na linhagem. As fixtures temporais passaram a cobrir 12 meses.
+
+**Revisão sintética (Supabase local; seed e `.env.development.local` temporários, apagados ao fim).** Na ÔMEGA:
+- agosto analisado → Chat → decisão sobre agosto → execução concluída;
+- reanálise idêntica de agosto → "Calcular observação financeira" recusado ("…mesmo período em que a decisão foi tomada — uma reanálise não é resultado posterior");
+- setembro analisado → observação gravada: agosto → setembro, a única no banco;
+- Esperado × Observado ao vivo e formal mostram "Resultado observado — setembro de 2026 · base da decisão: agosto de 2026";
+- resultado "Positivo" e aprendizado registrado ("Evidência favorável", confiança alta);
+- relatório de setembro: "Resultados observados neste período — ago/2026 → set/2026";
+- relatório de agosto: a decisão, o resultado e o Esperado × Observado "Observado (set/2026)".
+- Knowledge não se formou localmente, porque exige recorrência entre decisões; a cadeia está provada em teste.
+- Sem overflow e sem erros de console.
+
+**Validação.**
+- type-check e lint limpos.
+- 506 testes no CI (financial-ingestion 65 · executive-report 30 · activation 41 · production-surface 365 · release-candidate 5) + 10 locais.
+- Build limpo, 20 entradas de rota (inalteradas).
+- `supabase/` intocado. Varredura de segredos e PII limpa. Nenhuma chamada à Anthropic.
+
+**Limitações.**
+- Learning records e Knowledge derivados antes desta missão a partir de uma observação inválida são imutáveis e não foram reescritos.
+- Decisões manuais seguem sem resultado financeiro.
+- A leitura usa a base gravada na observação. Uma observação antiga cuja base gravada divergia da linhagem da decisão é julgada pela base gravada.
+
+**Origem.** Mission 211 — Outcome Temporal Integrity.

@@ -154,6 +154,7 @@ describe("Mission 210 — decisão vinda do Chat respeita a fronteira de empresa
 
     const lineage = selectReportLineage({
       current: history[history.length - 1],
+      history,
       diagnoses: [],
       decisions: persisted,
       financialObservations: [],

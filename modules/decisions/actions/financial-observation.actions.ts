@@ -21,6 +21,9 @@ import {
 } from "@/modules/decisions/services/decision-execution-persistence.service";
 import { getDecisionById } from "@/modules/decisions/services/decision-persistence.service";
 import { saveFinancialOutcomeObservation } from "@/modules/decisions/services/financial-observation-persistence.service";
+import { getExecutiveDiagnosisById } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
+import { resolveDecisionFinancialBase } from "@/modules/decisions/lib/resolveDecisionFinancialBase";
+import { resolveCurrentFinancialExecution } from "@/modules/decisions/lib/selectCurrentFinancialExecution";
 
 /**
  * Mission 139 — Outcome Measurement & Financial Feedback Correlation.
@@ -39,6 +42,14 @@ import { saveFinancialOutcomeObservation } from "@/modules/decisions/services/fi
  * inteiramente baseado em dados já persistidos (`Decision`,
  * `DecisionExecutionEvent`s, `ExecutionSnapshot`s reais), acionado por
  * um clique humano explícito, nunca automático.
+ *
+ * **Integridade temporal (Mission 211, D-136)**: o navegador só informa
+ * empresa e decisão — base e observação são resolvidas aqui. A base é a da
+ * LINHAGEM da decisão (`resolveDecisionFinancialBase()`: execução do
+ * diagnóstico citado ou do cenário confirmado; decisão manual não tem base);
+ * a observação é a verdade financeira atual canônica
+ * (`resolveCurrentFinancialExecution()`, falha fechada). O construtor recusa
+ * qualquer observação que não seja de período estritamente posterior à base.
  */
 
 export interface ComputeFinancialOutcomeObservationInput {
@@ -85,10 +96,23 @@ export async function computeFinancialOutcomeObservationAction(
   const historicalExecutionService = new DefaultHistoricalExecutionService(executionRepository);
   const history = await historicalExecutionService.getHistory(input.companyId);
 
+  const diagnosisId = decision.decision.basedOnDiagnosisId ?? decision.diagnosisId;
+  const diagnosis = diagnosisId ? await getExecutiveDiagnosisById(diagnosisId) : undefined;
+  const { base } = resolveDecisionFinancialBase({
+    decision: decision.decision,
+    decisionCreatedAt: decision.createdAt,
+    diagnosisId: decision.diagnosisId,
+    diagnosis: diagnosis ? { id: diagnosis.id, companyId: diagnosis.companyId, executionId: diagnosis.executionId } : undefined,
+    history,
+  });
+
+  const target = resolveCurrentFinancialExecution(input.companyId, history);
+
   const built = buildFinancialOutcomeObservation(
     { id: decision.id, companyId: decision.companyId, createdAt: decision.createdAt },
     executionState,
-    history,
+    base,
+    target,
     outcomes[0]?.id,
     user.id,
     randomUUID(),

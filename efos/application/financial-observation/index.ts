@@ -2,3 +2,4 @@
 export * from "./FinancialOutcomeObservation";
 export * from "./FinancialOutcomeObservation.validator";
 export * from "./buildFinancialOutcomeObservation";
+export * from "./observationTiming";

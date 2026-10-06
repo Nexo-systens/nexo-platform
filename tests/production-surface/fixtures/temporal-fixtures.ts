@@ -12,7 +12,10 @@ import { runExecution } from "./report-fixtures";
  * reanálise do mesmo mês.
  */
 
-const LAST_DAY: Readonly<Record<string, string>> = { "01": "31", "02": "28", "03": "31", "04": "30" };
+const LAST_DAY: Readonly<Record<string, string>> = {
+  "01": "31", "02": "28", "03": "31", "04": "30", "05": "31", "06": "30",
+  "07": "31", "08": "31", "09": "30", "10": "31", "11": "30", "12": "31",
+};
 
 function brl(value: number): string {
   return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
@@ -69,8 +72,8 @@ function nextExecutedAt(): string {
 }
 
 /** Mês completo (DRE + Balanço do último dia). `tag` distingue versões do mesmo mês. */
-export function monthly(companyId: string, month: string, costRatio: number, tag = "v1"): Promise<HistoricalExecution> {
-  return runExecution(companyId, `${companyId}-${month}-${tag}`, nextExecutedAt(), [
+export function monthly(companyId: string, month: string, costRatio: number, tag = "v1", executionId?: string): Promise<HistoricalExecution> {
+  return runExecution(companyId, executionId ?? `${companyId}-${month}-${tag}`, nextExecutedAt(), [
     dre(companyId, month, costRatio, tag),
     balance(companyId, LAST_DAY[month], month, 400_000, tag),
   ]);

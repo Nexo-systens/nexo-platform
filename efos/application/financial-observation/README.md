@@ -41,6 +41,17 @@ Mesma decisão de camada de `DiagnosisReview`/`DecisionExecutionEvent` (D-063/D-
 
 Ver `docs/DECISIONS.md`, D-071: uma `FinancialOutcomeObservation` bem-sucedida é persistida como registro imutável (`public.financial_observations`) — nunca recalculada silenciosamente quando novos dados financeiros chegam. Isso preserva a distinção entre "observação feita no momento T" e "Financial Truth atual" (Etapa 16 da missão), crítica para auditabilidade histórica.
 
+## Integridade temporal (Mission 211, D-136)
+
+A janela original (base = última execução antes da decisão; observação = última depois da conclusão, por `executedAt`) foi substituída:
+
+- **base** = a base financeira da decisão por linhagem (`FinancialObservationBase`, resolvida por `modules/decisions/lib/resolveDecisionFinancialBase.ts`): execução do diagnóstico ou do cenário confirmado; decisão manual → `NO_FINANCIAL_BASE`;
+- **observação** = a verdade financeira atual canônica (`FinancialObservationTarget`, `resolveCurrentFinancialExecution()`);
+- **invariante**: `classifyObservationTiming(base, observado) === "posterior"` (`observationTiming.ts`, sobre `periodPrecedes`) — mesmo período, anterior ou sobreposto → `NOT_AFTER_DECISION_BASE`; o validador repete a regra;
+- **leitura**: `keepPosteriorObservations()` posiciona as execuções citadas por id e devolve só observações posteriores, com períodos.
+
+Mantido de D-071: execução `COMPLETED` e verdade observada processada depois da conclusão.
+
 ## O que este módulo NÃO faz
 
 - Não afirma causalidade — estruturalmente impossível (ver acima).

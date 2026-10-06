@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import type { FinancialOutcomeObservation } from "@/efos/application/financial-observation";
+import { keepPosteriorObservations, type FinancialOutcomeObservation } from "@/efos/application/financial-observation";
+import type { PeriodPositionedExecution } from "@/efos/application/history";
+import type { IndicatorsAggregate } from "@/efos/domain";
+import { periodOf } from "@/efos/engines/evidence";
 import type { Database } from "@/types/database";
 
 export type FinancialObservationRow = Database["public"]["Tables"]["financial_observations"]["Row"];
@@ -74,6 +77,42 @@ export async function saveFinancialOutcomeObservation(
   return toObservation(data);
 }
 
+type Client = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Mission 211 (D-136) — período de cada execução citada pelas observações,
+ * sob RLS (só execuções que o usuário pode ler), pelo mesmo `periodOf` dos
+ * indicadores que a autoridade temporal usa. Leve: só o agregado de
+ * indicadores, nunca o snapshot inteiro.
+ */
+async function positionExecutions(supabase: Client, executionIds: readonly string[]): Promise<PeriodPositionedExecution[]> {
+  if (executionIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("executions")
+    .select("execution_id, company_id, executedAt:metadata->>startedAt, indicators:execution->indicators")
+    .in("execution_id", [...executionIds]);
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as { execution_id: string; company_id: string; executedAt: unknown; indicators: unknown }[];
+  return rows.map((row) => {
+    const indicators = row.indicators as IndicatorsAggregate | null;
+    return {
+      executionId: row.execution_id,
+      companyId: row.company_id,
+      executedAt: typeof row.executedAt === "string" ? row.executedAt : "",
+      period: indicators && Array.isArray(indicators.indicators) ? periodOf(indicators) : undefined,
+    };
+  });
+}
+
+/**
+ * A ÚNICA porta de leitura de observações financeiras (Central de Decisões,
+ * Esperado × Observado, reconciliação, aprendizado, relatório). Mission 211
+ * (D-136): devolve só observações de período estritamente posterior à base
+ * da decisão, com os dois períodos preenchidos a partir das execuções — uma
+ * reanálise do mesmo período, um período anterior ou sobreposto nunca chega
+ * a nenhuma superfície como resultado, mesmo que um registro antigo exista.
+ */
 export async function getFinancialObservationsByDecision(
   decisionId: string
 ): Promise<readonly FinancialOutcomeObservation[]> {
@@ -86,5 +125,7 @@ export async function getFinancialObservationsByDecision(
     .order("computed_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map(toObservation);
+  const observations = (data ?? []).map(toObservation);
+  const executionIds = [...new Set(observations.flatMap((observation) => [observation.window.baselineExecutionId, observation.window.observationExecutionId]))];
+  return keepPosteriorObservations(observations, await positionExecutions(supabase, executionIds));
 }

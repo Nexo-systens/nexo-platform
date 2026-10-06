@@ -2,6 +2,7 @@ import {
   FINANCIAL_CORRELATION_CLASSIFICATIONS,
   type FinancialOutcomeObservation,
 } from "./FinancialOutcomeObservation";
+import { classifyObservationTiming } from "./observationTiming";
 
 export interface FinancialOutcomeObservationValidationResult {
   readonly valid: boolean;
@@ -57,6 +58,17 @@ export function validateFinancialOutcomeObservation(
   }
   if (w && isNonEmptyString(w.executionCompletedAt) && Date.parse(w.observationExecutedAt) < Date.parse(w.executionCompletedAt!)) {
     errors.push("observationExecutedAt nunca pode ser anterior a executionCompletedAt — a observação representa a Financial Truth DEPOIS da execução concluída.");
+  }
+
+  // Mission 211 (D-136) — invariante temporal do contrato: na construção,
+  // os dois períodos estão sempre presentes e o observado precisa ser
+  // estritamente posterior à base. (Uma linha relida do banco não traz
+  // período; a leitura aplica a mesma regra em `keepPosteriorObservations`.)
+  if (w && (w.baselinePeriod || w.observationPeriod)) {
+    const timing = classifyObservationTiming(w.baselinePeriod, w.observationPeriod);
+    if (timing !== "posterior") {
+      errors.push(`observationPeriod precisa ser estritamente posterior a baselinePeriod — recebido: ${timing}. Reanálise do mesmo período, período anterior ou sobreposto nunca é resultado de uma decisão.`);
+    }
   }
 
   if (observation.metrics.length === 0) {

@@ -21,6 +21,7 @@ import { previousPeriodComparisonOf, type HistoricalExecution } from "@/efos/app
 import { CapturingExecutiveChatProvider } from "@/efos/application/synthetic-validation";
 import type { Decision, Knowledge, LearningRecord } from "@/efos/domain";
 import { buildOutcome } from "@/modules/decisions/lib/buildOutcome";
+import { resolveDecisionFinancialBase } from "@/modules/decisions/lib/resolveDecisionFinancialBase";
 import { resolveExpectedActualComparison } from "@/modules/decisions/lib/resolveExpectedActualComparison";
 import {
   derivePeriodFromIndicators,
@@ -159,7 +160,7 @@ function persist(decision: Decision, diagnosisId: string | null = null): Persist
 }
 
 function lineageInputs(current: HistoricalExecution, extra: Partial<ReportLineageInputs> = {}): ReportLineageInputs {
-  return { current, diagnoses: [], decisions: [], financialObservations: [], outcomes: [], learningRecords: [], knowledge: [], ...extra };
+  return { current, history: [current], diagnoses: [], decisions: [], financialObservations: [], outcomes: [], learningRecords: [], knowledge: [], ...extra };
 }
 
 const entity = (createdAt: string) => ({
@@ -600,7 +601,8 @@ describe("Mission 210 — Outcome e Knowledge seguem a cadeia canônica", () => 
     const observation = buildFinancialOutcomeObservation(
       { id: decision.id, companyId: company, createdAt },
       deriveDecisionExecutionState(events),
-      [jan, feb, mar],
+      resolveDecisionFinancialBase({ decision, decisionCreatedAt: createdAt, history: [jan, feb, mar] }).base,
+      resolveCurrentFinancialExecution(company, [jan, feb, mar]),
       outcome.value.id,
       ACTOR,
       "m210-observacao",
@@ -613,7 +615,7 @@ describe("Mission 210 — Outcome e Knowledge seguem a cadeia canônica", () => 
     assert.equal(expected.live.outcome, "built");
 
     const lineage = selectReportLineage(
-      lineageInputs(mar, { decisions: [persist(decision)], financialObservations: [observation.value], outcomes: [outcome.value] })
+      lineageInputs(mar, { history: [jan, feb, mar], decisions: [persist(decision)], financialObservations: [observation.value], outcomes: [outcome.value] })
     );
     assert.deepEqual(lineage.observedDecisions.map((entry) => entry.id), [decision.id]);
   });

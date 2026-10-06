@@ -1,6 +1,5 @@
-import type { Period } from "@/efos/domain";
 import type { Result } from "@/efos/application/shared";
-import { compareExecutions, type HistoricalExecution } from "@/efos/application/history";
+import { compareExecutions, executionPeriodOf, type HistoricalExecution } from "@/efos/application/history";
 import type { DecisionExecutionState } from "@/efos/application/decision-execution";
 
 import {
@@ -9,6 +8,7 @@ import {
   type ObservationWindow,
 } from "./FinancialOutcomeObservation";
 import { validateFinancialOutcomeObservation } from "./FinancialOutcomeObservation.validator";
+import { classifyObservationTiming } from "./observationTiming";
 
 export interface FinancialObservationInputDecision {
   readonly id: string;
@@ -16,114 +16,136 @@ export interface FinancialObservationInputDecision {
   readonly createdAt: string;
 }
 
+/**
+ * Mission 211 (D-136) — a base financeira da decisão, resolvida por
+ * LINHAGEM pelo chamador (`modules/decisions/lib/resolveDecisionFinancialBase.ts`):
+ * a execução do diagnóstico que originou a decisão, ou a execução cuja
+ * verdade financeira o cenário confirmado usou. Uma decisão manual sem
+ * diagnóstico e sem cenário não tem base — nunca "a última análise".
+ */
+export type FinancialObservationBase =
+  | { readonly outcome: "anchored"; readonly execution: HistoricalExecution }
+  | { readonly outcome: "unanchored" }
+  | { readonly outcome: "unavailable" };
+
+/**
+ * Mission 211 (D-136) — a verdade financeira observada: a verdade atual
+ * canônica (`resolveCurrentFinancialExecution()`, falha fechada com versões
+ * divergentes), resolvida pelo chamador. Nunca "a última execução gravada".
+ */
+export type FinancialObservationTarget =
+  | { readonly outcome: "resolved"; readonly execution: HistoricalExecution }
+  | { readonly outcome: "no-history" }
+  | { readonly outcome: "ambiguous" };
+
 export type BuildFinancialOutcomeObservationError =
   | { readonly code: "EXECUTION_NOT_COMPLETED"; readonly message: string }
+  | { readonly code: "NO_FINANCIAL_BASE"; readonly message: string }
   | { readonly code: "NO_COMPARABLE_FINANCIAL_TRUTH"; readonly message: string }
+  | { readonly code: "NOT_AFTER_DECISION_BASE"; readonly message: string }
   | { readonly code: "INVALID_OBSERVATION"; readonly errors: readonly string[] };
 
-/**
- * Extrai o `Period` do primeiro `Indicator` disponível na seção
- * `"indicators"` de um `HistoricalExecution` — todos os indicadores de
- * uma mesma execução compartilham o mesmo período (derivado uma única
- * vez por `derivePeriod()` no Indicators Engine, nunca recalculado por
- * indicador), então o primeiro já representa o período da execução
- * inteira. `undefined` quando a execução não tem seção de indicadores
- * — nunca um período inventado.
- */
-function extractExecutionPeriod(execution: HistoricalExecution): Period | undefined {
-  const section = execution.report?.sections.find((s) => s.type === "indicators");
-  if (!section || section.type !== "indicators") return undefined;
-  return section.indicators.indicators[0]?.period;
+type MessageErrorCode = Exclude<BuildFinancialOutcomeObservationError["code"], "INVALID_OBSERVATION">;
+
+function failure(code: MessageErrorCode, message: string): { readonly success: false; readonly error: BuildFinancialOutcomeObservationError } {
+  return { success: false, error: { code, message } };
 }
 
 /**
- * Seleciona, dentre um histórico já ordenado (`executedAt` crescente,
- * `HistoricalExecutionService.getHistory()`), a execução mais recente
- * que satisfaz um predicado — nunca a mais antiga, nunca uma escolha
- * arbitrária. Função auxiliar pura, sem acesso a rede/banco.
- */
-function latestMatching(
-  history: readonly HistoricalExecution[],
-  predicate: (execution: HistoricalExecution) => boolean
-): HistoricalExecution | undefined {
-  for (let i = history.length - 1; i >= 0; i -= 1) {
-    if (predicate(history[i])) return history[i];
-  }
-  return undefined;
-}
-
-/**
- * `buildFinancialOutcomeObservation()` (Mission 139) — único ponto de
- * composição autorizado a transformar `Decision`+`DecisionExecutionEvent`s
- * (Mission 138)+histórico de execuções (`HistoricalExecutionService`,
- * D-045) numa `FinancialOutcomeObservation`. Função pura — nunca
- * acessa Repository/banco diretamente (quem chama já resolveu
- * `history`/`executionState` antes), nunca gera `randomUUID()`/
- * `Date.now()` internamente (`id`/`computedAt` sempre parâmetros).
+ * `buildFinancialOutcomeObservation()` (Mission 139, revisada pela Mission
+ * 211 — D-136) — único ponto de composição autorizado a transformar
+ * `Decision`+`DecisionExecutionEvent`s (Mission 138) numa
+ * `FinancialOutcomeObservation`. Função pura — nunca acessa banco, nunca
+ * gera `randomUUID()`/`Date.now()` internamente.
  *
- * **Seleção determinística da janela de observação (Etapa 8/5.D)**:
- * `baseline` = a execução mais recente com `executedAt <=
- * decision.createdAt` (Financial Truth de quando a decisão foi
- * tomada); `observation` = a execução mais recente com `executedAt >=
- * executionState.completedAt` (Financial Truth mais atual disponível,
- * nunca antes da execução terminar). Ambas as condições, juntas,
- * impedem estruturalmente que dado futuro vaze para o baseline (Etapa
- * 5.F) — nunca uma checagem best-effort, é a própria forma da seleção.
+ * **Janela (D-136, revisa a de D-071).**
+ * - `baseline` = a base financeira da DECISÃO, por linhagem — não mais "a
+ *   execução mais recente com `executedAt <= decision.createdAt`", que podia
+ *   ser uma reanálise atrasada de outro período ou uma análise que a decisão
+ *   nunca viu. Sem base, não há observação financeira (`NO_FINANCIAL_BASE`);
+ *   o resultado humano (`Outcome`) continua podendo ser registrado.
+ * - `observation` = a verdade financeira atual canônica — não mais "a última
+ *   execução gravada", que podia ser uma reanálise do mesmo período ou um
+ *   período anterior processado tarde.
+ * - **Invariante temporal**: o período observado precisa ser ESTRITAMENTE
+ *   posterior ao período da base (`classifyObservationTiming`, sobre
+ *   `periodPrecedes`). Mesmo período, anterior ou sobreposto:
+ *   `NOT_AFTER_DECISION_BASE`. Lacuna de períodos é aceita.
+ * - Mantido de D-071: execução `COMPLETED` e verdade observada processada
+ *   depois da conclusão (`executedAt >= completedAt`) — "a Financial Truth
+ *   foi atualizada desde então". É uma pré-condição de frescor do Outcome,
+ *   nunca a regra de ordem temporal, que é sempre por período.
  *
- * **Sem Financial Truth fabricada (Etapa 10)**: se a `Decision` não
- * tem execução `COMPLETED` (`efos/application/decision-execution`,
- * Mission 138), devolve `EXECUTION_NOT_COMPLETED` — nunca tenta
- * comparar de qualquer forma. Se nenhum baseline/observação existir,
- * ou se ambos apontarem para a mesma execução, ou se nenhuma métrica
- * sobrar após filtrar apenas direções numericamente comparáveis
- * (`increased`/`decreased`/`unchanged` — nunca `added`/`removed`/
- * `not-comparable`/`became-available`/`became-unavailable`/
- * `unavailable`, Etapa 18.G), devolve `NO_COMPARABLE_FINANCIAL_TRUTH`
- * — um resultado honesto, nunca um valor interpolado/estimado.
- *
- * **Reaproveita `compareExecutions()` inteiramente** (D-045/D-046,
- * `efos/application/history`) — nenhum cálculo de indicador é
- * duplicado ou reimplementado aqui; esta função só filtra/renomeia/
- * anota o resultado já produzido por uma área fechada e testada desde
- * a Mission 085/086.
+ * **Reaproveita `compareExecutions()` inteiramente** (D-045/D-046) — nenhum
+ * cálculo de indicador é duplicado aqui.
  */
 export function buildFinancialOutcomeObservation(
   decision: FinancialObservationInputDecision,
   executionState: DecisionExecutionState,
-  history: readonly HistoricalExecution[],
+  base: FinancialObservationBase,
+  target: FinancialObservationTarget,
   humanOutcomeId: string | undefined,
   computedBy: string,
   id: string,
   computedAt: string
 ): Result<FinancialOutcomeObservation, BuildFinancialOutcomeObservationError> {
   if (executionState.status !== "COMPLETED" || !executionState.completedAt) {
-    return {
-      success: false,
-      error: {
-        code: "EXECUTION_NOT_COMPLETED",
-        message: "A execução desta Decision ainda não foi concluída (status COMPLETED) — nenhuma observação financeira final pode ser construída automaticamente enquanto isso não acontecer.",
-      },
-    };
+    return failure(
+      "EXECUTION_NOT_COMPLETED",
+      "A execução desta Decision ainda não foi concluída (status COMPLETED) — nenhuma observação financeira final pode ser construída automaticamente enquanto isso não acontecer."
+    );
   }
 
-  const decisionCreatedAtMs = Date.parse(decision.createdAt);
-  const executionCompletedAtMs = Date.parse(executionState.completedAt);
+  if (base.outcome === "unanchored") {
+    return failure(
+      "NO_FINANCIAL_BASE",
+      "Esta decisão não tem base financeira explícita — não nasceu de uma leitura da IA nem de um cenário. Sem base, o efeito nos números não é medido contra um período escolhido por conveniência. O resultado observado pela equipe continua podendo ser registrado."
+    );
+  }
+  if (base.outcome === "unavailable" || base.execution.companyId !== decision.companyId) {
+    return failure("NO_FINANCIAL_BASE", "A análise em que esta decisão se baseou não está disponível — o efeito nos números não pode ser medido sem ela.");
+  }
 
-  const baseline = latestMatching(history, (e) => Date.parse(e.executedAt) <= decisionCreatedAtMs);
-  const observation = latestMatching(history, (e) => Date.parse(e.executedAt) >= executionCompletedAtMs);
+  if (target.outcome === "no-history") {
+    return failure("NO_COMPARABLE_FINANCIAL_TRUTH", "Nenhuma análise disponível para observar o resultado desta decisão.");
+  }
+  if (target.outcome === "ambiguous" || target.execution.companyId !== decision.companyId) {
+    return failure(
+      "NO_COMPARABLE_FINANCIAL_TRUTH",
+      "A verdade financeira atual desta empresa não pôde ser estabelecida sem ambiguidade — nenhum resultado pode ser observado com segurança."
+    );
+  }
 
-  if (!baseline || !observation || baseline.executionId === observation.executionId) {
-    return {
-      success: false,
-      error: {
-        code: "NO_COMPARABLE_FINANCIAL_TRUTH",
-        message: !baseline
-          ? "Nenhuma execução financeira existe em ou antes da data da decisão — sem baseline, nenhuma comparação é possível."
-          : !observation
-            ? "Nenhuma execução financeira existe em ou depois da conclusão da execução da decisão — a Financial Truth ainda não foi atualizada desde então."
-            : "A execução mais recente disponível como baseline e como observação são a mesma — nenhum dado financeiro novo existe para comparar.",
-      },
-    };
+  const baseline = base.execution;
+  const observation = target.execution;
+  const baselinePeriod = executionPeriodOf(baseline);
+  const observationPeriod = executionPeriodOf(observation);
+  const timing = classifyObservationTiming(baselinePeriod, observationPeriod);
+
+  if (timing === "undetermined") {
+    return failure(
+      "NO_COMPARABLE_FINANCIAL_TRUTH",
+      "O período da base ou da análise mais recente não pôde ser determinado — nenhum resultado é observado sem período."
+    );
+  }
+  if (timing === "same-period") {
+    return failure(
+      "NOT_AFTER_DECISION_BASE",
+      "A análise mais recente é do mesmo período em que a decisão foi tomada — uma reanálise não é resultado posterior. O efeito nos números aparece quando um período seguinte for analisado."
+    );
+  }
+  if (timing === "not-after-base") {
+    return failure(
+      "NOT_AFTER_DECISION_BASE",
+      "A análise mais recente não é de um período posterior ao período em que a decisão foi tomada — nenhum resultado posterior existe ainda."
+    );
+  }
+
+  if (Date.parse(observation.executedAt) < Date.parse(executionState.completedAt)) {
+    return failure(
+      "NO_COMPARABLE_FINANCIAL_TRUTH",
+      "Nenhuma análise foi processada desde a conclusão da execução desta decisão — a verdade financeira ainda não foi atualizada desde então."
+    );
   }
 
   const comparison = compareExecutions(baseline, observation);
@@ -160,10 +182,10 @@ export function buildFinancialOutcomeObservation(
     executionCompletedAt: executionState.completedAt,
     baselineExecutionId: baseline.executionId,
     baselineExecutedAt: baseline.executedAt,
-    baselinePeriod: extractExecutionPeriod(baseline),
+    baselinePeriod,
     observationExecutionId: observation.executionId,
     observationExecutedAt: observation.executedAt,
-    observationPeriod: extractExecutionPeriod(observation),
+    observationPeriod,
   };
 
   const built: FinancialOutcomeObservation = {

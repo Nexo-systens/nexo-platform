@@ -1,7 +1,8 @@
-import type { Decision, IndicatorsAggregate, Period } from "@/efos/domain";
+import type { Decision, IndicatorsAggregate } from "@/efos/domain";
 import { INDICATOR_DEFINITIONS, type IndicatorDirectionality } from "@/efos/engines/indicators";
 import { readScenarioDecisionContext } from "@/efos/application/decision-lifecycle";
 import { classifyScenarioMetricImpact, directionalityForScenarioMetric } from "@/efos/application/scenario-simulation";
+import { classifyObservationTiming } from "@/efos/application/financial-observation";
 
 import type {
   BuildExpectedActualComparisonOutcome,
@@ -70,15 +71,6 @@ function findObservedValue(indicators: IndicatorsAggregate, metricKey: string): 
   const indicator = indicators.indicators.find((candidate) => candidate.name === definition.name);
   if (!indicator || indicator.result.status !== "available") return undefined;
   return indicator.result.value;
-}
-
-/**
- * Mesma disciplina de cronologia de `resolveCurrentFinancialExecution()`
- * (startDate decide, endDate desempata) — nunca `executedAt` (Seção 22).
- */
-function periodIsAfter(candidate: Period, reference: Period): boolean {
-  if (candidate.startDate !== reference.startDate) return candidate.startDate > reference.startDate;
-  return candidate.endDate > reference.endDate;
 }
 
 /**
@@ -169,10 +161,14 @@ export function buildExpectedActualComparison(
   // mudado (o que já teria sido rejeitado como "ambiguous"/"conflicting"
   // por `resolveCurrentFinancialExecution()`, D-088/Mission 170C, antes
   // mesmo de chegar aqui — ver `resolveExpectedActualComparison.ts`).
-  if (!periodIsAfter(observed.period, scenarioContext.period)) {
-    const samePeriod =
-      observed.period.startDate === scenarioContext.period.startDate &&
-      observed.period.endDate === scenarioContext.period.endDate;
+  //
+  // Mission 211 (D-136): a mesma regra de "resultado posterior" da
+  // observação financeira (`classifyObservationTiming`, sobre a precedência
+  // canônica `periodPrecedes`) — antes, uma regra própria que comparava só o
+  // início e aceitava um período sobreposto como posterior.
+  const timing = classifyObservationTiming(scenarioContext.period, observed.period);
+  if (timing !== "posterior") {
+    const samePeriod = timing === "same-period";
     return {
       outcome: "built",
       comparison: {

@@ -31,6 +31,8 @@ import {
 } from "@/efos/application/expected-actual-learning";
 import { formatIndicatorValue } from "@/lib/format-indicator";
 import { formatCalendarDate } from "@/modules/analysis/lib/executive-language";
+import { formatPeriodLabel } from "@/modules/analysis/lib/period-label";
+import { decisionFinancialBaseOrigin } from "@/modules/decisions/lib/resolveDecisionFinancialBase";
 import { cn } from "@/lib/utils";
 import {
   recordDecisionExecutionEventAction,
@@ -139,10 +141,10 @@ function ExpectedActualBlock({ title, comparison }: { title: string; comparison:
 
       {comparison.eligibility === "comparable" && comparison.observedPeriod && (
         <>
+          {/* Mission 211 (D-136): o período do resultado, sempre posterior ao da base. */}
           <p className="text-xs text-muted-foreground">
-            Verdade financeira observada em{" "}
-            {formatCalendarDate(comparison.observedPeriod.startDate)} a{" "}
-            {formatCalendarDate(comparison.observedPeriod.endDate)}.
+            Resultado observado — {formatPeriodLabel(comparison.observedPeriod).long} · base da decisão:{" "}
+            {formatPeriodLabel(comparison.baselinePeriod).long}.
           </p>
 
           <div className="mt-1 flex flex-col gap-2">
@@ -290,6 +292,7 @@ export function DecisionExecutionCard({
   expectedActualComparison?: ExpectedActualComparisonBundle;
 }) {
   const router = useRouter();
+  const financialBaseOrigin = decisionFinancialBaseOrigin(decision.decision, decision.diagnosisId);
   const nextStatuses = NEXT_TRANSITIONS[state.status];
   const isTerminal = nextStatuses.length === 0;
 
@@ -692,15 +695,25 @@ export function DecisionExecutionCard({
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs">Efeito nos números — antes e depois da execução</Label>
-            <Button size="sm" variant="outline" onClick={handleComputeObservation} disabled={computingObservation}>
-              {computingObservation ? "Calculando..." : "Calcular observação financeira"}
-            </Button>
+            {financialBaseOrigin !== "manual" && (
+              <Button size="sm" variant="outline" onClick={handleComputeObservation} disabled={computingObservation}>
+                {computingObservation ? "Calculando..." : "Calcular observação financeira"}
+              </Button>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Compara indicadores financeiros de antes e depois da execução — mostra associação temporal, nunca prova de causalidade.
+            Compara os indicadores do período em que a decisão foi tomada com os de um período posterior — mostra associação temporal, nunca prova de causalidade.
           </p>
 
-          {financialObservations.length === 0 && !observationError && (
+          {/* Mission 211 (D-136): decisão manual não tem base financeira — nenhum período é escolhido por conveniência. */}
+          {financialBaseOrigin === "manual" && (
+            <p className="text-xs text-muted-foreground">
+              Sem base financeira explícita: esta decisão não nasceu de uma leitura da IA nem de um cenário, então o efeito nos
+              números não é medido. O resultado registrado pela equipe continua valendo.
+            </p>
+          )}
+
+          {financialBaseOrigin !== "manual" && financialObservations.length === 0 && !observationError && (
             <p className="text-xs text-muted-foreground">Nenhuma observação financeira calculada ainda para esta decisão.</p>
           )}
 
@@ -710,10 +723,12 @@ export function DecisionExecutionCard({
                 <Badge variant="outline">Correlation: {observation.classification}</Badge>
                 <span className="text-muted-foreground">calculado em {new Date(observation.computedAt).toLocaleDateString("pt-BR")}</span>
               </div>
-              <p className="mt-1 text-muted-foreground">
-                Baseline: {new Date(observation.window.baselineExecutedAt).toLocaleDateString("pt-BR")} → Observação:{" "}
-                {new Date(observation.window.observationExecutedAt).toLocaleDateString("pt-BR")}
-              </p>
+              {observation.window.baselinePeriod && observation.window.observationPeriod && (
+                <p className="mt-1 text-muted-foreground">
+                  Base da decisão: {formatPeriodLabel(observation.window.baselinePeriod).long} → Resultado observado —{" "}
+                  {formatPeriodLabel(observation.window.observationPeriod).long}
+                </p>
+              )}
               <div className="mt-2 flex flex-col gap-1">
                 {observation.metrics.map((metric) => (
                   <div key={metric.metricName} className="flex items-center justify-between gap-2 rounded bg-background/60 px-2 py-1">

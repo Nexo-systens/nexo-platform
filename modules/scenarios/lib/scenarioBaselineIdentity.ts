@@ -1,4 +1,6 @@
 import type { FinancialModelAggregate, Period } from "@/efos/domain";
+import type { ScenarioDecisionContext } from "@/efos/application/decision-lifecycle";
+import { executionPeriodOf, type HistoricalExecution } from "@/efos/application/history";
 import { FINANCIAL_TRUTH_FINGERPRINT_EXCLUDED_KEYS } from "@/modules/decisions/lib/selectCurrentFinancialExecution";
 import { periodsEqual } from "@/efos/application/scenario-simulation";
 
@@ -132,4 +134,17 @@ export function baselineClaimMatches(claim: unknown, current: ScenarioBaselineId
   const candidate = claim as Record<string, unknown>;
   if (!isPeriodShape(candidate.period) || typeof candidate.financialModelFingerprint !== "string") return false;
   return scenarioBaselineIdentitiesMatch(candidate as unknown as ScenarioBaselineIdentity, current);
+}
+
+/**
+ * A execução sobre a qual um cenário confirmado foi avaliado: mesmo período
+ * e mesma impressão do Financial Model (Mission 184 Closure). Única regra,
+ * usada pela linhagem do relatório (D-133) e pela base financeira da decisão
+ * (Mission 211, D-136).
+ */
+export function scenarioContextMatchesExecution(context: ScenarioDecisionContext, execution: HistoricalExecution): boolean {
+  const period = executionPeriodOf(execution);
+  const financialModel = execution.snapshot.execution.financialModel;
+  if (!period || !financialModel) return false;
+  return periodsEqual(context.period, period) && context.baselineFingerprint === fingerprintFinancialModel(financialModel);
 }

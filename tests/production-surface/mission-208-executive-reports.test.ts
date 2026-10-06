@@ -22,6 +22,8 @@ import { simulateOperatingCostScenario } from "@/efos/application/scenario-simul
 import type { Decision, Knowledge, LearningRecord, Outcome } from "@/efos/domain";
 import { periodOf } from "@/efos/engines/evidence";
 import { describeMetricChange, formatMetricValue } from "@/modules/analysis/lib/metric-change";
+import { resolveDecisionFinancialBase } from "@/modules/decisions/lib/resolveDecisionFinancialBase";
+import { resolveCurrentFinancialExecution } from "@/modules/decisions/lib/selectCurrentFinancialExecution";
 import type { PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import type { PersistedExecutiveDiagnosis } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
 import { ReportDocument } from "@/modules/reports/components/ReportDocument";
@@ -202,10 +204,19 @@ function buildLifecycle(histories: FixtureHistories): Lifecycle {
     recordedBy: ACTOR,
     ...entity("2026-09-06T12:00:00.000Z"),
   };
+  // Mission 211 (D-136): base pela linhagem (diagnóstico de julho) e observação pela verdade atual canônica (agosto).
+  const { base } = resolveDecisionFinancialBase({
+    decision: cost.value,
+    decisionCreatedAt: costDecision.createdAt,
+    diagnosisId: diagnosis.id,
+    diagnosis: { id: diagnosis.id, companyId, executionId: july.executionId },
+    history: histories.lifecycle,
+  });
   const observationResult = buildFinancialOutcomeObservation(
     { id: costDecision.id, companyId, createdAt: costDecision.createdAt },
     deriveDecisionExecutionState(events),
-    histories.lifecycle,
+    base,
+    resolveCurrentFinancialExecution(companyId, histories.lifecycle),
     outcome.id,
     ACTOR,
     "m208-observacao-1",
@@ -558,7 +569,7 @@ describe("Mission 208 — ciclo de decisão por linhagem (empresa C)", () => {
     })));
     assert.doesNotMatch(ids, /estrangeir/);
 
-    const lineage = selectReportLineage({ current: lifecycle.august, ...lifecycle.inputs });
+    const lineage = selectReportLineage({ current: lifecycle.august, history: histories.lifecycle, ...lifecycle.inputs });
     assert.ok(lineage.diagnoses.every((diagnosis) => diagnosis.companyId === FIXTURE_COMPANIES.lifecycle));
     assert.ok(lineage.observationsInPeriod.every((observation) => observation.companyId === FIXTURE_COMPANIES.lifecycle));
   });

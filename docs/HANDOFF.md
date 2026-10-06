@@ -35,6 +35,7 @@ Ele representa o estado atual do desenvolvimento.
 - **Página institucional** (Mission 205): `/` é a landing pública e estática da NEXO (`app/(site)/`, `modules/site/`) — tese, categoria EFOS, produto com quadros de telas reais e dados fictícios, segurança, Founding Company e conversa. Visitante fica em `/`; usuário autenticado continua indo para `/dashboard`. Canal comercial (`NEXT_PUBLIC_NEXO_CONTACT_URL`) e URL pública (`NEXT_PUBLIC_SITE_URL`) são configuráveis e ainda não definidos. Sem domínio, DNS ou deploy.
 - **Governança de saída da Executive AI** (Mission 206, D-132): toda saída textual de Diagnosis e Executive Chat é contratualmente pt-BR, com invariantes comuns (tom executivo, terminologia, números canônicos sem cálculo, indisponível nunca vira número, hipótese/ação como possibilidade/sugestão) definidas uma vez em `efos/application/executive-output-policy/` e verificadas em runtime (idioma e fidelidade numérica) antes de persistir ou exibir. Acima de qualquer provider; schema das tools e ações governadas inalterados.
 - **Validação real da Executive AI** (Mission 207): provider real validado com contextos sintéticos; prompts de Diagnosis e Chat listam as referências citáveis de cada chamada (fim da confusão do prefixo "context:").
+- **Integridade temporal do resultado** (Mission 211, D-136): observação financeira só de período estritamente posterior à base da decisão (base por linhagem: diagnóstico ou cenário; manual sem base); reanálise do mesmo mês, período anterior ou sobreposto nunca é resultado; uma única regra de ordem (`periodPrecedes`) para resultado, relatório e Esperado × Observado.
 - **Decisão a partir do Executive Chat** (Mission 210, D-135): a proposta de cenário do Chat vira decisão da empresa pela ponte Cenário → Decisão existente, com a âncora financeira da resposta (`ScenarioBaselineIdentity`) — análise nova depois da resposta recusa, nunca reassocia — e origem em `scenarioContext.proposedBy`; o relatório a encontra pela mesma linhagem de cenário.
 - **Comparação temporal canônica** (Mission 209, D-134): toda variação "desde" — Visão geral, Dashboard, histórico da Análise, relatório e contexto da Executive AI — é contra o período anterior canônico, por uma autoridade única (`efos/application/history/resolveTemporalComparison.ts`). Reanálise do mesmo mês é versão, nunca "período anterior"; histórico anterior ambíguo é dito, sem delta.
 - **Relatórios executivos** (Mission 208, D-133): `/reports` lista os relatórios por empresa e período e `/reports/[executionId]` abre o documento. O relatório é o `ExecutiveReport` gravado pela análise (imutável, versão = execução); a leitura (`modules/reports/`) liga por linhagem a leitura da IA, decisões, resultados e aprendizados, com o ciclo de decisão derivado na leitura. Sem IA nova, sem persistência nova, impressão/PDF pelo navegador.
@@ -49,7 +50,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 210 — Governed Chat-to-Decision Lineage (2026-10-05).** Ver `docs/DECISIONS.md` (D-135, revisa o item (1) de D-104 e resolve a limitação de D-133), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_210_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 482 testes no CI (production-surface 341, com 34 em `mission-210-chat-decision-lineage.test.ts`) + 7 locais (3 novos em `tests/reports-local/chat-decision-boundary.local.test.ts`). Nenhuma migration.
+**Mission 211 — Outcome Temporal Integrity (2026-10-05).** Ver `docs/DECISIONS.md` (D-136, revisa a janela de D-071), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_211_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 506 testes no CI (production-surface 365, com 24 em `mission-211-outcome-temporal-integrity.test.ts`) + 10 locais (3 novos em `tests/reports-local/outcome-temporal-boundary.local.test.ts`). Nenhuma migration.
+
+- **Defeito:** a observação financeira escolhia base e observação por instante de processamento; reanálise do mesmo mês ou mês anterior processado tarde viravam "resultado".
+- **Correção:** base por linhagem, observação = verdade atual canônica, período estritamente posterior (D-090), porta única de leitura que só entrega resultados válidos com período.
+- **Interface:** Central de Decisões e relatório mostram o período do resultado; decisão manual diz que não tem base.
+
+**Anterior — Mission 210 — Governed Chat-to-Decision Lineage (2026-10-05).** Ver `docs/DECISIONS.md` (D-135, revisa o item (1) de D-104 e resolve a limitação de D-133), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_210_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 482 testes no CI (production-surface 341, com 34 em `mission-210-chat-decision-lineage.test.ts`) + 7 locais (3 novos em `tests/reports-local/chat-decision-boundary.local.test.ts`). Nenhuma migration.
 
 - **Premissa corrigida:** nenhuma ação do Chat virava decisão; a simulação do Chat era um beco sem saída e não sabia sobre qual análise a resposta falava.
 - **Entrega:** âncora financeira por resposta; "Levar para decisão" no cartão do Chat pelo mesmo formulário e ação do Scenario Lab; origem "Executive Chat" na Central de Decisões e no relatório; recusa quando a análise muda entre a proposta e a confirmação.
@@ -451,13 +458,15 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 210):**
-1. Observação financeira de decisões (Outcome, Mission 139): exigir que a execução de observação seja de um período posterior ao da base — hoje uma reanálise do mesmo mês pode virar "observação". Exige decisão sobre a semântica de Outcome.
-2. Conferir no Pilot, só leitura, a jornada Chat → decisão → relatório com dados reais (sem criar decisão sintética no Pilot).
-3. Se o produto precisar de garantia contra reenvio no servidor (hoje só no cliente, em todos os fluxos de decisão): decidir o contrato persistido de idempotência — exige migration e STOP prévio.
+**Próximo passo (após a Mission 211):**
+1. Conferir no Pilot, só leitura, se existem observações financeiras antigas que a nova regra deixa de mostrar (e learning records derivados delas) — nenhuma escrita.
+2. Se o produto precisar de garantia contra reenvio no servidor (hoje só no cliente, em todos os fluxos de decisão): decidir o contrato persistido de idempotência — exige migration e STOP prévio.
+3. Decisões manuais sem base financeira: decidir se devem poder ser vinculadas explicitamente a uma análise (contrato novo) para ter resultado financeiro.
 4. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
 
-Nenhuma Mission 211 foi iniciada.
+Nenhuma Mission 212 foi iniciada.
+
+Histórico (Mission 210): **Próximo passo (após a Mission 210):** (1) observação financeira com período posterior — feito na Mission 211; (2) conferir no Pilot; (3) idempotência; (4) itens após a Mission 207.
 
 Histórico (Mission 209): **Próximo passo (após a Mission 209):** (1) observação financeira com período posterior; (2) conferir no Pilot; (3) itens após a Mission 207.
 
@@ -633,13 +642,17 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Pendências
 
+- **Mission 211:**
+  - learning records/Knowledge derivados, antes desta missão, de uma observação temporalmente inválida são imutáveis e não foram reescritos;
+  - decisões manuais sem diagnóstico e sem cenário não têm resultado financeiro (só o resultado humano);
+  - observação antiga é julgada pela base gravada nela, não pela linhagem da decisão.
 - **Mission 210:**
   - sem idempotência no servidor para decisões (paridade com todos os fluxos, D-096): duplo envio bloqueado no cliente e no cartão do Chat;
   - a origem "Executive Chat" é uma reivindicação do próprio ator autenticado (fronteira de D-096);
   - decisões manuais sem diagnóstico e sem cenário continuam sem vínculo com execução e fora dos relatórios;
   - jornada não conferida contra dados reais do Pilot.
 - **Mission 209:**
-  - observação financeira de decisão pode usar uma reanálise do mesmo período como "observação" (semântica de Outcome, fora do escopo);
+  - ~~observação financeira de decisão pode usar uma reanálise do mesmo período como "observação"~~ — corrigido na Mission 211 (D-136);
   - a Análise abre a última análise executada (pode não ser o período mais recente); a comparação enviada à IA já é canônica;
   - comparações ainda não conferidas contra dados reais do Pilot.
 - **Mission 208:**

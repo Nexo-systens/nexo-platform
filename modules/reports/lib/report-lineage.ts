@@ -1,11 +1,10 @@
 import { readScenarioDecisionContext, type ScenarioDecisionContext } from "@/efos/application/decision-lifecycle";
-import type { FinancialOutcomeObservation } from "@/efos/application/financial-observation";
-import { executionPeriodOf, type HistoricalExecution } from "@/efos/application/history";
-import { periodsEqual } from "@/efos/application/scenario-simulation";
+import { keepPosteriorObservations, type FinancialOutcomeObservation } from "@/efos/application/financial-observation";
+import { positionedExecutionOf, type HistoricalExecution } from "@/efos/application/history";
 import type { Knowledge, LearningRecord, Outcome } from "@/efos/domain";
 import type { PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import type { PersistedExecutiveDiagnosis } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
-import { fingerprintFinancialModel } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
+import { scenarioContextMatchesExecution } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
 
 /**
@@ -23,7 +22,10 @@ import { fingerprintFinancialModel } from "@/modules/scenarios/lib/scenarioBasel
  *   Mission 184 Closure).
  * - **Resultados observados neste período**: observações financeiras cuja
  *   execução de observação é a do relatório
- *   (`financial_observations.observation_execution_id`).
+ *   (`financial_observations.observation_execution_id`) — e só as de
+ *   período estritamente posterior à base da decisão (Mission 211, D-136:
+ *   `keepPosteriorObservations`, a mesma regra da leitura no banco). Uma
+ *   reanálise do mesmo período ou um período anterior nunca vira resultado.
  * - **Aprendizados**: Knowledge cuja origem (learning records ou outcomes)
  *   leva a uma dessas decisões.
  *
@@ -43,6 +45,8 @@ export interface ReportDecisionLink {
 
 export interface ReportLineageInputs {
   readonly current: HistoricalExecution;
+  /** Mission 211 — histórico da empresa, para posicionar as execuções citadas pelas observações. */
+  readonly history: readonly HistoricalExecution[];
   readonly diagnoses: readonly PersistedExecutiveDiagnosis[];
   readonly decisions: readonly PersistedDecision[];
   readonly financialObservations: readonly FinancialOutcomeObservation[];
@@ -55,18 +59,13 @@ export interface ReportLineage {
   /** Leituras da IA desta execução, a mais recente primeiro. */
   readonly diagnoses: readonly PersistedExecutiveDiagnosis[];
   readonly decisions: readonly ReportDecisionLink[];
+  /** Mission 211 — todas as observações válidas da empresa (posteriores à base, com períodos). */
+  readonly financialObservations: readonly FinancialOutcomeObservation[];
   /** Observações financeiras ancoradas na execução deste relatório. */
   readonly observationsInPeriod: readonly FinancialOutcomeObservation[];
   /** Decisões (de qualquer período) cujos resultados foram observados neste período. */
   readonly observedDecisions: readonly PersistedDecision[];
   readonly knowledge: readonly Knowledge[];
-}
-
-function scenarioBaselineMatches(context: ScenarioDecisionContext, current: HistoricalExecution): boolean {
-  const period = executionPeriodOf(current);
-  const financialModel = current.snapshot.execution.financialModel;
-  if (!period || !financialModel) return false;
-  return periodsEqual(context.period, period) && context.baselineFingerprint === fingerprintFinancialModel(financialModel);
 }
 
 export function selectReportLineage(inputs: ReportLineageInputs): ReportLineage {
@@ -90,15 +89,18 @@ export function selectReportLineage(inputs: ReportLineageInputs): ReportLineage 
       continue;
     }
     const scenario = readScenarioDecisionContext(persisted.decision.supportingData);
-    if (scenario && scenarioBaselineMatches(scenario, current)) {
+    if (scenario && scenarioContextMatchesExecution(scenario, current)) {
       decisions.push({ decision: persisted, origin: { kind: "scenario", scenario } });
     }
   }
   decisions.sort((a, b) => a.decision.createdAt.localeCompare(b.decision.createdAt));
 
-  const observationsInPeriod = inputs.financialObservations.filter(
-    (observation) =>
-      observation.companyId === companyId && observation.window.observationExecutionId === current.executionId
+  const financialObservations = keepPosteriorObservations(
+    inputs.financialObservations.filter((observation) => observation.companyId === companyId),
+    inputs.history.filter((execution) => execution.companyId === companyId).map(positionedExecutionOf)
+  );
+  const observationsInPeriod = financialObservations.filter(
+    (observation) => observation.window.observationExecutionId === current.executionId
   );
   const observedDecisionIds = new Set(observationsInPeriod.map((observation) => observation.decisionId));
   const observedDecisions = companyDecisions.filter((persisted) => observedDecisionIds.has(persisted.id));
@@ -123,5 +125,5 @@ export function selectReportLineage(inputs: ReportLineageInputs): ReportLineage 
         record.derivedFromOutcomeIds.some((id) => relatedOutcomeIds.has(id)))
   );
 
-  return { diagnoses, decisions, observationsInPeriod, observedDecisions, knowledge };
+  return { diagnoses, decisions, financialObservations, observationsInPeriod, observedDecisions, knowledge };
 }
