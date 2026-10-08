@@ -35,6 +35,7 @@ Ele representa o estado atual do desenvolvimento.
 - **Página institucional** (Mission 205): `/` é a landing pública e estática da NEXO (`app/(site)/`, `modules/site/`) — tese, categoria EFOS, produto com quadros de telas reais e dados fictícios, segurança, Founding Company e conversa. Visitante fica em `/`; usuário autenticado continua indo para `/dashboard`. Canal comercial (`NEXT_PUBLIC_NEXO_CONTACT_URL`) e URL pública (`NEXT_PUBLIC_SITE_URL`) são configuráveis e ainda não definidos. Sem domínio, DNS ou deploy.
 - **Governança de saída da Executive AI** (Mission 206, D-132): toda saída textual de Diagnosis e Executive Chat é contratualmente pt-BR, com invariantes comuns (tom executivo, terminologia, números canônicos sem cálculo, indisponível nunca vira número, hipótese/ação como possibilidade/sugestão) definidas uma vez em `efos/application/executive-output-policy/` e verificadas em runtime (idioma e fidelidade numérica) antes de persistir ou exibir. Acima de qualquer provider; schema das tools e ações governadas inalterados.
 - **Validação real da Executive AI** (Mission 207): provider real validado com contextos sintéticos; prompts de Diagnosis e Chat listam as referências citáveis de cada chamada (fim da confusão do prefixo "context:").
+- **Idempotência da criação de decisão** (Mission 213, D-137 — **PROPOSTA, NÃO ATIVADA**): desenho pronto (chave de submissão do formulário + impressão canônica do pedido + índice único empresa/ator/chave), migration proposta fora de `supabase/migrations/`, provada só em banco descartável. **Nada aplicado**: o duplo envio continua bloqueado só pela interface (`submittingRef`); a Mission 214 implementa após aprovação humana.
 - **Integridade temporal do resultado** (Mission 211, D-136): observação financeira só de período estritamente posterior à base da decisão (base por linhagem: diagnóstico ou cenário; manual sem base); reanálise do mesmo mês, período anterior ou sobreposto nunca é resultado; uma única regra de ordem (`periodPrecedes`) para resultado, relatório e Esperado × Observado.
 - **Decisão a partir do Executive Chat** (Mission 210, D-135): a proposta de cenário do Chat vira decisão da empresa pela ponte Cenário → Decisão existente, com a âncora financeira da resposta (`ScenarioBaselineIdentity`) — análise nova depois da resposta recusa, nunca reassocia — e origem em `scenarioContext.proposedBy`; o relatório a encontra pela mesma linhagem de cenário.
 - **Comparação temporal canônica** (Mission 209, D-134): toda variação "desde" — Visão geral, Dashboard, histórico da Análise, relatório e contexto da Executive AI — é contra o período anterior canônico, por uma autoridade única (`efos/application/history/resolveTemporalComparison.ts`). Reanálise do mesmo mês é versão, nunca "período anterior"; histórico anterior ambíguo é dito, sem delta.
@@ -50,7 +51,14 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 212 — Pilot Historical Outcome Integrity Audit (2026-10-06).** Ver `docs/ENGINEERING_LOG.md`. **Status: `MISSION_212_CLOSED`.** Auditoria SOMENTE LEITURA do NEXO Pilot (`ca-central-1`, reativado pelo usuário): consultas em `begin transaction read only … rollback` pela API de gestão; migrations 18/18 por SELECT. Resultado: 2 empresas, 7 execuções, 0 decisões, 0 observações financeiras, 0 resultados, 0 aprendizados, 0 knowledge — nenhum dado historicamente inválido, nenhum impacto. Reprodução local provou que a porta de leitura atual esconde observações antigas inválidas. Nenhuma mudança de código; nenhuma migration.
+**Mission 213 — Decision Idempotency Architecture & Migration Design (2026-10-08).** Ver `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`, `docs/DECISIONS.md` (D-137, **PROPOSTA — NÃO ATIVADA**) e `docs/ENGINEERING_LOG.md`. **Status: `DECISION_IDEMPOTENCY_DESIGN_READY`** — desenho tecnicamente fechado, aguardando aprovação humana; **não aplicado**.
+
+- **Defeito reproduzido (Supabase local):** nos quatro fluxos (Recomendação, Manual, Cenário, Executive Chat), 2 envios simultâneos do mesmo pedido gravaram 2 Decisions e 10 gravaram 10 — mesmo conteúdo, ids distintos.
+- **Desenho:** chave de submissão por formulário + impressão canônica do pedido gravada pelo servidor + índice único parcial `(company_id, human_actor_id, idempotency_key)`; busca pela chave antes de validar, garantia no índice; reenvio devolve a mesma Decision como sucesso; mesma chave com outro conteúdo é recusada. Sem RLS nova, sem RPC, sem SECURITY DEFINER.
+- **Achado:** existe alternativa correta sem migration (id derivado da chave, PK como unicidade) — registrada, não recomendada.
+- **Risco atual:** continua mitigado só pela interface (`submittingRef`). Nenhuma migration criada em `supabase/migrations/`; nenhum código de aplicação alterado; Pilot intocado.
+
+**Anterior — Mission 212 — Pilot Historical Outcome Integrity Audit (2026-10-06).** Ver `docs/ENGINEERING_LOG.md`. **Status: `MISSION_212_CLOSED`.** Auditoria SOMENTE LEITURA do NEXO Pilot (`ca-central-1`, reativado pelo usuário): consultas em `begin transaction read only … rollback` pela API de gestão; migrations 18/18 por SELECT. Resultado: 2 empresas, 7 execuções, 0 decisões, 0 observações financeiras, 0 resultados, 0 aprendizados, 0 knowledge — nenhum dado historicamente inválido, nenhum impacto. Reprodução local provou que a porta de leitura atual esconde observações antigas inválidas. Nenhuma mudança de código; nenhuma migration.
 
 **Anterior — Mission 211 — Outcome Temporal Integrity (2026-10-05).** Ver `docs/DECISIONS.md` (D-136, revisa a janela de D-071), `docs/ENGINEERING_LOG.md` e `docs/ARCHITECTURE.md`. **Status: `MISSION_211_CLOSED`.** Regressão: type-check/lint/build limpos, 20 entradas de rota (inalteradas), 506 testes no CI (production-surface 365, com 24 em `mission-211-outcome-temporal-integrity.test.ts`) + 10 locais (3 novos em `tests/reports-local/outcome-temporal-boundary.local.test.ts`). Nenhuma migration.
 
@@ -460,13 +468,15 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 212):**
-1. ~~Conferir no Pilot, só leitura, observações antigas~~ — feito na Mission 212: nenhuma existe (o Pilot ainda não tem decisões). Repetir a mesma auditoria somente leitura quando houver decisões reais.
-2. Se o produto precisar de garantia contra reenvio no servidor (hoje só no cliente, em todos os fluxos de decisão): decidir o contrato persistido de idempotência — exige migration e STOP prévio.
+**Próximo passo (após a Mission 213):**
+1. **Mission 214 — implementar D-137 (após aprovação humana do desenho):** copiar `docs/02_ENGINEERING/decision-idempotency.proposed.sql` para `supabase/migrations/`, mover o pgTAP de rascunho para `supabase/tests/database/`, impressão do pedido, persistência com `23505` nomeado, as duas ações, os dois formulários, tipos e testes (CI + Supabase local + corrida pela interface). Aplicar só no local; aplicar no Pilot exige STOP e autorização explícita; schema antes do deploy do app. Se a migration não for aprovada, a alternativa sem migration (opção E) está descrita no desenho.
+2. ~~Conferir no Pilot, só leitura, observações antigas~~ — feito na Mission 212: nenhuma existe (o Pilot ainda não tem decisões). Repetir a mesma auditoria somente leitura quando houver decisões reais.
 3. Decisões manuais sem base financeira: decidir se devem poder ser vinculadas explicitamente a uma análise (contrato novo) para ter resultado financeiro.
 4. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
 
-Nenhuma Mission 213 foi iniciada.
+Nenhuma Mission 214 foi iniciada.
+
+Histórico (Mission 212): **Próximo passo (após a Mission 212):** (1) conferir observações antigas no Pilot — feito; (2) contrato de idempotência — desenhado na Mission 213; (3) decisões manuais sem base; (4) itens após a Mission 207.
 
 Histórico (Mission 210): **Próximo passo (após a Mission 210):** (1) observação financeira com período posterior — feito na Mission 211; (2) conferir no Pilot; (3) idempotência; (4) itens após a Mission 207.
 
@@ -644,6 +654,10 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Pendências
 
+- **Mission 213:**
+  - idempotência da criação de decisão é só desenho (D-137 PROPOSTA): até a Mission 214, reenvio ou duplo envio fora da interface ainda grava Decisions duplicadas;
+  - ações a jusante (execução, resultado, observação financeira, aprendizado) têm o mesmo padrão sem chave — fora do escopo de D-137;
+  - implantação de D-137 exige schema antes do app (o app novo com schema antigo quebraria a criação de decisão).
 - **Mission 212:**
   - o Pilot ainda não tem decisões/observações — a integridade histórica foi provada por ausência e por reprodução local; repetir a auditoria quando houver dados reais;
   - o Pilot volta a pausar por inatividade (plano gratuito): auditorias e validações remotas dependem de reativação manual.

@@ -2266,6 +2266,94 @@ Decisões manuais sem vínculo recebiam "a última análise" como base, por conv
 
 ---
 
+## D-137 — PROPOSTA, NÃO ATIVADA: idempotência governada da criação de Decision — chave de submissão gerada pelo formulário, impressão canônica do pedido gravada pelo servidor e unicidade (empresa, ator, chave) no banco; a mesma confirmação nunca cria duas Decisions, e duas decisões legítimas iguais continuam possíveis
+
+**Status: PROPOSTA — NÃO ATIVADA.** Desenho fechado na Mission 213; nada foi aplicado.
+- Nenhuma migration em `supabase/migrations/`.
+- Nenhum código de aplicação alterado.
+- Pilot intocado.
+
+Até a Mission 214 ser aprovada e implementada, o duplo envio continua bloqueado só pela interface (`submittingRef`, D-096/D-135). Esta entrada **não** descreve arquitetura ativa.
+
+**Problema.** Cada confirmação grava uma linha nova com id aleatório, sem nenhuma identidade de pedido. Os dois entrypoints que criam decisão, `createHumanDecisionAction()` (Recomendação e Manual) e `createScenarioDecisionAction()` (Scenario Lab e Executive Chat), convergem em `createHumanDecision()` e `saveHumanDecision()`, mas não distinguem reenvio de decisão nova.
+- **Reprodução no Supabase local**, com o pedido real da interface repetido em paralelo nos quatro fluxos: 2 envios → 2 Decisions; 10 envios → 10 Decisions. Todas com o mesmo conteúdo e o mesmo ator, ids diferentes.
+- **Cadeias a jusante:** cada duplicata pode ganhar a sua (execução, resultado, observação, aprendizado) e inflar D-083 e D-073.
+- **Resposta perdida:** os formulários respondem à exceção com "Tente novamente", o que convida a duplicar.
+
+**Decisão proposta.**
+1. **Semântica: a idempotência representa a submissão, nunca a decisão.**
+   - Mesma chave + mesmo pedido canônico → a mesma Decision, como sucesso.
+   - Mesma chave + outro pedido → recusa.
+   - Chave diferente → nova decisão legítima.
+   - Nunca deduplicar por texto, empresa, período, recomendação, cenário ou janela de tempo.
+2. **Chave.** UUID gerado pelo formulário de confirmação no primeiro clique em "Registrar decisão". Fica estável em reenvio, erro e edição, e é renovada depois de sucesso ou da recusa por chave reaproveitada.
+   - É uma reivindicação do cliente: sessão, empresa, origem, diagnóstico/cenário, âncora, parâmetros e ator continuam validados pelo servidor como hoje.
+   - Chave ausente ou malformada recusa.
+3. **Ligação com o conteúdo.** O servidor calcula o SHA-256 do JSON canônico `{v: 1, entrypoint, companyId, humanActorId, payload}` e o grava junto da chave.
+   - `entrypoint` é `human-decision` ou `scenario-decision`.
+   - Origens estruturais preservadas no payload; nenhum enum global de origem.
+4. **Banco** (opção B, migration aditiva):
+   - `decisions.idempotency_key uuid null` e `decisions.request_fingerprint text null`, sem backfill;
+   - checks: as duas juntas; só em Decision humana; impressão com 64 hex;
+   - índice único parcial `(company_id, human_actor_id, idempotency_key) where idempotency_key is not null`.
+   - A unicidade começa pela empresa, e a policy de INSERT (avaliada antes do índice) exige empresa própria. Sem oráculo entre tenants (lição de D-126).
+   - RLS, grants e funções inalterados; nenhuma RPC, nenhum SECURITY DEFINER.
+5. **Ordem no servidor:**
+   - sessão → formato da chave → empresa (RLS, aberta) → impressão;
+   - **busca pela chave**: mesma impressão devolve a Decision (`replayed: true`); outra impressão recusa (`stage: "idempotency"`);
+   - validação completa (inclui a recusa de baseline desatualizado de D-095/D-135) → composição → INSERT;
+   - `23505` do índice nomeado → relê e aplica a mesma regra.
+   - A busca é atalho; **a garantia é o índice**, nunca um SELECT seguido de INSERT.
+   - Antes da primeira gravação, todo pedido passa pela regra de baseline. Depois de uma gravação legítima, o reenvio a devolve mesmo que a análise tenha mudado. No cenário, a releitura tardia depois de uma recusa de baseline só lê.
+6. **Resposta.** Reenvio é sucesso equivalente, nunca "falhou porque já existe". Chave reaproveitada com outro conteúdo recebe mensagem segura, restrita à própria empresa e ao próprio ator.
+
+**Alternativas.**
+- **Rejeitadas:**
+  - impressão do conteúdo como chave (bloqueia decisões legítimas);
+  - token do servidor (outra reivindicação, ou ciclo de vida/segredo já rejeitados em D-096);
+  - só chave (não detecta outro conteúdo);
+  - tabela separada (exige gravação atômica de duas linhas);
+  - RPC (não acrescenta correção).
+- **Achado registrado antes de implementar:** existe uma solução correta **sem migration** (opção E): `decisions.id` derivado de (empresa, ator, chave), com a PK como unicidade e o precedente de D-073. Não é a recomendada porque mistura identidade da entidade com a da submissão, não grava chave nem impressão (auditoria) e exige guardar a impressão dentro do `decision jsonb` ou reconstruir o pedido. Fica como alternativa se a migration não for aprovada.
+
+**Prova (Mission 213, sem Pilot).**
+- **Migration proposta num Postgres descartável** (mesma imagem do Supabase local, schema copiado do banco local):
+  - aplica sobre linhas existentes sem alterá-las;
+  - reversão funciona;
+  - pgTAP de rascunho 30/30.
+- **Concorrência no banco descartável:**
+  - 10 conexões simultâneas, mesma chave: 1 linha e 9 × `23505`;
+  - 1ª insere e desfaz: a 2ª espera e grava;
+  - 1ª insere e confirma: a 2ª espera e recebe `23505`.
+- **Modelo pelo caminho do app** (PostgREST + RLS, Supabase local): 10 pedidos → 1 Decision, 10 sucessos com o mesmo id; nenhum foi salvo pela busca prévia.
+
+**Fora do escopo, deliberadamente.**
+- **Duas abas ou dois formulários** são duas intenções.
+- **Execução, resultado, observação financeira e aprendizado** continuam sem chave (mesmo padrão; possível missão futura).
+- **Escrita direta pela API pelo próprio dono:** mesma fronteira de D-096.
+- **Inalterados:** Outcome, Knowledge, relatório (sem deduplicação no renderer), RLS e Executive AI.
+
+**Justificativa.** O banco é o único lugar que decide uma corrida. A unicidade escopada em uma coluna da própria linha dá a garantia com a menor superfície nova: duas colunas, três checks, um índice, zero policy, zero função. A impressão gravada separa "mesma confirmação" de "outro conteúdo com a mesma chave" sem tocar no objeto `Decision` do domínio.
+
+**Impacto (quando ativada pela Mission 214).**
+- **Criados:**
+  - migration (cópia de `docs/02_ENGINEERING/decision-idempotency.proposed.sql`);
+  - pgTAP (de `decision-idempotency.test.draft.sql`);
+  - função pura da impressão;
+  - classificação do `23505` nomeado.
+- **Alterados:**
+  - `saveHumanDecision()` (submissão obrigatória; criado, devolvido ou chave reaproveitada);
+  - as duas ações;
+  - `HumanDecisionSection` e `ScenarioDecisionForm` (chave por instância);
+  - `types/database.ts`.
+- **Implantação:** schema antes do app.
+
+**Desenho completo.** `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`.
+
+**Origem.** Mission 213 — Decision Idempotency Architecture & Migration Design.
+
+---
+
 ## Próximas decisões
 
 Estrutura preparada para D-006 em diante. Toda nova decisão arquitetural permanente segue o mesmo formato: `## D-XXX — Título`, depois `**Descrição.**`, `**Justificativa.**`, `**Impacto.**`, `**Origem.**` (missão que originou a decisão). Nunca remover ou reescrever uma decisão existente — apenas adicionar uma nova entrada, mesmo que ela substitua o entendimento anterior (nesse caso, a nova entrada deve referenciar explicitamente a decisão que está revisando).

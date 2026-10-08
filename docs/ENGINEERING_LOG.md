@@ -10727,3 +10727,83 @@ Reproduzido ao vivo (Supabase local, dados sintéticos), depois de reanalisar ag
 - A leitura atual julga observações antigas pela base gravada nelas (limitação da Mission 211): uma observação antiga com base gravada anterior à linhagem da decisão seria mostrada. Não existe nenhuma no Pilot.
 
 **Origem.** Mission 212 — Pilot Historical Outcome Integrity Audit.
+
+
+---
+
+## Mission 213 — Decision Idempotency Architecture & Migration Design
+
+**Status.** Desenho pronto (`DECISION_IDEMPOTENCY_DESIGN_READY`), **não aplicado**.
+- Nenhuma migration em `supabase/migrations/`, nenhum código de aplicação alterado, nenhuma RLS alterada, Pilot intocado.
+- Decisão registrada como **D-137 — PROPOSTA, NÃO ATIVADA**.
+- O duplo envio continua bloqueado só pela interface (`submittingRef`).
+- Desenho completo: `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`.
+
+**Auditoria.**
+- **Entrypoints:** 2 ações de servidor criam Decision: `createHumanDecisionAction()` (Recomendação e Manual) e `createScenarioDecisionAction()` (Scenario Lab, comparação e cartões do Executive Chat).
+- **Convergência:** as duas usam `createHumanDecision()` e `saveHumanDecision()` (um INSERT, id aleatório).
+- **O que não existe:** unicidade relevante, id de pedido, identidade de submissão. Nem a impressão estrutural da recomendação (D-083) nem a âncora do cenário (D-095) identificam uma confirmação.
+- **Convite a duplicar:** os dois formulários respondem a uma exceção com "Tente novamente".
+
+**Reprodução (Supabase local, dados sintéticos, IA sintética).** App local, sessão da conta de teste local. A interface real montou o pedido; no clique, um interceptador repetiu o mesmo pedido de Server Action em paralelo.
+
+| Fluxo | 2 envios → Decisions | 10 envios → Decisions | Conteúdo distinto |
+|---|---|---|---|
+| Recomendação | 2 | 10 | 1 |
+| Manual | 2 | 10 | 1 |
+| Cenário (Scenario Lab) | 2 | 10 | 1 |
+| Executive Chat | 2 | 10 | 1 |
+
+- **Respostas:** todas foram sucesso.
+- **Linhas gravadas:** mesmo ator, origem estrutural correta, ids todos distintos.
+- **Controle:** sem interceptador, 1 envio gravou 1 Decision.
+- **Erro no console do navegador:** só aparece com o interceptador (o cliente React lê a resposta clonada) — artefato do roteiro.
+- **Efeito a jusante:** cada duplicata é mãe válida de uma cadeia própria (execução, resultado, observação, aprendizado, todos com id aleatório e sem unicidade) e infla D-083/D-073.
+
+**Desenho (opção B).**
+- **Chave e impressão:** chave de submissão (UUID do formulário, estável entre reenvios) mais impressão canônica do pedido (SHA-256, calculada no servidor).
+- **Banco:** duas colunas nullable em `decisions`, três checks e um índice único parcial `(company_id, human_actor_id, idempotency_key)`.
+- **Ordem no servidor:** busca pela chave (atalho) → validação completa (inclui baseline desatualizado) → INSERT → `23505` do índice nomeado → relê e compara.
+- **Semântica:** mesma chave + mesmo pedido = mesma Decision (sucesso); outro pedido = recusa; outra chave = nova decisão.
+- **Sem mudanças em:** RLS, policies, RPC, SECURITY DEFINER e objeto `Decision`.
+
+**Achado contra a premissa.** Existe solução correta **sem migration** (opção E): id da Decision derivado de (empresa, ator, chave), PK como unicidade, precedente de D-073. Foi registrada e não recomendada:
+- mistura a identidade da entidade com a da submissão;
+- não grava chave nem impressão;
+- obriga a guardar a impressão no `jsonb` ou a reconstruir o pedido.
+
+Fica como alternativa se a migration não for aprovada.
+
+**Provas do desenho (sem Pilot).**
+- **Postgres descartável:** container próprio, mesma imagem do Supabase local, schema `public` copiado do banco local só por leitura, `auth.uid()` alinhado à definição real. Removido ao fim.
+  - Migration proposta aplicada sobre linhas existentes (inclusive duplicatas e ator nulo): linhas byte a byte iguais.
+  - Reversão documentada funciona.
+  - pgTAP de rascunho: 30/30 (chave por empresa, mesma chave → `23505`, checks, ator forjado e colisão com linha de outro tenant → `42501` antes do índice, imutabilidade, empresa encerrada).
+  - 10 conexões no mesmo instante: 1 linha, 9 × `23505` com o nome do índice.
+  - 1ª transação insere e desfaz: a 2ª espera (~2 s) e grava.
+  - 1ª insere e confirma: a 2ª espera e recebe `23505`.
+- **Modelo do algoritmo pelo caminho do app** (supabase-js → PostgREST → RLS, Supabase local; a PK no papel do índice): nenhum dos 10 pedidos simultâneos foi salvo pela busca prévia.
+  - 10 pedidos simultâneos: 1 INSERT venceu e 9 releram após `23505`, ou seja, 10 sucessos, 1 id, 1 linha.
+  - Reenvio: devolvido.
+  - Mesma chave com outro conteúdo: recusado.
+  - Outra chave: nova Decision.
+
+**Arquivos.**
+- `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`;
+- `docs/02_ENGINEERING/decision-idempotency.proposed.sql` (fora de `supabase/migrations/` para nunca ser aplicada por acidente);
+- `docs/02_ENGINEERING/decision-idempotency.test.draft.sql` (fora de `supabase/tests/` para não virar teste quebrado);
+- D-137 (PROPOSTA) em `docs/DECISIONS.md`;
+- `docs/HANDOFF.md`.
+
+Os roteiros de reprodução ficaram fora do repositório (dependem de Chrome, do app local e de dados sintéticos).
+
+**Validação.** type-check, lint, testes do CI e build sem regressão; varredura de segredos e PII limpa; `supabase/` inalterado.
+
+**Limitações.**
+- Duas abas são duas intenções.
+- As ações a jusante continuam sem chave.
+- O próprio dono, pela API, segue na fronteira de D-096.
+- A canonicalização da impressão é contrato estável (mudar exige versão).
+- A corrida foi provada em servidor de desenvolvimento (concorrência menor que a de produção).
+
+**Origem.** Mission 213 — Decision Idempotency Architecture & Migration Design.
