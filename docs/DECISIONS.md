@@ -2268,7 +2268,9 @@ Decisões manuais sem vínculo recebiam "a última análise" como base, por conv
 
 ## D-137 — PROPOSTA, NÃO ATIVADA: idempotência governada da criação de Decision — chave de submissão gerada pelo formulário, impressão canônica do pedido gravada pelo servidor e unicidade (empresa, ator, chave) no banco; a mesma confirmação nunca cria duas Decisions, e duas decisões legítimas iguais continuam possíveis
 
-**Atualização (Mission 214):** implementada no código e no Supabase local — ver **D-138**; o NEXO Pilot ainda não recebeu a Migration 019.
+**Atualização (Mission 214):** implementada no código e no Supabase local — ver **D-138**.
+
+**Atualização (Mission 215):** Migration 019 aplicada no NEXO Pilot (2026-10-09, autorização humana explícita; 19/19) — ver **D-138**.
 
 **Status (Mission 213): PROPOSTA — NÃO ATIVADA.** Desenho fechado na Mission 213; nada foi aplicado.
 - Nenhuma migration em `supabase/migrations/`.
@@ -2360,8 +2362,9 @@ Até a Mission 214 ser aprovada e implementada, o duplo envio continua bloqueado
 
 **Status.**
 - **Ativa no código** (`develop`) e **no Supabase local**.
-- **Pendente no Pilot:** a Migration 019 não foi aplicada, nenhum schema remoto mudou e nenhum deploy aconteceu.
-- O código de `develop` grava as colunas novas, então implantá-lo contra um banco sem a Migration 019 quebraria a criação de decisão. A ativação remota é a próxima missão, depois de aprovação humana.
+- ~~**Pendente no Pilot:** a Migration 019 não foi aplicada, nenhum schema remoto mudou e nenhum deploy aconteceu.~~
+- **Atualização (Mission 215, 2026-10-09):** Migration 019 **aplicada no NEXO Pilot** com autorização humana explícita (só ela; 19/19). Verificado só leitura: colunas nullable sem default, três checks validados, `decisions_idempotency_key_unique` único/válido em `(company_id, human_actor_id, idempotency_key) where idempotency_key is not null`, as 2 policies de `decisions` idênticas às de antes, nenhuma função nova (nem SECURITY DEFINER), cache do PostgREST reconhecendo as colunas. **Deploy do app ainda não feito** (fora da autorização da Mission 215); nenhuma Decision criada no Pilot.
+- O código de `develop` grava as colunas novas, então implantá-lo contra um banco sem a Migration 019 quebraria a criação de decisão. O Pilot já tem a 019; o app anterior continua compatível com ela (colunas nullable, checks aceitam nulos).
 
 **Decisão.** Implementa D-137 (opção B) sem mudar a semântica:
 1. **Migration 019** (`20261008120000_decision_idempotency.sql`):

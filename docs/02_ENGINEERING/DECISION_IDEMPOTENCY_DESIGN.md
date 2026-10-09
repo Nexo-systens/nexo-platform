@@ -1,6 +1,6 @@
 # Idempotência governada da criação de Decision — desenho
 
-> **Status: IMPLEMENTADA NO CÓDIGO E NO SUPABASE LOCAL — PILOT PENDENTE (`LOCAL_IMPLEMENTATION_COMPLETE / PILOT_ACTIVATION_PENDING`).** Desenho da Mission 213 (D-137), implementado na Mission 214 (D-138). O NEXO Pilot **ainda não** recebeu a Migration 019; o código de `develop` grava as colunas novas e não pode ser implantado contra um banco sem ela.
+> **Status: SCHEMA ATIVO NO NEXO PILOT — DEPLOY DO APP PENDENTE (`PILOT_SCHEMA_ACTIVE / APP_DEPLOY_PENDING`).** Desenho da Mission 213 (D-137), implementado na Mission 214 (D-138). Migration 019 aplicada no NEXO Pilot na Mission 215 (2026-10-09, autorização humana explícita; 19/19). O código de `develop` grava as colunas novas: só pode ser implantado contra um banco com a Migration 019 — o Pilot agora a tem. Nenhuma Decision real ou sintética foi criada no Pilot.
 
 Arquivos oficiais (a proposta e o rascunho da Mission 213 foram promovidos a eles e removidos de `docs/`):
 

@@ -10899,3 +10899,52 @@ Os roteiros de reprodução ficaram fora do repositório (dependem de Chrome, do
 - **Pilot:** nada ativado.
 
 **Origem.** Mission 214 — Governed Decision Idempotency Implementation.
+
+---
+
+## Mission 215 — Pilot Activation of Governed Decision Idempotency
+
+**Data.** 2026-10-09.
+
+**Status.** Fechada (`MISSION_215_CLOSED`) — `PILOT_SCHEMA_ACTIVE / APP_DEPLOY_PENDING`. Migration 019 aplicada no NEXO Pilot com autorização humana explícita, restrita a ela. Nenhuma decisão arquitetural nova (ativa no Pilot o schema de D-137/D-138).
+
+**Alvo.**
+- Projeto vinculado = NEXO Pillot, `ca-central-1`, `ACTIVE_HEALTHY` (CLI; nenhum ref impresso).
+- Projeto histórico `nexo-platform` (`sa-east-1`): INACTIVE, não vinculado, não tocado.
+
+**Antes (só leitura).**
+- `migration list --linked`: 18 local == remoto; só `20261008120000` pendente.
+- `supabase_migrations.schema_migrations`: 18, última `20260927120000`.
+- `public.decisions`: 0 linhas; colunas `idempotency_key`/`request_fingerprint`, os três checks e `decisions_idempotency_key_unique` ausentes; RLS ligada; 2 policies (`decisions_insert_own`, `decisions_select_own`).
+- Funções: digest da lista (nome, argumentos, `prosecdef`) registrado; 15 SECURITY DEFINER.
+
+**Ponto de recuperação.** Nenhum checkpoint novo: o plano não tem PITR; a 019 é aditiva (colunas nullable sem default, checks e índice) sobre uma tabela com 0 linhas e reversível por migration corretiva (cabeçalho da migration).
+
+**Aplicação.** `db push --linked --dry-run` listou só `20261008120000_decision_idempotency.sql`; `npx supabase db push --linked` aplicou só ela, sem erro.
+
+**Depois (só leitura).**
+- `migration list --linked`: 19 local == remoto; `schema_migrations` 19, última `20261008120000`.
+- Colunas: `idempotency_key uuid`, `request_fingerprint text`, nullable, sem default, com comentário.
+- Checks validados: `decisions_idempotency_pair_check`, `decisions_idempotency_human_actor_check`, `decisions_request_fingerprint_format_check` (definições iguais às da migration).
+- Índice: `CREATE UNIQUE INDEX decisions_idempotency_key_unique ON public.decisions USING btree (company_id, human_actor_id, idempotency_key) WHERE (idempotency_key IS NOT NULL)` — único, válido, pronto.
+- Policies de `decisions`: 2, texto idêntico ao de antes.
+- Funções: digest idêntico ao de antes; 19 em `public`; 15 SECURITY DEFINER — nenhuma RPC nem SECURITY DEFINER nova.
+- `public.decisions`: 0 linhas.
+
+**Cache do PostgREST.**
+- Event triggers `pgrst_ddl_watch` (`ddl_command_end`) e `pgrst_drop_watch` ativos — o `ALTER TABLE` da migration dispara o recarregamento.
+- REST com a chave anon (só GET): `select=id,idempotency_key,request_fingerprint` → 200 `[]`; coluna inexistente (controle) → 400 `42703`.
+- Limitação: a OpenAPI do PostgREST (leitura direta do cache) exige `service_role`, que não foi usada.
+
+**Smoke autenticado (só leitura).** Uma transação `begin; set transaction read only; … rollback;` pela API de gestão, com `request.jwt.claims` de um dono de empresa existente e `set local role authenticated`:
+- `current_user = authenticated`, `auth.uid()` presente, `transaction_read_only = on`;
+- 1 empresa própria visível; 0 Decisions visíveis; SELECT de `id, idempotency_key, request_fingerprint` sob RLS sem erro; 0 Decisions com chave.
+- Limitação: não houve login pela interface (nenhuma credencial usada); o caminho de escrita do app não foi exercitado no Pilot — exigiria criar uma Decision, fora da autorização.
+
+**Repositório.** `tests/production-surface/mission-208-executive-reports.test.ts`: 19 migrations passam a ser o estado canônico (antes o teste descontava a 019). Runbook, HANDOFF, D-137/D-138 e o desenho de idempotência atualizados para 19/19.
+
+**Não feito (fora da autorização).** Deploy do app; Decision real ou sintética; Company, Scenario, Outcome ou outro dado; RLS; SQL corretivo; rollback; `sa-east-1`; Mission 216.
+
+**Próximo passo.** Implantar `develop` contra o Pilot (autorização própria); depois, decisão real de fumaça (autorização separada).
+
+**Origem.** Mission 215 — Pilot Activation of Governed Decision Idempotency.
