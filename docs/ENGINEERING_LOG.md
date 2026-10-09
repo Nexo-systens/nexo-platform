@@ -10948,3 +10948,70 @@ Os roteiros de reprodução ficaram fora do repositório (dependem de Chrome, do
 **Próximo passo.** Implantar `develop` contra o Pilot (autorização própria); depois, decisão real de fumaça (autorização separada).
 
 **Origem.** Mission 215 — Pilot Activation of Governed Decision Idempotency.
+
+---
+
+## Mission 216 — Pilot Application Deployment Readiness & Activation Gate
+
+**Data.** 2026-10-09.
+
+**Status.** Parada no gate humano (`MISSION_216_STOPPED_AT_HUMAN_GATE`). Classificação: `APPLICATION_DEPLOYMENT_NOT_READY`, alvo `EXISTING_TARGET_REQUIRES_CORRECTION`. Auditoria, plano e validação; nenhum deploy, merge, push, DNS, env, Auth, migration ou dado. Nenhuma decisão arquitetural nova. Plano completo em `docs/02_ENGINEERING/APPLICATION_DEPLOYMENT_RUNBOOK.md`.
+
+**Baseline.**
+- HEAD == `origin/develop` == `8329d1d`; árvore limpa; CI verde.
+- 19 migrations no repositório, última `20261008120000`.
+- Pilot (NEXO Pillot, `ca-central-1`, `ACTIVE_HEALTHY`): 19/19, "up to date"; `sa-east-1` INACTIVE e não vinculado.
+
+**SECURITY DEFINER (12 × 15).** São escopos diferentes, sem mudança real.
+- `public`: 12 SECURITY DEFINER entre 19 funções — iguais, nome a nome, às 19 definidas pelas migrations do repositório.
+- Todos os schemas não-catálogo: 15 = as 12 + `pgbouncer.get_auth` + `vault.create_secret`/`vault.update_secret` (plataforma/extensão).
+- Digest de todos os schemas `465cfc0e…` idêntico ao da Mission 215; digest de `public` `db7701a9…` fixado como baseline.
+
+**Deploy real (só leitura; nada inferido de documentação).**
+- Integração Git da Vercel ativa: deployments de `vercel[bot]`; ambientes `Preview` e `Production`. Nenhum arquivo de deploy no repositório, nenhum webhook; o CI não faz deploy.
+- `develop` → Preview automático: 38 de 38 pushes desde 2026-09-20, todos `success`. O último é `8329d1d` (o push da Mission 215 também publicou um Preview). URLs protegidas por Vercel Authentication (302 → `vercel.com/sso-api`).
+- Production (de `main`, 2026-07-13 a 15): o último (`9ce6352`) falhou; o último com sucesso é `0e3fcee`. O alias de produção (homepage do repositório) serve o scaffold "Create Next App" (`/login` 404); HTML e scripts sem host Supabase, JWT ou segredo.
+- Banco do Preview: desconhecido (env da Vercel ilegível; Preview protegido). Vercel CLI ausente; nenhuma credencial Vercel.
+- `c2bf659` (Mission 214) virou Preview cerca de 17 h antes da 019 chegar ao Pilot. Se o Preview usa o Pilot, o registro de decisão falharia nesse intervalo. O Pilot tem 0 Decisions.
+
+**Domínios.**
+- `nexoefos.com.br`: zona na Cloudflare, sem registro web, MX nulo, `spf -all`.
+- `www.` e `app.`: NXDOMAIN.
+- `auth.`: só DNS de e-mail (Resend: `send.auth…`, DKIM).
+- Custom domain do Supabase: indisponível no plano.
+
+**Compatibilidade.**
+- Tipos gerados do Pilot × `types/database.ts`: 13 tabelas com colunas e tipos iguais (só aliases de enum, 10/10 com os mesmos valores); as 11 funções tipadas existem.
+- Gravação de Decision mapeada coluna a coluna (007 + 019).
+- As expressões exatas dos três checks, avaliadas em `read only` sobre linhas-modelo, aceitam o app antigo (sem chave) e o novo, e recusam só as combinações inválidas.
+- O app antigo (`54d9fe6`) insere sem as colunas e lê por campos nomeados.
+- Como `authenticated` (dono real, `read only`, rollback), um SELECT de todas as colunas tipadas nas 13 tabelas funciona sob RLS.
+
+**Env e segredos.**
+- Inventário sem valores: obrigatórias `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` (cliente + servidor) e `ANTHROPIC_API_KEY` (servidor, recursos de IA); opcionais `NEXT_PUBLIC_SITE_URL`/`NEXT_PUBLIC_NEXO_CONTACT_URL`; o resto é local ou de teste.
+- A chave pública local é JWT `role=anon`.
+- Anthropic só alcançável por `"use server"`; nenhum `service_role` no código.
+- Valor real da Anthropic: 0 em `.next/static`, `.next/server`, arquivos versionados e histórico. Nenhum `.env*` jamais commitado.
+- Lacuna P3: sem `server-only`.
+
+**Auth.**
+- Login por senha (server action), sem redirect do Supabase.
+- Signup e recuperação usam `https://<host>/auth/confirm?next=…`; `/auth/confirm` usa `verifyOtp(token_hash, type)`.
+- O proxy renova a sessão e redireciona; logout → `/login`.
+- Um host novo exige Redirect URL `https://<host>/auth/confirm**` e, conforme os templates, a Site URL. Templates e configuração atuais não são legíveis por agente.
+- SMTP/Resend não depende do host.
+
+**Build e smoke.**
+- `npm ci` limpo pelo lockfile (Node 24.21.0, npm 11.19.0) → type-check e lint limpos, testes do CI 536/536, build com 20 rotas + Proxy.
+- `next start` local com o env do Pilot, sem sessão: páginas públicas 200; rotas protegidas e API → 307 `/login`; `/auth/confirm` sem token → `confirmation_failed`; log limpo.
+- Sem credencial de UI: nenhuma conta criada, nenhuma senha usada.
+
+**Observabilidade.**
+- Existe: logs da Vercel e do Supabase (painel); `internalErrorResponse()` (D-129); error boundaries em companies e dashboard; `not-found`.
+- Lacunas: sem error reporting no cliente, sem rota de health, sem `global-error.tsx`.
+
+**Git.** `develop` auto-publica Preview → **sem push** (Seção 29 da missão). Commit local só de documentação.
+
+**Achados colaterais.** `.gitignore` versionado com marcadores de conflito (`<<<<<<<`/`>>>>>>>`), sem efeito prático: `.env*`, `.vercel` e `.next` continuam ignorados.
+
+**Origem.** Mission 216 — Pilot Application Deployment Readiness & Activation Gate.
