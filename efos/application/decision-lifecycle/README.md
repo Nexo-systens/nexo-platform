@@ -48,3 +48,7 @@ Devolve `Result<Decision, CreateHumanDecisionError>` (reaproveita `Result<T,E>` 
 - Não valida o conteúdo de um `ExecutiveDiagnosis`/`DiagnosisReview` real — só aceita os ids que o chamador já resolveu.
 
 Ver `docs/DECISIONS.md` e `docs/ENGINEERING_LOG.md`, Mission 124, para a auditoria completa e os 14 cenários testados.
+
+## Idempotência da confirmação (Mission 214, D-137/D-138)
+
+`createHumanDecision()` não mudou: continua pura, recebe `id`/`createdAt` por parâmetro (o id continua aleatório) e não conhece chave de submissão. A idempotência vive na fronteira de aplicação, em `modules/decisions/`: o pedido canônico e a impressão versionada (`lib/decisionRequest.ts`, `lib/decisionRequestFingerprint.ts`), o fluxo único das duas ações (`lib/decisionIdempotency.ts`, `submitDecisionOnce()`) e a gravação única, que decide a corrida pelo índice `decisions_idempotency_key_unique` (`services/decision-persistence.service.ts`, `saveHumanDecision()`). Um reenvio do mesmo pedido devolve a mesma `Decision`; nada aqui deduplica decisões legítimas com o mesmo conteúdo.

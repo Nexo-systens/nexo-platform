@@ -358,7 +358,9 @@ describe("Mission 208 — uma única autoridade de relatório", () => {
 
   test("nenhuma migration nova: os relatórios já existem em public.executions", () => {
     const migrations = readdirSync(join(ROOT, "supabase", "migrations")).filter((name) => name.endsWith(".sql"));
-    assert.equal(migrations.length, 18);
+    // 18 até a Mission 208; a única posterior é a idempotência de decisão
+    // (Migration 019, Mission 214, D-137), que não toca relatório.
+    assert.equal(migrations.filter((name) => name !== "20261008120000_decision_idempotency.sql").length, 18);
     assert.ok(!migrations.some((name) => /report/i.test(name)));
   });
 });

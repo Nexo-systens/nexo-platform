@@ -2268,7 +2268,9 @@ Decisões manuais sem vínculo recebiam "a última análise" como base, por conv
 
 ## D-137 — PROPOSTA, NÃO ATIVADA: idempotência governada da criação de Decision — chave de submissão gerada pelo formulário, impressão canônica do pedido gravada pelo servidor e unicidade (empresa, ator, chave) no banco; a mesma confirmação nunca cria duas Decisions, e duas decisões legítimas iguais continuam possíveis
 
-**Status: PROPOSTA — NÃO ATIVADA.** Desenho fechado na Mission 213; nada foi aplicado.
+**Atualização (Mission 214):** implementada no código e no Supabase local — ver **D-138**; o NEXO Pilot ainda não recebeu a Migration 019.
+
+**Status (Mission 213): PROPOSTA — NÃO ATIVADA.** Desenho fechado na Mission 213; nada foi aplicado.
 - Nenhuma migration em `supabase/migrations/`.
 - Nenhum código de aplicação alterado.
 - Pilot intocado.
@@ -2351,6 +2353,73 @@ Até a Mission 214 ser aprovada e implementada, o duplo envio continua bloqueado
 **Desenho completo.** `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`.
 
 **Origem.** Mission 213 — Decision Idempotency Architecture & Migration Design.
+
+---
+
+## D-138 — Ativa D-137 no código e no Supabase local (Mission 214): a criação de Decision passa a ser idempotente por chave de submissão + impressão versionada do pedido + índice único (empresa, ator, chave); o NEXO Pilot ainda NÃO recebeu a Migration 019 e nenhum deploy pode usar este código contra ele antes da ativação coordenada
+
+**Status.**
+- **Ativa no código** (`develop`) e **no Supabase local**.
+- **Pendente no Pilot:** a Migration 019 não foi aplicada, nenhum schema remoto mudou e nenhum deploy aconteceu.
+- O código de `develop` grava as colunas novas, então implantá-lo contra um banco sem a Migration 019 quebraria a criação de decisão. A ativação remota é a próxima missão, depois de aprovação humana.
+
+**Decisão.** Implementa D-137 (opção B) sem mudar a semântica:
+1. **Migration 019** (`20261008120000_decision_idempotency.sql`):
+   - `decisions.idempotency_key uuid null` e `decisions.request_fingerprint text null`;
+   - três checks: as duas colunas juntas; só em Decision humana; formato da impressão;
+   - índice único parcial `decisions_idempotency_key_unique (company_id, human_actor_id, idempotency_key) where idempotency_key is not null`;
+   - sem backfill, sem default, sem policy, grant, função ou SECURITY DEFINER novos.
+2. **Pedido canônico e impressão** (`modules/decisions/lib/decisionRequest.ts`, `decisionRequestFingerprint.ts`):
+   - JSON determinístico (chaves ordenadas, só JSON simples) com exatamente os campos que o servidor usa, com os padrões de `createHumanDecision()`;
+   - impressão `decision-request:v1:` + SHA-256 de `{format, entrypoint, companyId, humanActorId, payload}`;
+   - ficam de fora a chave, o id, instantes e números recomputados;
+   - sem hipernormalização: o texto humano entra como chega.
+3. **Fluxo único** (`submitDecisionOnce()`, `modules/decisions/lib/decisionIdempotency.ts`), usado pelas duas ações, depois de sessão, formato da chave (UUID, D-128) e empresa (RLS, aberta):
+   - **busca pela chave:** mesma impressão devolve a Decision gravada **sem revalidar o contexto**; outra impressão recusa;
+   - **intenção nova:** todas as validações (diagnóstico, revisão, recomendação; ou baseline, âncora e recomputação), depois composição, depois gravação;
+   - **cenário/Chat:** depois de recusa por verdade financeira ou âncora, procura a chave mais uma vez, só leitura.
+4. **Gravação única** (`saveHumanDecision()`). Exige a submissão e devolve `CREATED`, `REPLAYED` ou `KEY_REUSED_WITH_DIFFERENT_PAYLOAD`.
+   - O `23505` **do índice nomeado** (`isDecisionIdempotencyViolation`) relê pela chave e compara a impressão.
+   - Qualquer outro erro lança.
+   - Conflito sem linha visível falha fechado.
+   - `findDecisionBySubmission()` filtra empresa, ator e chave, sob RLS.
+5. **Resposta.**
+   - Reenvio = `{ success: true, replayed: true }`, a mesma tela de sucesso.
+   - Chave reaproveitada com outro pedido = `stage: "idempotency"`, mensagem segura; o formulário encerra a intenção e recarrega.
+   - Chave ausente ou malformada = "Confirmação inválida".
+6. **Formulários** (`useDecisionIdempotencyKey`, em `HumanDecisionSection` e `ScenarioDecisionForm`; o segundo serve Scenario Lab, comparação e Chat):
+   - a chave nasce no primeiro envio de uma intenção;
+   - continua a mesma em reenvio do mesmo pedido (resposta perdida, rede);
+   - é **renovada quando o pedido canônico muda** (refinamento da Mission 214 sobre D-137, que a mantinha na edição);
+   - é descartada depois do sucesso ou da recusa por chave reaproveitada;
+   - nunca nasce na renderização e nunca aparece na tela.
+   - O bloqueio de duplo clique (`submittingRef`) continua.
+   - Exceção no navegador: "Não foi possível confirmar o registro. Tente novamente — uma decisão já registrada não será duplicada."
+
+**Refinamentos sobre o desenho de D-137 (sem mudar a semântica).**
+- **Impressão autodescritiva:** a versão fica gravada na própria impressão (`decision-request:v<n>:<hex>`, check do banco), em vez de só dentro do hash. Mudar a canonicalização exige uma versão nova, nunca reinterpretar a v1.
+- **Rotação da chave quando o pedido muda:** não preservar a chave quando o pedido canônico mudou. O servidor continua recusando mesma chave com outra impressão.
+- **Empresa encerrada:** o reenvio de uma decisão gravada antes do encerramento responde como empresa inexistente ("Empresa não encontrada ou sem acesso."). É a regra vigente de D-130 — o encerramento congela a empresa e toda superfície do produto a exclui — e não semântica nova. A linha continua no banco até a purga.
+
+**Prova (sem Pilot).**
+- **CI:** 30 testes em `tests/production-surface/mission-214-decision-idempotency.test.ts`.
+- **pgTAP:** 34 asserções em `supabase/tests/database/decision_idempotency.test.sql` (150 no total com as de offboarding), no Supabase local e numa pilha local descartável onde a cadeia inteira (19 migrations) aplicou do zero.
+- **Reversão e reaplicação** na pilha descartável: linhas existentes idênticas byte a byte.
+- **Supabase local real:** 10 testes em `tests/decisions-local/`:
+  - reenvio sequencial;
+  - 10 simultâneos → 10 sucessos e 1 Decision;
+  - mesma chave com outro pedido, em sequência e em corrida;
+  - outra chave;
+  - vencedor que desfaz ou confirma, por sincronização controlada (advisory lock + `pg_stat_activity`);
+  - âncora desatualizada antes da 1ª gravação e reenvio depois de análise nova;
+  - tenants e ator;
+  - empresa encerrada;
+  - reenvio sem nenhuma escrita a jusante.
+- **Interface real** (app local, IA sintética): nos quatro fluxos, 10 envios simultâneos → 10 sucessos (1 criada + 9 devolvidas) → 1 Decision. Com resposta perdida (Manual e Chat), o segundo clique mostra sucesso e o banco fica com 1 linha.
+
+**Inalterados.** `createHumanDecision()` (o id continua aleatório e recebido como parâmetro), `Decision` do domínio, RLS, Outcome, Learning, Knowledge, relatório (sem deduplicação no renderer), Executive AI. As ações que criam execução, resultado, observação e aprendizado continuam sem chave (fora do escopo).
+
+**Origem.** Mission 214 — Governed Decision Idempotency Implementation.
 
 ---
 

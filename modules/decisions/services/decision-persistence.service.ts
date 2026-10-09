@@ -1,6 +1,17 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { allUuids } from "@/lib/identifiers";
 import { createClient } from "@/lib/supabase/server";
 import type { Decision } from "@/efos/domain";
+import {
+  isDecisionIdempotencyViolation,
+  isIdempotencyKey,
+  matchDecisionSubmission,
+  type DecisionSubmission,
+  type ExistingDecisionSubmission,
+  type SaveHumanDecisionResult,
+} from "@/modules/decisions/lib/decisionIdempotency";
+import { isDecisionRequestFingerprint } from "@/modules/decisions/lib/decisionRequestFingerprint";
 import type { Database } from "@/types/database";
 
 export type DecisionRow = Database["public"]["Tables"]["decisions"]["Row"];
@@ -80,14 +91,37 @@ export async function verifyReviewBelongsToCompany(
   return undefined;
 }
 
-export async function saveHumanDecision(decision: Decision): Promise<PersistedDecision> {
+/**
+ * Mission 214 (D-137) — a única gravação de Decision humana, agora
+ * idempotente. Grava a Decision junto da chave de submissão e da impressão
+ * canônica do pedido; quem decide uma corrida é o índice único
+ * `decisions_idempotency_key_unique` (empresa + ator + chave), nunca uma
+ * leitura anterior:
+ *
+ * - INSERT ok → `CREATED`;
+ * - 23505 DESSE índice → relê pela chave: mesma impressão → `REPLAYED`
+ *   (a Decision de quem venceu a corrida); outra → `KEY_REUSED_WITH_DIFFERENT_PAYLOAD`;
+ * - qualquer outro erro (inclusive outro 23505) → lança, como antes.
+ *
+ * `supabase` é opcional: as ações usam a sessão do request
+ * (`createClient()`); a prova local injeta a sessão de um usuário real do
+ * Auth local. Sempre a sessão do usuário — nunca `service_role`.
+ */
+export async function saveHumanDecision(
+  decision: Decision,
+  submission: DecisionSubmission,
+  supabase?: SupabaseClient<Database>
+): Promise<SaveHumanDecisionResult> {
   if (!decision.humanActorId) {
     throw new Error("saveHumanDecision() exige Decision.humanActorId — nenhuma Decision sem autoria humana é persistida por este repositório.");
   }
+  if (!isIdempotencyKey(submission.idempotencyKey) || !isDecisionRequestFingerprint(submission.requestFingerprint)) {
+    throw new Error("saveHumanDecision() exige chave de submissão e impressão do pedido válidas (D-137).");
+  }
 
-  const supabase = await createClient();
+  const client = supabase ?? (await createClient());
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("decisions")
     .insert({
       id: decision.id,
@@ -96,12 +130,50 @@ export async function saveHumanDecision(decision: Decision): Promise<PersistedDe
       review_id: decision.basedOnReviewId ?? null,
       human_actor_id: decision.humanActorId,
       decision: decision as unknown as Database["public"]["Tables"]["decisions"]["Insert"]["decision"],
+      idempotency_key: submission.idempotencyKey,
+      request_fingerprint: submission.requestFingerprint,
     })
     .select("*")
     .single();
 
+  if (!error) return { outcome: "CREATED", decision: toPersisted(data) };
+
+  if (isDecisionIdempotencyViolation(error)) {
+    const existing = await findDecisionBySubmission(decision.companyId, decision.humanActorId, submission.idempotencyKey, client);
+    // Conflito sem linha visível na própria empresa/ator: falha fechada.
+    if (!existing) throw error;
+    return matchDecisionSubmission(existing, submission.requestFingerprint);
+  }
+
+  throw error;
+}
+
+/**
+ * Mission 214 (D-137) — a Decision gravada com esta chave, na PRÓPRIA
+ * empresa e pelo PRÓPRIO ator, sob RLS (`decisions_select_own`). Nunca
+ * procura a chave fora desse escopo: a mesma chave em outra empresa ou de
+ * outro ator é outra intenção e nunca é vista.
+ */
+export async function findDecisionBySubmission(
+  companyId: string,
+  humanActorId: string,
+  idempotencyKey: string,
+  supabase?: SupabaseClient<Database>
+): Promise<ExistingDecisionSubmission | undefined> {
+  if (!allUuids(companyId, humanActorId) || !isIdempotencyKey(idempotencyKey)) return undefined;
+
+  const client = supabase ?? (await createClient());
+
+  const { data, error } = await client
+    .from("decisions")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("human_actor_id", humanActorId)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+
   if (error) throw error;
-  return toPersisted(data);
+  return data ? { decision: toPersisted(data), requestFingerprint: data.request_fingerprint } : undefined;
 }
 
 export async function getDecisionById(id: string): Promise<PersistedDecision | undefined> {

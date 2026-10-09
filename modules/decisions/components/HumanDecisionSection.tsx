@@ -23,7 +23,10 @@ import {
   type RecommendationConfidence,
   type RecommendationPriority,
 } from "@/efos/domain";
-import { createHumanDecisionAction } from "@/modules/decisions/actions/human-review.actions";
+import { createHumanDecisionAction, type CreateHumanDecisionInput } from "@/modules/decisions/actions/human-review.actions";
+import { DECISION_SUBMISSION_RETRY_MESSAGE } from "@/modules/decisions/lib/decisionIdempotency";
+import { decisionIntentSignature, humanDecisionRequestPayload } from "@/modules/decisions/lib/decisionRequest";
+import { useDecisionIdempotencyKey } from "@/modules/decisions/lib/useDecisionIdempotencyKey";
 import type { PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
 import type { RecommendationReferenceTrace } from "@/efos/application/executive-diagnosis";
 import { resolveRecommendationReviewStatus, type DiagnosisReview } from "@/efos/application/diagnosis-review";
@@ -153,6 +156,13 @@ export function HumanDecisionSection({
    * em voo).
    */
   const submittingRef = useRef(false);
+  /**
+   * Mission 214 (D-137) — chave de submissão desta intenção: nasce no
+   * primeiro envio, continua a mesma nos reenvios do mesmo pedido (resposta
+   * perdida, rede), é renovada se o pedido mudar e descartada depois do
+   * sucesso. O servidor devolve a mesma decisão para um reenvio.
+   */
+  const submission = useDecisionIdempotencyKey();
 
   /**
    * Mission 153 — First Real Recommendation-Backed Decision & Production
@@ -178,7 +188,7 @@ export function HumanDecisionSection({
     setSuccess(false);
 
     try {
-      const result = await createHumanDecisionAction({
+      const request: Omit<CreateHumanDecisionInput, "idempotencyKey"> = {
         companyId,
         type: type as DecisionType,
         priority: priority as RecommendationPriority,
@@ -189,14 +199,24 @@ export function HumanDecisionSection({
         diagnosisId: linkToDiagnosis ? diagnosisId : undefined,
         reviewId: linkToDiagnosis ? reviewId : undefined,
         recommendationId: linkToDiagnosis && recommendationId ? recommendationId : undefined,
-      });
+      };
+      const idempotencyKey = submission.keyFor(decisionIntentSignature(companyId, humanDecisionRequestPayload(request)));
+      const result = await createHumanDecisionAction({ ...request, idempotencyKey });
 
       if (!result.success) {
+        if (result.stage === "idempotency") {
+          // A chave já registrou outra decisão: mostra o que está gravado e
+          // a próxima submissão é uma intenção nova.
+          submission.settle();
+          router.refresh();
+        }
         setError(result.error);
         setErrors(result.errors);
         return;
       }
 
+      // Criada ou devolvida (reenvio): o mesmo sucesso, nunca "já existe".
+      submission.settle();
       setSuccess(true);
       setType("");
       setPriority("");
@@ -207,7 +227,8 @@ export function HumanDecisionSection({
       setRecommendationId("");
       router.refresh();
     } catch {
-      setError("Erro inesperado ao registrar a decisão. Tente novamente.");
+      // Resposta perdida/rede: a chave continua a mesma; reenviar é seguro.
+      setError(DECISION_SUBMISSION_RETRY_MESSAGE);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);

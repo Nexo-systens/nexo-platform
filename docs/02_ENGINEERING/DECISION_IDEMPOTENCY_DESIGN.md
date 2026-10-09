@@ -1,12 +1,20 @@
 # Idempotência governada da criação de Decision — desenho
 
-> **Status: PROPOSTA — NÃO ATIVADA.** Desenho da Mission 213 (D-137). Nada aqui está em produção: nenhuma migration foi criada em `supabase/migrations/`, nenhum código de aplicação mudou e o Pilot não foi tocado. Até a Mission 214 ser aprovada e implementada, **o duplo envio continua bloqueado só pela interface** (`submittingRef`).
+> **Status: IMPLEMENTADA NO CÓDIGO E NO SUPABASE LOCAL — PILOT PENDENTE (`LOCAL_IMPLEMENTATION_COMPLETE / PILOT_ACTIVATION_PENDING`).** Desenho da Mission 213 (D-137), implementado na Mission 214 (D-138). O NEXO Pilot **ainda não** recebeu a Migration 019; o código de `develop` grava as colunas novas e não pode ser implantado contra um banco sem ela.
 
-Arquivos deste desenho:
+Arquivos oficiais (a proposta e o rascunho da Mission 213 foram promovidos a eles e removidos de `docs/`):
 
-- este documento;
-- `decision-idempotency.proposed.sql` — a migration proposta, fora de `supabase/migrations/` de propósito, para nunca ser aplicada por acidente;
-- `decision-idempotency.test.draft.sql` — o teste pgTAP da migration (rascunho; a Mission 214 o move para `supabase/tests/database/`).
+- `supabase/migrations/20261008120000_decision_idempotency.sql` — Migration 019;
+- `supabase/tests/database/decision_idempotency.test.sql` — pgTAP (34 asserções);
+- `modules/decisions/lib/decisionRequest.ts`, `decisionRequestFingerprint.ts`, `decisionIdempotency.ts`, `useDecisionIdempotencyKey.ts`;
+- `modules/decisions/services/decision-persistence.service.ts` (`saveHumanDecision`, `findDecisionBySubmission`);
+- `tests/production-surface/mission-214-decision-idempotency.test.ts` (CI) e `tests/decisions-local/` (Supabase local).
+
+**Refinamentos da Mission 214 sobre este desenho** (D-138; a semântica não muda):
+
+- a impressão grava a própria versão: `decision-request:v1:<64 hex>` (check `^decision-request:v[1-9][0-9]*:[0-9a-f]{64}$`), em vez de 64 hex com a versão só dentro do hash;
+- a chave do formulário é **renovada quando o pedido canônico muda** (§8 abaixo dizia "estável na edição"); o servidor continua recusando mesma chave + outra impressão;
+- empresa encerrada: o reenvio responde como empresa inexistente (regra vigente de D-130), confirmado na implementação.
 
 ---
 
@@ -147,7 +155,7 @@ check   request_fingerprint is null or request_fingerprint ~ '^[0-9a-f]{64}$'
 unique  (company_id, human_actor_id, idempotency_key) where idempotency_key is not null
 ```
 
-SQL completo: `decision-idempotency.proposed.sql`.
+SQL oficial: `supabase/migrations/20261008120000_decision_idempotency.sql` (Migration 019).
 
 ### 7.2 Escopo da unicidade
 
@@ -341,7 +349,7 @@ Os roteiros ficaram fora do repositório (dependem de Chrome, do app local e de 
 
 O núcleo de INSERT, releitura e comparação deve receber o `SupabaseClient` por parâmetro, para ser testável com sessão local.
 
-**pgTAP:** mover `decision-idempotency.test.draft.sql` para `supabase/tests/database/decision_idempotency.test.sql` e rodar `npx supabase test db`.
+**pgTAP:** `supabase/tests/database/decision_idempotency.test.sql` (feito na Mission 214), `npx supabase test db`.
 
 **Corrida pela interface:** repetir a reprodução de §1 com a solução. Esperado: 10 envios, 10 sucessos, 1 Decision em cada fluxo.
 

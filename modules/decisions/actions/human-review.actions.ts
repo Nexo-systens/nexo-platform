@@ -12,10 +12,19 @@ import {
   type PersistedDiagnosisReview,
 } from "@/modules/decisions/services/diagnosis-review-persistence.service";
 import {
+  findDecisionBySubmission,
   saveHumanDecision,
   verifyReviewBelongsToCompany,
   type PersistedDecision,
 } from "@/modules/decisions/services/decision-persistence.service";
+import {
+  IDEMPOTENCY_KEY_REUSED_MESSAGE,
+  INVALID_IDEMPOTENCY_KEY_MESSAGE,
+  isIdempotencyKey,
+  submitDecisionOnce,
+} from "@/modules/decisions/lib/decisionIdempotency";
+import { humanDecisionRequestPayload } from "@/modules/decisions/lib/decisionRequest";
+import { deriveDecisionRequestFingerprint } from "@/modules/decisions/lib/decisionRequestFingerprint";
 import { getExecutiveDiagnosisById } from "@/modules/decisions/services/executive-diagnosis-persistence.service";
 import { createHumanDecision } from "@/efos/application/decision-lifecycle/createHumanDecision";
 import type { CreateHumanDecisionCommand } from "@/efos/application/decision-lifecycle/CreateHumanDecisionCommand";
@@ -110,17 +119,37 @@ export interface CreateHumanDecisionInput {
   // `proposedBy`); aceitar o campo do cliente permitia gravar um cenário,
   // uma impressão de baseline ou uma origem fabricados, que entrariam no
   // relatório e no Esperado × Observado. Nenhuma tela o enviava.
+  /**
+   * Mission 214 (D-137) — chave de submissão desta intenção (UUID gerado
+   * pelo formulário, estável nos reenvios do mesmo pedido). Reivindicação
+   * do cliente: só identifica o pedido, nunca autoriza nada.
+   */
+  readonly idempotencyKey: string;
 }
 
 export type CreateHumanDecisionResult =
-  | { readonly success: true; readonly decision: PersistedDecision }
-  | { readonly success: false; readonly error: string; readonly errors?: readonly string[] };
+  | { readonly success: true; readonly decision: PersistedDecision; readonly replayed: boolean }
+  | {
+      readonly success: false;
+      readonly error: string;
+      readonly errors?: readonly string[];
+      /** `"idempotency"`: a chave já registrou outra decisão (mesma chave, outro pedido). */
+      readonly stage?: "idempotency";
+    };
+
+type HumanDecisionRejection = { readonly error: string; readonly errors?: readonly string[] };
 
 /**
  * `createHumanDecisionAction()` — único ponto de aplicação real
- * autorizado a produzir e persistir uma `Decision` humana.
+ * autorizado a produzir e persistir uma `Decision` humana a partir de
+ * diagnóstico/recomendação ou manualmente.
  * `humanActorId` nunca vem do `input` do cliente — é sempre `user.id`
  * resolvido pela sessão server-side.
+ *
+ * Mission 214 (D-137): sessão → formato da chave → empresa (RLS, aberta)
+ * → impressão do pedido → `submitDecisionOnce()` (busca pela chave; para
+ * uma intenção nova, todas as validações abaixo; gravação idempotente).
+ * Um reenvio do mesmo pedido devolve a mesma Decision como sucesso.
  */
 export async function createHumanDecisionAction(
   input: CreateHumanDecisionInput
@@ -130,77 +159,111 @@ export async function createHumanDecisionAction(
     return { success: false, error: "Sessão expirada. Faça login novamente." };
   }
 
+  if (!isIdempotencyKey(input.idempotencyKey)) {
+    return { success: false, error: INVALID_IDEMPOTENCY_KEY_MESSAGE };
+  }
+
+  // Empresa sob RLS e ainda aberta: empresa encerrada responde como
+  // inexistente (D-130) — inclusive para o reenvio de uma decisão gravada
+  // antes do encerramento.
   const company = await getCompanyById(input.companyId);
   if (!company) {
     return { success: false, error: "Empresa não encontrada ou sem acesso." };
   }
 
-  if (input.diagnosisId) {
-    const diagnosisError = await verifyDiagnosisBelongsToCompany(input.diagnosisId, input.companyId);
-    if (diagnosisError) {
-      return { success: false, error: diagnosisError.message };
-    }
+  const requestFingerprint = deriveDecisionRequestFingerprint(
+    { entrypoint: "human-decision", companyId: input.companyId, humanActorId: user.id },
+    humanDecisionRequestPayload(input)
+  );
+  if (!requestFingerprint) {
+    return { success: false, error: "Comando de decisão inválido." };
   }
 
-  if (input.reviewId) {
-    const reviewError = await verifyReviewBelongsToCompany(input.reviewId, input.companyId);
-    if (reviewError) {
-      return { success: false, error: reviewError.message };
-    }
-  }
+  const outcome = await submitDecisionOnce<HumanDecisionRejection>({
+    requestFingerprint,
+    findExisting: () => findDecisionBySubmission(input.companyId, user.id, input.idempotencyKey),
+    validateAndCompose: async () => {
+      if (input.diagnosisId) {
+        const diagnosisError = await verifyDiagnosisBelongsToCompany(input.diagnosisId, input.companyId);
+        if (diagnosisError) {
+          return { ok: false, failure: { error: diagnosisError.message } };
+        }
+      }
 
-  // Mission 150 — Executive Recommendation → Human Decision
-  // Traceability (D-082). `recommendationId` nunca é aceito sem
-  // `diagnosisId` (não há como verificar a que diagnóstico pertence);
-  // quando presente, o diagnóstico real é buscado (nunca confiando só
-  // no id fornecido pelo client) e `traceRecommendationReference()`
-  // (D-082) confirma que o id realmente existe entre os itens desse
-  // diagnóstico — o mesmo padrão de `validateKnowledgeReferences()`
-  // (D-081, Mission 149) aplicado à nova referência.
-  if (input.recommendationId) {
-    if (!input.diagnosisId) {
-      return {
-        success: false,
-        error: "recommendationId informado sem diagnosisId — não é possível verificar a que diagnóstico a recomendação pertence.",
+      if (input.reviewId) {
+        const reviewError = await verifyReviewBelongsToCompany(input.reviewId, input.companyId);
+        if (reviewError) {
+          return { ok: false, failure: { error: reviewError.message } };
+        }
+      }
+
+      // Mission 150 — Executive Recommendation → Human Decision
+      // Traceability (D-082). `recommendationId` nunca é aceito sem
+      // `diagnosisId` (não há como verificar a que diagnóstico pertence);
+      // quando presente, o diagnóstico real é buscado (nunca confiando só
+      // no id fornecido pelo client) e `traceRecommendationReference()`
+      // (D-082) confirma que o id realmente existe entre os itens desse
+      // diagnóstico — o mesmo padrão de `validateKnowledgeReferences()`
+      // (D-081, Mission 149) aplicado à nova referência.
+      if (input.recommendationId) {
+        if (!input.diagnosisId) {
+          return {
+            ok: false,
+            failure: {
+              error: "recommendationId informado sem diagnosisId — não é possível verificar a que diagnóstico a recomendação pertence.",
+            },
+          };
+        }
+        const diagnosis = await getExecutiveDiagnosisById(input.diagnosisId);
+        if (!diagnosis || diagnosis.companyId !== input.companyId) {
+          return { ok: false, failure: { error: "O diagnóstico informado não existe ou não pertence a esta empresa." } };
+        }
+        const trace = traceRecommendationReference(diagnosis.diagnosis, input.recommendationId);
+        if (!trace) {
+          return {
+            ok: false,
+            failure: {
+              error: "recommendationId informado não corresponde a nenhum item real do diagnóstico — nenhuma referência inventada é aceita.",
+            },
+          };
+        }
+      }
+
+      const command: CreateHumanDecisionCommand = {
+        humanActorId: user.id,
+        diagnosisId: input.diagnosisId,
+        reviewId: input.reviewId,
+        recommendationId: input.recommendationId,
+        companyId: input.companyId,
+        type: input.type,
+        priority: input.priority,
+        confidence: input.confidence,
+        title: input.title,
+        description: input.description,
+        rationale: input.rationale,
+        recommendations: input.recommendations,
+        reasonings: input.reasonings,
+        contexts: input.contexts,
+        evidences: input.evidences,
       };
-    }
-    const diagnosis = await getExecutiveDiagnosisById(input.diagnosisId);
-    if (!diagnosis || diagnosis.companyId !== input.companyId) {
-      return { success: false, error: "O diagnóstico informado não existe ou não pertence a esta empresa." };
-    }
-    const trace = traceRecommendationReference(diagnosis.diagnosis, input.recommendationId);
-    if (!trace) {
-      return {
-        success: false,
-        error: "recommendationId informado não corresponde a nenhum item real do diagnóstico — nenhuma referência inventada é aceita.",
-      };
-    }
+
+      const result = createHumanDecision(command, randomUUID(), new Date().toISOString());
+      if (!result.success) {
+        return { ok: false, failure: { error: "Comando de decisão inválido.", errors: result.error.errors } };
+      }
+      return { ok: true, decision: result.value };
+    },
+    save: (decision) => saveHumanDecision(decision, { idempotencyKey: input.idempotencyKey, requestFingerprint }),
+  });
+
+  switch (outcome.outcome) {
+    case "CREATED":
+    case "REPLAYED":
+      revalidatePath(`/companies/${input.companyId}`);
+      return { success: true, decision: outcome.decision, replayed: outcome.outcome === "REPLAYED" };
+    case "KEY_REUSED_WITH_DIFFERENT_PAYLOAD":
+      return { success: false, stage: "idempotency", error: IDEMPOTENCY_KEY_REUSED_MESSAGE };
+    case "REJECTED":
+      return { success: false, ...outcome.failure };
   }
-
-  const command: CreateHumanDecisionCommand = {
-    humanActorId: user.id,
-    diagnosisId: input.diagnosisId,
-    reviewId: input.reviewId,
-    recommendationId: input.recommendationId,
-    companyId: input.companyId,
-    type: input.type,
-    priority: input.priority,
-    confidence: input.confidence,
-    title: input.title,
-    description: input.description,
-    rationale: input.rationale,
-    recommendations: input.recommendations,
-    reasonings: input.reasonings,
-    contexts: input.contexts,
-    evidences: input.evidences,
-  };
-
-  const result = createHumanDecision(command, randomUUID(), new Date().toISOString());
-  if (!result.success) {
-    return { success: false, error: "Comando de decisão inválido.", errors: result.error.errors };
-  }
-
-  const persisted = await saveHumanDecision(result.value);
-  revalidatePath(`/companies/${input.companyId}`);
-  return { success: true, decision: persisted };
 }

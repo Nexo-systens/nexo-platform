@@ -31,7 +31,10 @@ import {
   DECISION_PROPOSER_LABELS,
   DECISION_TYPE_LABELS,
 } from "@/modules/decisions/lib/governanceLabels";
-import { createScenarioDecisionAction } from "@/modules/scenarios/actions/scenario-decision.actions";
+import { DECISION_SUBMISSION_RETRY_MESSAGE } from "@/modules/decisions/lib/decisionIdempotency";
+import { decisionIntentSignature, scenarioDecisionRequestPayload } from "@/modules/decisions/lib/decisionRequest";
+import { useDecisionIdempotencyKey } from "@/modules/decisions/lib/useDecisionIdempotencyKey";
+import { createScenarioDecisionAction, type CreateScenarioDecisionInput } from "@/modules/scenarios/actions/scenario-decision.actions";
 import type { ScenarioRequest } from "@/modules/scenarios/actions/scenario-simulation.actions";
 import type { ScenarioBaselineIdentity } from "@/modules/scenarios/lib/scenarioBaselineIdentity";
 
@@ -92,6 +95,13 @@ export function ScenarioDecisionForm({
   const [error, setError] = useState<string | undefined>();
   const [success, setSuccess] = useState(false);
   const submittingRef = useRef(false);
+  /**
+   * Mission 214 (D-137) — chave de submissão desta intenção (este formulário,
+   * esta hipótese, esta âncora): nasce no primeiro envio, continua a mesma nos
+   * reenvios do mesmo pedido, é renovada se o pedido mudar e descartada
+   * depois do sucesso. Vale igual para o Scenario Lab e para o Executive Chat.
+   */
+  const submission = useDecisionIdempotencyKey();
 
   const canSubmit = Boolean(type && priority && confidence && title.trim() && description.trim() && rationale.trim());
 
@@ -104,7 +114,7 @@ export function ScenarioDecisionForm({
     setSuccess(false);
 
     try {
-      const result = await createScenarioDecisionAction({
+      const decisionRequest: Omit<CreateScenarioDecisionInput, "idempotencyKey"> = {
         companyId,
         evaluatedBaselineIdentity,
         request,
@@ -116,13 +126,23 @@ export function ScenarioDecisionForm({
         title: title.trim(),
         description: description.trim(),
         rationale: rationale.trim(),
-      });
+      };
+      const idempotencyKey = submission.keyFor(decisionIntentSignature(companyId, scenarioDecisionRequestPayload(decisionRequest)));
+      const result = await createScenarioDecisionAction({ ...decisionRequest, idempotencyKey });
 
       if (!result.success) {
+        if (result.stage === "idempotency") {
+          // A chave já registrou outra decisão: mostra o que está gravado e
+          // a próxima submissão é uma intenção nova.
+          submission.settle();
+          router.refresh();
+        }
         setError(result.error);
         return;
       }
 
+      // Criada ou devolvida (reenvio): o mesmo sucesso, nunca "já existe".
+      submission.settle();
       setSuccess(true);
       setType("");
       setPriority("");
@@ -133,7 +153,8 @@ export function ScenarioDecisionForm({
       router.refresh();
       onCreated?.();
     } catch {
-      setError("Erro inesperado ao registrar a decisão. Tente novamente.");
+      // Resposta perdida/rede: a chave continua a mesma; reenviar é seguro.
+      setError(DECISION_SUBMISSION_RETRY_MESSAGE);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);

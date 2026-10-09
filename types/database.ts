@@ -319,6 +319,8 @@ export type Database = {
           human_actor_id: string | null;
           decision: Json;
           created_at: string;
+          idempotency_key: string | null;
+          request_fingerprint: string | null;
         };
         Insert: {
           id?: string;
@@ -328,6 +330,8 @@ export type Database = {
           human_actor_id?: string | null;
           decision: Json;
           created_at?: string;
+          idempotency_key?: string | null;
+          request_fingerprint?: string | null;
         };
         Update: {
           id?: string;
@@ -337,6 +341,8 @@ export type Database = {
           human_actor_id?: string | null;
           decision?: Json;
           created_at?: string;
+          idempotency_key?: string | null;
+          request_fingerprint?: string | null;
         };
         Relationships: [];
       };

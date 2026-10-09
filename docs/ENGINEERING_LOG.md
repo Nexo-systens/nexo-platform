@@ -10807,3 +10807,95 @@ Os roteiros de reprodução ficaram fora do repositório (dependem de Chrome, do
 - A corrida foi provada em servidor de desenvolvimento (concorrência menor que a de produção).
 
 **Origem.** Mission 213 — Decision Idempotency Architecture & Migration Design.
+
+
+---
+
+## Mission 214 — Governed Decision Idempotency Implementation
+
+**Status.** `MISSION_214_LOCAL_COMPLETE_PILOT_PENDING` — `LOCAL_IMPLEMENTATION_COMPLETE / PILOT_ACTIVATION_PENDING`.
+- D-137 implementada no código e no Supabase local; a ativação está registrada em **D-138**.
+- **O NEXO Pilot não foi tocado:** nenhuma migration remota, nenhum schema/RLS remoto, nenhuma Decision remota, nenhum deploy.
+- O código de `develop` grava as colunas da Migration 019 e não pode ser implantado contra um banco sem ela.
+
+**Premissas.** HEAD `54d9fe6` = commit do desenho; nenhum código mudou desde a Mission 213. Os dois entrypoints e a gravação única continuavam como auditado.
+
+**Implementação (opção B).**
+- **Migration 019** (`20261008120000_decision_idempotency.sql`):
+  - `idempotency_key uuid null` e `request_fingerprint text null`;
+  - checks: as duas juntas; só com ator; formato `^decision-request:v[1-9][0-9]*:[0-9a-f]{64}$`;
+  - índice único parcial `decisions_idempotency_key_unique (company_id, human_actor_id, idempotency_key)`;
+  - sem backfill, default, policy, grant, função ou SECURITY DEFINER.
+- **Pedido canônico** (`modules/decisions/lib/decisionRequest.ts`):
+  - JSON determinístico; recusa valor fora de JSON simples;
+  - só os campos que o servidor usa, com os padrões de `createHumanDecision()`;
+  - sem hipernormalização.
+- **Impressão** (`decisionRequestFingerprint.ts`): `decision-request:v1:` + SHA-256 de `{format, entrypoint, companyId, humanActorId, payload}`.
+- **Fluxo único** (`submitDecisionOnce()`, `decisionIdempotency.ts`), nas duas ações, depois de sessão, formato da chave e empresa:
+  - busca pela chave: mesma impressão devolve sem revalidar o contexto; outra impressão recusa;
+  - intenção nova: todas as validações, depois composição, depois gravação;
+  - cenário/Chat: releitura tardia, só leitura, depois de recusa por verdade financeira ou âncora.
+- **Gravação única** (`saveHumanDecision(decision, submission, supabase?)`): devolve `CREATED`, `REPLAYED` ou `KEY_REUSED_WITH_DIFFERENT_PAYLOAD`.
+  - Só o `23505` do índice nomeado relê e compara; conflito sem linha visível lança.
+  - `findDecisionBySubmission()` filtra empresa, ator e chave, sob RLS.
+- **Formulários** (`useDecisionIdempotencyKey`), em `HumanDecisionSection` e `ScenarioDecisionForm` (que serve Scenario Lab, comparação e Chat):
+  - chave por intenção, nascida no envio;
+  - estável no reenvio do mesmo pedido; renovada quando o pedido muda; descartada no sucesso ou na recusa por chave reaproveitada (essa recusa também recarrega a página);
+  - mensagem de exceção segura para reenvio;
+  - `submittingRef` mantido.
+- **Respostas:** `replayed: boolean` no sucesso; `stage: "idempotency"` para chave reaproveitada.
+- **Tipos:** `types/database.ts` atualizado.
+
+**Empresa encerrada.** Não exigiu decisão nova. D-130 já define que o encerramento congela a empresa, e toda superfície do produto filtra `deleted_at`. Por isso o reenvio responde como empresa inexistente, e a linha fica no banco até a purga.
+
+**Provas (sem Pilot).**
+- **CI:** 30 testes novos em `tests/production-surface/mission-214-decision-idempotency.test.ts`:
+  - pedido canônico, impressão e fluxo único (com portas falsas);
+  - classificação do `23505`;
+  - ciclo de vida da chave (hook renderizado);
+  - forma das ações, gravação única e migration.
+  - O teste da Mission 208 que fixava 18 migrations passou a ignorar só a Migration 019.
+- **pgTAP:** `supabase/tests/database/decision_idempotency.test.sql`, 34 asserções. No Supabase local, 3 arquivos e 150 testes passam.
+- **Pilha Supabase local descartável** (outro `project_id`, outras portas; removida no fim, sem containers nem volumes):
+  - a cadeia inteira, 19 migrations, aplica do zero;
+  - pgTAP 150/150;
+  - reversão documentada e reaplicação, com linhas existentes idênticas byte a byte;
+  - pgTAP 150/150 de novo depois da reaplicação.
+- **Supabase local do projeto:** `migration up --local` aplicou só a 019; 67 Decisions existentes idênticas byte a byte e com colunas nulas; policies inalteradas (2).
+- **Concorrência local** (`tests/decisions-local/`, `npm run test:decisions-local`): 10/10, estável em 4 execuções.
+  - reenvio sequencial (resposta perdida);
+  - 10 simultâneos com a mesma chave: 1 criada, 9 devolvidas, 1 linha;
+  - mesma chave com outro pedido, em sequência e em corrida: exatamente um vence, o resto é `KEY_REUSED`, nunca 2 linhas;
+  - outra chave com o mesmo pedido: nova Decision;
+  - vencedor que desfaz: o pedido em espera grava;
+  - vencedor que confirma: o pedido em espera vira `REPLAYED`;
+    - nos dois casos: advisory lock + `pg_stat_activity`, sem espera por tempo;
+  - cenário/Chat: âncora desatualizada recusa antes da 1ª gravação; reenvio depois de análise nova devolve sem revalidar;
+  - tenants: mesma chave em A e B independente; A não acha a de B; escrita que colidiria com B → `42501`, nunca `23505`;
+  - ator: a busca é presa ao ator;
+  - empresa encerrada;
+  - reenvio sem nenhuma escrita a jusante.
+- **Regressão local:** `test:reports-local` 10/10 e `test:offboarding-local` 18/18.
+- **Interface real** (app local com Supabase local e IA sintética; mesmo interceptador da Mission 213):
+
+| Fluxo | 10 envios simultâneos | Respostas | Decisions gravadas |
+|---|---|---|---|
+| Recomendação | 10 | 10 sucessos (1 criada, 9 devolvidas) | 1 |
+| Manual | 10 | 10 sucessos (1 criada, 9 devolvidas) | 1 |
+| Cenário (Scenario Lab) | 10 | 10 sucessos (1 criada, 9 devolvidas) | 1 |
+| Executive Chat | 10 | 10 sucessos (1 criada, 9 devolvidas) | 1 |
+
+  - **Resposta perdida** (Manual e Chat): o servidor gravou; a tela mostrou "Não foi possível confirmar o registro…"; o segundo clique mostrou sucesso; o banco continuou com 1 linha.
+  - **Linhas gravadas:** com chave e impressão `v1`, e linhagem preservada (diagnóstico e recomendação; `proposedBy: "executive-chat"`).
+
+**Gates.** type-check, lint, testes do CI, build e contagem de rotas; varredura de segredos e PII; `supabase/` só com a migration e o pgTAP novos.
+
+**Limitações.**
+- **Duas abas:** são duas intenções.
+- **Escrita direta pela API:** o próprio dono fica na fronteira de D-096.
+- **Ações a jusante sem chave:** execução, resultado, observação e aprendizado.
+- **Versão da impressão:** mudar a canonicalização exige uma versão nova.
+- **Prova pela interface em servidor de desenvolvimento.**
+- **Pilot:** nada ativado.
+
+**Origem.** Mission 214 — Governed Decision Idempotency Implementation.

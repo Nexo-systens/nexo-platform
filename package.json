@@ -14,7 +14,8 @@
     "test:production-surface": "tsx --test \"tests/production-surface/**/*.test.ts\"",
     "test:release-candidate": "tsx --test \"tests/release-candidate/**/*.test.ts\"",
     "test:offboarding-local": "tsx --test \"tests/offboarding-local/**/*.test.ts\"",
-    "test:reports-local": "tsx --test \"tests/reports-local/**/*.test.ts\""
+    "test:reports-local": "tsx --test \"tests/reports-local/**/*.test.ts\"",
+    "test:decisions-local": "tsx --test \"tests/decisions-local/**/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

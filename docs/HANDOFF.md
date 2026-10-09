@@ -35,7 +35,7 @@ Ele representa o estado atual do desenvolvimento.
 - **Página institucional** (Mission 205): `/` é a landing pública e estática da NEXO (`app/(site)/`, `modules/site/`) — tese, categoria EFOS, produto com quadros de telas reais e dados fictícios, segurança, Founding Company e conversa. Visitante fica em `/`; usuário autenticado continua indo para `/dashboard`. Canal comercial (`NEXT_PUBLIC_NEXO_CONTACT_URL`) e URL pública (`NEXT_PUBLIC_SITE_URL`) são configuráveis e ainda não definidos. Sem domínio, DNS ou deploy.
 - **Governança de saída da Executive AI** (Mission 206, D-132): toda saída textual de Diagnosis e Executive Chat é contratualmente pt-BR, com invariantes comuns (tom executivo, terminologia, números canônicos sem cálculo, indisponível nunca vira número, hipótese/ação como possibilidade/sugestão) definidas uma vez em `efos/application/executive-output-policy/` e verificadas em runtime (idioma e fidelidade numérica) antes de persistir ou exibir. Acima de qualquer provider; schema das tools e ações governadas inalterados.
 - **Validação real da Executive AI** (Mission 207): provider real validado com contextos sintéticos; prompts de Diagnosis e Chat listam as referências citáveis de cada chamada (fim da confusão do prefixo "context:").
-- **Idempotência da criação de decisão** (Mission 213, D-137 — **PROPOSTA, NÃO ATIVADA**): desenho pronto (chave de submissão do formulário + impressão canônica do pedido + índice único empresa/ator/chave), migration proposta fora de `supabase/migrations/`, provada só em banco descartável. **Nada aplicado**: o duplo envio continua bloqueado só pela interface (`submittingRef`); a Mission 214 implementa após aprovação humana.
+- **Idempotência da criação de decisão** (Missions 213/214, D-137/D-138) — **`LOCAL_IMPLEMENTATION_COMPLETE / PILOT_ACTIVATION_PENDING`**: a mesma confirmação nunca cria duas Decisions (chave de submissão por intenção no formulário + impressão canônica versionada do pedido + índice único `decisions_idempotency_key_unique` empresa/ator/chave; reenvio devolve a mesma Decision como sucesso, mesma chave com outro pedido é recusada). Ativa no código (`develop`) e no Supabase local (Migration 019). **O NEXO Pilot ainda NÃO tem a Migration 019 — não implantar `develop` contra o Pilot antes da ativação coordenada (o app novo com o schema antigo quebra a criação de decisão).**
 - **Integridade temporal do resultado** (Mission 211, D-136): observação financeira só de período estritamente posterior à base da decisão (base por linhagem: diagnóstico ou cenário; manual sem base); reanálise do mesmo mês, período anterior ou sobreposto nunca é resultado; uma única regra de ordem (`periodPrecedes`) para resultado, relatório e Esperado × Observado.
 - **Decisão a partir do Executive Chat** (Mission 210, D-135): a proposta de cenário do Chat vira decisão da empresa pela ponte Cenário → Decisão existente, com a âncora financeira da resposta (`ScenarioBaselineIdentity`) — análise nova depois da resposta recusa, nunca reassocia — e origem em `scenarioContext.proposedBy`; o relatório a encontra pela mesma linhagem de cenário.
 - **Comparação temporal canônica** (Mission 209, D-134): toda variação "desde" — Visão geral, Dashboard, histórico da Análise, relatório e contexto da Executive AI — é contra o período anterior canônico, por uma autoridade única (`efos/application/history/resolveTemporalComparison.ts`). Reanálise do mesmo mês é versão, nunca "período anterior"; histórico anterior ambíguo é dito, sem delta.
@@ -51,7 +51,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 213 — Decision Idempotency Architecture & Migration Design (2026-10-08).** Ver `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`, `docs/DECISIONS.md` (D-137, **PROPOSTA — NÃO ATIVADA**) e `docs/ENGINEERING_LOG.md`. **Status: `DECISION_IDEMPOTENCY_DESIGN_READY`** — desenho tecnicamente fechado, aguardando aprovação humana; **não aplicado**.
+**Mission 214 — Governed Decision Idempotency Implementation (2026-10-08).** Ver `docs/DECISIONS.md` (D-138, ativa D-137), `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`, `docs/ARCHITECTURE.md` e `docs/ENGINEERING_LOG.md`. **Status: `MISSION_214_LOCAL_COMPLETE_PILOT_PENDING` — `LOCAL_IMPLEMENTATION_COMPLETE / PILOT_ACTIVATION_PENDING`.**
+
+- **Entrega:** Migration 019 (`idempotency_key`, `request_fingerprint`, três checks, índice único parcial `decisions_idempotency_key_unique`), pedido canônico e impressão `decision-request:v1`, fluxo único `submitDecisionOnce()` nas duas ações, `saveHumanDecision()` idempotente (`CREATED`/`REPLAYED`/`KEY_REUSED_WITH_DIFFERENT_PAYLOAD`), chave por intenção nos formulários (renovada quando o pedido muda). Sem RLS nova, sem RPC, sem SECURITY DEFINER; `createHumanDecision()`, Outcome, Knowledge e relatório inalterados.
+- **Provas (sem Pilot):** CI (30 testes novos); pgTAP 34 asserções (150 no total); cadeia inteira de 19 migrations do zero, reversão e reaplicação numa pilha local descartável; `tests/decisions-local/` 10/10 contra o Supabase local (10 simultâneos → 1 Decision; vencedor que desfaz/confirma; tenants; empresa encerrada); pela interface real, nos 4 fluxos, 10 envios → 10 sucessos → 1 Decision, e resposta perdida → reenvio com sucesso, 1 linha.
+- **Pilot:** intocado. Ativação remota é a próxima missão, após aprovação humana (plano abaixo).
+
+**Anterior — Mission 213 — Decision Idempotency Architecture & Migration Design (2026-10-08).** Ver `docs/02_ENGINEERING/DECISION_IDEMPOTENCY_DESIGN.md`, `docs/DECISIONS.md` (D-137, **PROPOSTA — NÃO ATIVADA**) e `docs/ENGINEERING_LOG.md`. **Status: `DECISION_IDEMPOTENCY_DESIGN_READY`** — desenho tecnicamente fechado, aguardando aprovação humana; **não aplicado**.
 
 - **Defeito reproduzido (Supabase local):** nos quatro fluxos (Recomendação, Manual, Cenário, Executive Chat), 2 envios simultâneos do mesmo pedido gravaram 2 Decisions e 10 gravaram 10 — mesmo conteúdo, ids distintos.
 - **Desenho:** chave de submissão por formulário + impressão canônica do pedido gravada pelo servidor + índice único parcial `(company_id, human_actor_id, idempotency_key)`; busca pela chave antes de validar, garantia no índice; reenvio devolve a mesma Decision como sucesso; mesma chave com outro conteúdo é recusada. Sem RLS nova, sem RPC, sem SECURITY DEFINER.
@@ -468,13 +474,20 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 213):**
-1. **Mission 214 — implementar D-137 (após aprovação humana do desenho):** copiar `docs/02_ENGINEERING/decision-idempotency.proposed.sql` para `supabase/migrations/`, mover o pgTAP de rascunho para `supabase/tests/database/`, impressão do pedido, persistência com `23505` nomeado, as duas ações, os dois formulários, tipos e testes (CI + Supabase local + corrida pela interface). Aplicar só no local; aplicar no Pilot exige STOP e autorização explícita; schema antes do deploy do app. Se a migration não for aprovada, a alternativa sem migration (opção E) está descrita no desenho.
-2. ~~Conferir no Pilot, só leitura, observações antigas~~ — feito na Mission 212: nenhuma existe (o Pilot ainda não tem decisões). Repetir a mesma auditoria somente leitura quando houver decisões reais.
-3. Decisões manuais sem base financeira: decidir se devem poder ser vinculadas explicitamente a uma análise (contrato novo) para ter resultado financeiro.
-4. Itens após a Mission 207 continuam valendo: taxa de falha da Executive AI e `max_tokens` do Chat no Pilot.
+**Próximo passo (após a Mission 214):**
+1. **Mission 215 — ativação coordenada de D-137/D-138 no NEXO Pilot (só com aprovação humana explícita).** Ordem obrigatória — schema antes do app:
+   1. confirmar Pilot ativo e vinculado (NEXO Pillot, `ca-central-1`; nunca `sa-east-1`);
+   2. leitura só: paridade 18/18 em `supabase_migrations.schema_migrations`, contagem de `decisions` (esperado 0 na Mission 212) e ausência das colunas/índice novos;
+   3. decidir o ponto de recuperação (o plano gratuito não tem PITR; a migration é aditiva e reversível);
+   4. `npx supabase db push --linked --dry-run` deve listar **só** `20261008120000_decision_idempotency.sql`; então aplicar;
+   5. verificação só leitura: 19/19, colunas nullable, três checks, `decisions_idempotency_key_unique` com o escopo certo, 2 policies em `decisions`, nenhuma função SECURITY DEFINER nova, cache do PostgREST recarregado;
+   6. só depois implantar o app (`develop`) — nunca antes;
+   7. decisão real de fumaça só com autorização separada;
+   8. reversão, se preciso: primeiro o app anterior, depois uma migration corretiva (drop index, checks e colunas).
+2. ~~Conferir no Pilot, só leitura, observações antigas~~ — feito na Mission 212. Repetir quando houver decisões reais.
+Nenhuma Mission 215 foi iniciada.
 
-Nenhuma Mission 214 foi iniciada.
+Histórico (Mission 213): **Próximo passo (após a Mission 213):** (1) implementar D-137 — feito na Mission 214; (2) conferir observações antigas no Pilot — feito na 212.
 
 Histórico (Mission 212): **Próximo passo (após a Mission 212):** (1) conferir observações antigas no Pilot — feito; (2) contrato de idempotência — desenhado na Mission 213; (3) decisões manuais sem base; (4) itens após a Mission 207.
 
@@ -654,10 +667,12 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Pendências
 
-- **Mission 213:**
-  - idempotência da criação de decisão é só desenho (D-137 PROPOSTA): até a Mission 214, reenvio ou duplo envio fora da interface ainda grava Decisions duplicadas;
-  - ações a jusante (execução, resultado, observação financeira, aprendizado) têm o mesmo padrão sem chave — fora do escopo de D-137;
-  - implantação de D-137 exige schema antes do app (o app novo com schema antigo quebraria a criação de decisão).
+- **Mission 214:**
+  - o NEXO Pilot não tem a Migration 019: `develop` não pode ser implantado contra ele antes da Mission 215 (o app novo grava colunas que o schema antigo não tem);
+  - ações a jusante (execução, resultado, observação financeira, aprendizado) continuam sem chave — mesmo padrão, fora do escopo de D-137;
+  - duas abas ou dois formulários continuam sendo duas intenções (por desenho);
+  - mudar a canonicalização do pedido exige versão nova da impressão (`decision-request:v2`), nunca reinterpretar a v1.
+- **Mission 213:** desenho de D-137 — implementado na Mission 214.
 - **Mission 212:**
   - o Pilot ainda não tem decisões/observações — a integridade histórica foi provada por ausência e por reprodução local; repetir a auditoria quando houver dados reais;
   - o Pilot volta a pausar por inatividade (plano gratuito): auditorias e validações remotas dependem de reativação manual.
@@ -733,6 +748,7 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Riscos
 
+- **`develop` × Pilot (Mission 214):** o código atual exige a Migration 019; implantá-lo contra o Pilot antes da Mission 215 quebra o registro de decisões (PostgREST recusa coluna desconhecida).
 - A pasta `docs/` já foi reestruturada por completo mais de uma vez entre sessões sem aviso prévio no início da conversa — qualquer nova sessão deve reconferir a árvore de `docs/` antes de assumir que os nomes de arquivo citados aqui ainda existem.
 - O schema do banco (`public.companies`, `financial_metrics`) já divergiu de migrations versionadas pelo menos duas vezes por edição manual fora do fluxo de missões — qualquer trabalho futuro que toque banco deve reconferir o estado real antes de migrar.
 

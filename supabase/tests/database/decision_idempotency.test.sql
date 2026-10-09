@@ -1,31 +1,30 @@
 -- =========================================================
--- RASCUNHO — Mission 213 (D-137, PROPOSTA — NÃO ATIVADA)
+-- Mission 214 — Governed Decision Idempotency (D-137)
 --
--- Teste pgTAP da migration PROPOSTA em
--- `docs/02_ENGINEERING/decision-idempotency.proposed.sql`.
--- Não está em `supabase/tests/database/` de propósito: sem a migration
--- aplicada ele falharia. A Mission 214 o move para lá junto com a
--- migration.
+-- Prova em Postgres REAL (Supabase local descartável) da Migration
+-- 019: colunas, invariantes e índice único (empresa + ator + chave) da
+-- idempotência da criação de Decision, sob a RLS existente — que não
+-- muda. Rascunho validado na Mission 213 num Postgres descartável.
 --
--- Na Mission 213 ele rodou num Postgres DESCARTÁVEL (container próprio,
--- mesma imagem do Supabase local, schema `public` copiado do banco
--- local + a migration proposta) — nunca no banco do projeto, nunca no
--- NEXO Pilot.
+-- Como rodar (nunca contra o NEXO Pilot):
+--   npx supabase start
+--   npx supabase test db
 --
--- Mesmo padrão de `supabase/tests/database/company_offboarding.test.sql`:
--- transação com ROLLBACK, dados sintéticos, `authenticated` e
--- `auth.uid()` simulados como o PostgREST faz, resultados gravados numa
--- tabela temporária e conferidos como `postgres`.
+-- Tudo roda numa transação que termina em ROLLBACK: nenhuma linha
+-- sobra. Dados sintéticos. `authenticated` e `auth.uid()` simulados
+-- como o PostgREST faz (`role` + `request.jwt.claims`); resultados sob
+-- `authenticated` vão para uma tabela temporária e são conferidos como
+-- `postgres`.
 --
--- Concorrência não cabe numa sessão só: a prova de 10 pedidos
--- simultâneos está descrita no desenho (seção "Prova local").
+-- Concorrência (10 pedidos simultâneos, vencedor que desfaz/confirma)
+-- não cabe numa sessão só: `tests/decisions-local/`.
 -- =========================================================
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(34);
 
 -- ---------------------------------------------------------
 -- Fixtures (como postgres)
@@ -75,6 +74,16 @@ select is(
     'histórico: Decisions sem chave continuam válidas e coexistem'
 );
 select is(
+    (select array_agg(conname::text order by conname) from pg_constraint where conrelid = 'public.decisions'::regclass and contype = 'c'),
+    array['decisions_idempotency_human_actor_check', 'decisions_idempotency_pair_check', 'decisions_request_fingerprint_format_check'],
+    'os três checks da Migration 019, com os nomes do contrato'
+);
+select is(
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname ilike '%decision%' and p.prosecdef),
+    0::bigint,
+    'nenhuma função SECURITY DEFINER de decisão'
+);
+select is(
     (select count(*) from pg_policies where schemaname = 'public' and tablename = 'decisions'),
     2::bigint,
     'RLS inalterada: só decisions_select_own e decisions_insert_own'
@@ -91,7 +100,7 @@ do $$
 begin
     insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint)
         values ('b1b1b1b1-0000-4000-8000-000000000213', '00000000-0000-4000-8000-0000000000b1', '{}',
-                'c0ffee00-0000-4000-8000-0000000000c1', repeat('b', 64));
+                'c0ffee00-0000-4000-8000-0000000000c1', 'decision-request:v1:' || repeat('b', 64));
     insert into t_results values ('b_first', '"allowed"');
 exception when others then
     insert into t_results values ('b_first', to_jsonb(sqlstate));
@@ -112,8 +121,8 @@ declare
     v_a uuid := '00000000-0000-4000-8000-0000000000a1';
     v_b uuid := '00000000-0000-4000-8000-0000000000b1';
     v_k1 uuid := 'c0ffee00-0000-4000-8000-0000000000c1';
-    v_f1 text := repeat('a', 64);
-    v_f2 text := repeat('f', 64);
+    v_f1 text := 'decision-request:v1:' || repeat('a', 64);
+    v_f2 text := 'decision-request:v1:' || repeat('f', 64);
     v_cases text[][] := array[
         -- mesma chave K1 que B usou, em outra empresa: namespaces independentes
         array['a_first',                 format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, %L, '{}', %L, %L)$s$, v_a1, v_a, v_k1, v_f1)],
@@ -124,10 +133,11 @@ declare
         array['a_key_without_fingerprint',format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key) values (%L, %L, '{}', gen_random_uuid())$s$, v_a1, v_a)],
         array['a_fingerprint_without_key',format($s$insert into public.decisions (company_id, human_actor_id, decision, request_fingerprint) values (%L, %L, '{}', %L)$s$, v_a1, v_a, v_f1)],
         array['a_malformed_fingerprint', format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, %L, '{}', gen_random_uuid(), 'abc')$s$, v_a1, v_a)],
+        array['a_unversioned_fingerprint',format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, %L, '{}', gen_random_uuid(), repeat('a', 64))$s$, v_a1, v_a)],
         array['a_key_without_actor',     format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, null, '{}', gen_random_uuid(), %L)$s$, v_a1, v_f1)],
         array['a_forged_actor',          format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, %L, '{}', gen_random_uuid(), %L)$s$, v_a1, v_b, v_f1)],
         -- linha que COLIDIRIA exatamente com a de B: a policy de INSERT recusa antes do índice (nenhum oráculo 23505)
-        array['a_collide_into_b',        format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, %L, '{}', %L, %L)$s$, v_b1, v_b, v_k1, repeat('b', 64))]
+        array['a_collide_into_b',        format($s$insert into public.decisions (company_id, human_actor_id, decision, idempotency_key, request_fingerprint) values (%L, %L, '{}', %L, %L)$s$, v_b1, v_b, v_k1, 'decision-request:v1:' || repeat('b', 64))]
     ];
     v_i int;
     v_rows int;
@@ -160,6 +170,7 @@ begin
     exception when others then
         insert into t_results values ('a_closed_company', to_jsonb(sqlstate));
     end;
+    insert into t_results values ('a_closed_lookup', to_jsonb((select count(*) from public.decisions where company_id = v_a2 and human_actor_id = v_a and idempotency_key = v_k1)));
 end;
 $$;
 
@@ -178,6 +189,7 @@ select is((select v from t_results where k = 'a_same_key_other_company'), '"allo
 select is((select v from t_results where k = 'a_key_without_fingerprint'), '"23514"'::jsonb, 'chave sem impressão: recusada');
 select is((select v from t_results where k = 'a_fingerprint_without_key'), '"23514"'::jsonb, 'impressão sem chave: recusada');
 select is((select v from t_results where k = 'a_malformed_fingerprint'), '"23514"'::jsonb, 'impressão fora do formato: recusada');
+select is((select v from t_results where k = 'a_unversioned_fingerprint'), '"23514"'::jsonb, 'impressão sem versão (decision-request:v<n>:): recusada');
 select is((select v from t_results where k = 'a_key_without_actor'), '"23514"'::jsonb, 'chave só em Decision humana (ator nulo recusado)');
 select is((select v from t_results where k = 'a_forged_actor'), '"42501"'::jsonb, 'ator forjado: RLS recusa');
 select is((select v from t_results where k = 'a_collide_into_b'), '"42501"'::jsonb, 'colisão exata com a linha de B: RLS recusa antes do índice — sem oráculo entre tenants');
@@ -186,6 +198,7 @@ select is((select v from t_results where k = 'a_lookup_own'), '1'::jsonb, 'busca
 select is((select v from t_results where k = 'a_lookup_any_k1'), '2'::jsonb, 'busca por K1 sem filtro de empresa só enxerga as 2 linhas de A (nunca a de B)');
 select is((select v from t_results where k = 'a_lookup_b_company'), '0'::jsonb, 'A não enxerga nenhuma Decision de B');
 select is((select v from t_results where k = 'a_closed_company'), '"42501"'::jsonb, 'empresa encerrada: nenhuma Decision nova');
+select is((select v from t_results where k = 'a_closed_lookup'), '1'::jsonb, 'empresa encerrada: a Decision gravada antes continua no banco (a ação responde como empresa inexistente, D-130)');
 select is(
     (select count(*) from public.decisions where idempotency_key = 'c0ffee00-0000-4000-8000-0000000000c1'),
     3::bigint,

@@ -5,7 +5,19 @@ import { revalidatePath } from "next/cache";
 
 import { getCurrentUser } from "@/modules/auth/services/auth.service";
 import { getCompanyById } from "@/modules/companies/services/company.service";
-import { saveHumanDecision, type PersistedDecision } from "@/modules/decisions/services/decision-persistence.service";
+import {
+  findDecisionBySubmission,
+  saveHumanDecision,
+  type PersistedDecision,
+} from "@/modules/decisions/services/decision-persistence.service";
+import {
+  IDEMPOTENCY_KEY_REUSED_MESSAGE,
+  INVALID_IDEMPOTENCY_KEY_MESSAGE,
+  isIdempotencyKey,
+  submitDecisionOnce,
+} from "@/modules/decisions/lib/decisionIdempotency";
+import { scenarioDecisionRequestPayload } from "@/modules/decisions/lib/decisionRequest";
+import { deriveDecisionRequestFingerprint } from "@/modules/decisions/lib/decisionRequestFingerprint";
 import { resolveScenarioBaseline } from "./scenario-simulation.actions";
 import { composeScenarioDecision, type ScenarioDecisionRequest } from "@/modules/scenarios/lib/composeScenarioDecision";
 
@@ -82,16 +94,32 @@ import { composeScenarioDecision, type ScenarioDecisionRequest } from "@/modules
  * fechado; a decisão vinda do Executive Chat passa por este mesmo caminho,
  * nunca por um segundo.
  */
-export type CreateScenarioDecisionInput = ScenarioDecisionRequest;
+export type CreateScenarioDecisionInput = ScenarioDecisionRequest & {
+  /**
+   * Mission 214 (D-137) — chave de submissão desta intenção (UUID gerado
+   * pelo formulário, estável nos reenvios do mesmo pedido). Reivindicação
+   * do cliente: só identifica o pedido, nunca autoriza nada.
+   */
+  readonly idempotencyKey: string;
+};
+
+type ScenarioDecisionRejection = {
+  readonly success: false;
+  readonly error: string;
+  readonly stage: "auth" | "access" | "financial-truth" | "stale-baseline" | "assumption" | "command" | "idempotency";
+  readonly errors?: readonly string[];
+};
 
 export type CreateScenarioDecisionResult =
-  | { readonly success: true; readonly decision: PersistedDecision }
-  | {
-      readonly success: false;
-      readonly error: string;
-      readonly stage: "auth" | "access" | "financial-truth" | "stale-baseline" | "assumption" | "command";
-      readonly errors?: readonly string[];
-    };
+  | { readonly success: true; readonly decision: PersistedDecision; readonly replayed: boolean }
+  | ScenarioDecisionRejection;
+
+/**
+ * Recusas que dependem do momento (a verdade financeira mudou): um pedido
+ * idêntico pode ter acabado de gravar antes da mudança — a chave é procurada
+ * mais uma vez, só leitura (D-137).
+ */
+const TIME_DEPENDENT_STAGES: ReadonlySet<ScenarioDecisionRejection["stage"]> = new Set(["financial-truth", "stale-baseline"]);
 
 export async function createScenarioDecisionAction(
   input: CreateScenarioDecisionInput
@@ -101,26 +129,61 @@ export async function createScenarioDecisionAction(
     return { success: false, stage: "auth", error: "Sessão expirada. Faça login novamente." };
   }
 
-  // Empresa sob RLS e ainda ativa: `getCompanyById()` exclui empresa
+  if (!isIdempotencyKey(input.idempotencyKey)) {
+    return { success: false, stage: "command", error: INVALID_IDEMPOTENCY_KEY_MESSAGE };
+  }
+
+  // Empresa sob RLS e ainda aberta: `getCompanyById()` exclui empresa
   // encerrada (`deleted_at`) — mesma resposta de inexistente ou de outra
-  // empresa (Missions 200/202). A policy de INSERT de `decisions` repete a
-  // checagem no banco.
+  // empresa (Missions 200/202), inclusive para o reenvio de uma decisão
+  // gravada antes do encerramento (D-130). A policy de INSERT de
+  // `decisions` repete a checagem no banco.
   const company = await getCompanyById(input.companyId);
   if (!company) {
     return { success: false, stage: "access", error: "Empresa não encontrada ou sem acesso." };
   }
 
-  const baseline = await resolveScenarioBaseline(input.companyId);
-  if (baseline.outcome === "rejected") {
-    return { success: false, stage: "financial-truth", error: baseline.error };
+  // Mission 214 (D-137): impressão do pedido canônico — a âncora
+  // reivindicada, a hipótese, a alternativa, a origem e os campos humanos.
+  const requestFingerprint = deriveDecisionRequestFingerprint(
+    { entrypoint: "scenario-decision", companyId: input.companyId, humanActorId: user.id },
+    scenarioDecisionRequestPayload(input)
+  );
+  if (!requestFingerprint) {
+    return { success: false, stage: "command", error: "Comando de decisão inválido." };
   }
 
-  const composed = composeScenarioDecision(input, user.id, baseline, randomUUID(), new Date().toISOString());
-  if (!composed.success) {
-    return composed;
-  }
+  // Reenvio de uma decisão já gravada com esta chave: devolvida sem
+  // revalidar o baseline (é um sucesso que já passou por todas as regras).
+  // Intenção nova: baseline atual, identidade exata (stale-baseline) e
+  // recomputação ANTES de gravar — nunca pulados.
+  const outcome = await submitDecisionOnce<ScenarioDecisionRejection>({
+    requestFingerprint,
+    findExisting: () => findDecisionBySubmission(input.companyId, user.id, input.idempotencyKey),
+    validateAndCompose: async () => {
+      const baseline = await resolveScenarioBaseline(input.companyId);
+      if (baseline.outcome === "rejected") {
+        return { ok: false, failure: { success: false, stage: "financial-truth", error: baseline.error } };
+      }
 
-  const persisted = await saveHumanDecision(composed.decision);
-  revalidatePath(`/companies/${input.companyId}`);
-  return { success: true, decision: persisted };
+      const composed = composeScenarioDecision(input, user.id, baseline, randomUUID(), new Date().toISOString());
+      if (!composed.success) {
+        return { ok: false, failure: composed };
+      }
+      return { ok: true, decision: composed.decision };
+    },
+    save: (decision) => saveHumanDecision(decision, { idempotencyKey: input.idempotencyKey, requestFingerprint }),
+    recheckAfter: (failure) => TIME_DEPENDENT_STAGES.has(failure.stage),
+  });
+
+  switch (outcome.outcome) {
+    case "CREATED":
+    case "REPLAYED":
+      revalidatePath(`/companies/${input.companyId}`);
+      return { success: true, decision: outcome.decision, replayed: outcome.outcome === "REPLAYED" };
+    case "KEY_REUSED_WITH_DIFFERENT_PAYLOAD":
+      return { success: false, stage: "idempotency", error: IDEMPOTENCY_KEY_REUSED_MESSAGE };
+    case "REJECTED":
+      return outcome.failure;
+  }
 }
