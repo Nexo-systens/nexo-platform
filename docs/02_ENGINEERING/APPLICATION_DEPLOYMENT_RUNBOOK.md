@@ -1,6 +1,8 @@
 # Application Deployment Runbook — NEXO app × NEXO Pilot
 
-> **Status (Mission 216, 2026-10-09): `APPLICATION_DEPLOYMENT_NOT_READY` — alvo existente que exige correção (`EXISTING_TARGET_REQUIRES_CORRECTION`).** Código, schema e build estão prontos; a configuração do alvo (variáveis da Vercel por ambiente, URLs do Supabase Auth, caminho para Production) não é legível por um agente e precisa de verificação humana. Nenhum deploy, merge, mudança de DNS, de env ou de Auth foi feito.
+> **Status (Mission 216 — fechamento, 2026-10-10): `PREVIEW_OPERATIONAL_ON_PILOT` (validação manual do usuário) · `PRODUCTION_NOT_READY`.** O Preview protegido de `develop` (`8329d1d`) foi reimplantado com as variáveis só de Preview e roda contra o NEXO Pilot (19/19); login, empresa e as telas principais foram validados manualmente. Production, domínio, logs de runtime e fluxos de e-mail continuam fora da validação — ver seção 13.
+>
+> **Status anterior (Mission 216, preparação, 2026-10-09): `APPLICATION_DEPLOYMENT_NOT_READY` — alvo existente que exige correção (`EXISTING_TARGET_REQUIRES_CORRECTION`).** Código, schema e build estão prontos; a configuração do alvo (variáveis da Vercel por ambiente, URLs do Supabase Auth, caminho para Production) não é legível por um agente e precisa de verificação humana. Nenhum deploy, merge, mudança de DNS, de env ou de Auth foi feito.
 
 Escopo: só o runtime do **produto** (aplicativo Next.js). O site institucional final não faz parte deste documento.
 
@@ -20,7 +22,7 @@ Levantado só por leitura (API do GitHub, HTTP GET, DNS, CLI do Supabase). Nada 
 | Commit publicado — Preview | Um deployment por commit; o mais recente é `8329d1d` (Mission 215). Cada um tem URL própria `nexo-platform-<hash>-<team>.vercel.app`, **protegida por Vercel Authentication** (GET → 302 para `vercel.com/sso-api`): só membros do time Vercel acessam. |
 | Commit publicado — Production | Último deployment de produção (`9ce6352`, HEAD de `main`, "release 0.3.1 - auth module"): **failure**. Último com sucesso: `0e3fcee` ("release 0.3 - foundation", 2026-07-15). O alias de produção `nexo-platform-sable.vercel.app` (também o `homepage` do repositório) responde 200 com o scaffold "Create Next App"; `/login` responde 404. Qual deployment o alias aponta só o painel confirma; o conteúdo servido é compatível com `0e3fcee`. |
 | Preview, staging ou production? | Não há staging. O produto atual (`develop`) só existe como Preview protegido; Production serve um scaffold de julho, não o produto. |
-| Que banco usa? | **Production:** nenhum — o HTML e os 6 scripts servidos não contêm host `*.supabase.co`, JWT nem marcador de segredo. **Preview: DESCONHECIDO** — depende das variáveis de ambiente da Vercel para Preview, ilegíveis sem o painel, e o deployment é protegido. |
+| Que banco usa? | **Production:** nenhum — o HTML e os 6 scripts servidos não contêm host `*.supabase.co`, JWT nem marcador de segredo. **Preview: NEXO Pilot** desde o redeploy de 2026-10-10 — por atestação do usuário (variáveis só de Preview), corroborada por um login no Pilot 3 minutos depois do redeploy; os valores continuam ilegíveis para o agente (seção 13). |
 | Custom domain | Nenhum observável (ver seção 7). |
 | Deploy automático | `develop` → Preview: **sim** (observado). `main` → Production: observado em julho; a configuração atual não é legível. |
 | Rollback disponível | A Vercel mantém os deployments anteriores (Instant Rollback / Promote no painel); a disponibilidade no plano atual precisa ser confirmada no painel. Pelo git: `revert` + novo deployment. |
@@ -135,7 +137,7 @@ Não existe variável de URL de Auth: as URLs de retorno de e-mail derivam do he
 
 Smoke só leitura do build de produção local (`next start`) contra o Pilot, sem sessão: `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password` → 200; todas as rotas protegidas e a API de histórico → 307 `/login`; `/auth/confirm` sem token ou com `next` externo → `/login?error=confirmation_failed`; nenhum erro no log do servidor.
 
-## 9. Ordem de deploy (não executada)
+## 9. Ordem de deploy (executada para o alvo A no fechamento da Mission 216 — seção 13)
 
 Pré-requisito já cumprido: schema do Pilot 19/19, maior ou igual ao que o código exige.
 
@@ -214,3 +216,54 @@ Nenhuma plataforma nova foi criada.
 - logout → `/login`.
 
 **Decisão real de fumaça** (1 confirmação, reenvio → `REPLAYED`, 1 linha): só com autorização separada.
+
+## 13. Validação do Preview (Mission 216 — fechamento, 2026-10-10)
+
+Alvo escolhido: **(A) Preview protegido de `develop` contra o NEXO Pilot**. Production não foi tocada.
+
+**Conferido pelo agente, só leitura (evidência automatizável):**
+- **Código publicado:** o deployment `Preview` da integração Vercel para `8329d1d` (Mission 215) tem dois status `success` ("Deployment has completed"):
+  - o original, de 2026-10-09 17:52 UTC;
+  - o novo, de **2026-10-10 03:05 UTC**, depois da configuração das variáveis.
+  - O redeploy gerou um deployment novo (URL diferente da primeira), do mesmo commit.
+  - CI de `8329d1d`: success.
+  - O HEAD local (`08246fa`) difere de `8329d1d` só em documentação: o código servido é o do HEAD.
+- **Proteção:** sem sessão, `GET /` e `GET /login` dos dois deployments respondem **302 para `vercel.com`** (Vercel Authentication ativa). O app não é público.
+- **NEXO Pilot** (`ca-central-1`, `ACTIVE_HEALTHY`; `sa-east-1` INACTIVE e não tocado):
+  - migrations **19/19**; `db push --dry-run` "Remote database is up to date";
+  - esquema da idempotência intacto: colunas nullable, índice único válido, 3 checks, 2 policies e 12 SECURITY DEFINER em `public`;
+  - **0 Decisions**; nenhum documento, execução ou diagnóstico novo desde 2026-09-26 — o smoke não criou dado;
+  - **último login no Pilot: 2026-10-10 03:08 UTC**, 3 minutos depois do redeploy. Isso corrobora — mas não prova — que o login do Preview foi contra o Pilot.
+
+**Atestado pelo usuário (validação manual, NÃO é teste automatizado):**
+- Deployment Preview **READY** na Vercel.
+- As três variáveis obrigatórias (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`) configuradas **somente em Preview**; `ANTHROPIC_API_KEY` marcada como **Sensitive**.
+- Redirect URL do Preview adicionada ao Supabase Auth do Pilot.
+- Login autenticado funciona e a empresa cadastrada aparece.
+- Análise, Central de Decisões, Scenario Lab, Executive Chat e Relatórios abrem normalmente.
+
+**Não verificado (limitações abertas):**
+- **Valores e escopo das variáveis da Vercel:** só o usuário vê; o agente não tem CLI nem credencial da Vercel.
+- **Logs de runtime da Vercel:** sem acesso do agente; o status do deployment cobre só build e publicação. A conferência de erros de runtime fica com o humano, no painel.
+- **Fluxos de e-mail no host do Preview:** signup e recuperação de senha, a lista de Redirect URLs e os templates. Não exercitados; o Preview muda de URL a cada deployment.
+- **Executive AI (Anthropic) pelo Preview:** não exercitada; nenhum diagnóstico gravado (0).
+- **Registro real de decisão** (idempotência ponta a ponta no Pilot): não feito; exige autorização separada.
+- **Logout** no Preview: não relatado.
+
+**Avisos `npm warn install-scripts` (npm 11.19).** O npm lista pacotes com script de instalação ainda não cobertos por uma política `allowScripts`.
+- **No npm 11.19, o aviso é informativo:** um script "não revisado" **continua rodando**; só uma negação explícita (`deny`) o bloqueia (`@npmcli/arborist`, gate `isScriptAllowed(...) === false`).
+- **Pacotes:**
+  - `esbuild` (dev, `tsx`);
+  - `sharp` (opcional; otimização de imagem do Next — na Vercel a otimização é da plataforma);
+  - `unrs-resolver` (dev, ESLint);
+  - `fsevents` (opcional, só macOS) também tem script no lockfile.
+  - Todos são dependências conhecidas; nenhuma mudança de dependência foi feita.
+- **Risco futuro:** se uma versão do npm passar a exigir aprovação por padrão, o build ainda não depende desses scripts (`next build` não usa `tsx`/ESLint, e `sharp` é opcional).
+- **Recomendação (P3):** registrar `allowScripts` aprovando esses pacotes por versão (`npm install-scripts approve …`), numa missão própria, para silenciar o aviso e fixar a política.
+
+**Estado:** `PREVIEW_OPERATIONAL_ON_PILOT` (validação manual) · `PRODUCTION_NOT_READY`.
+- **Por que Production não está pronta:**
+  - Production continua servindo o scaffold de julho, com o último build falho;
+  - não há domínio próprio;
+  - as variáveis estão só em Preview.
+- **A cada push em `develop`:** o código novo vai, protegido, contra o Pilot.

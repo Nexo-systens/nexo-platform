@@ -35,7 +35,7 @@ Ele representa o estado atual do desenvolvimento.
 - **Página institucional** (Mission 205): `/` é a landing pública e estática da NEXO (`app/(site)/`, `modules/site/`) — tese, categoria EFOS, produto com quadros de telas reais e dados fictícios, segurança, Founding Company e conversa. Visitante fica em `/`; usuário autenticado continua indo para `/dashboard`. Canal comercial (`NEXT_PUBLIC_NEXO_CONTACT_URL`) e URL pública (`NEXT_PUBLIC_SITE_URL`) são configuráveis e ainda não definidos. Sem domínio, DNS ou deploy.
 - **Governança de saída da Executive AI** (Mission 206, D-132): toda saída textual de Diagnosis e Executive Chat é contratualmente pt-BR, com invariantes comuns (tom executivo, terminologia, números canônicos sem cálculo, indisponível nunca vira número, hipótese/ação como possibilidade/sugestão) definidas uma vez em `efos/application/executive-output-policy/` e verificadas em runtime (idioma e fidelidade numérica) antes de persistir ou exibir. Acima de qualquer provider; schema das tools e ações governadas inalterados.
 - **Validação real da Executive AI** (Mission 207): provider real validado com contextos sintéticos; prompts de Diagnosis e Chat listam as referências citáveis de cada chamada (fim da confusão do prefixo "context:").
-- **Idempotência da criação de decisão** (Missions 213/214/215, D-137/D-138) — **`PILOT_SCHEMA_ACTIVE / APP_DEPLOY_PENDING`**: a mesma confirmação nunca cria duas Decisions (chave de submissão por intenção no formulário + impressão canônica versionada do pedido + índice único `decisions_idempotency_key_unique` empresa/ator/chave; reenvio devolve a mesma Decision como sucesso, mesma chave com outro pedido é recusada). Ativa no código (`develop`) e no Supabase local (Migration 019). **Migration 019 aplicada no NEXO Pilot na Mission 215 (2026-10-09; 19/19).** Nenhum deploy aprovado do app foi feito; a Vercel gera Previews automáticos e protegidos de `develop`, com o banco do Preview ainda não verificado (Mission 216). O próximo passo é o gate humano do runbook de deploy. O app anterior segue compatível com o schema novo.
+- **Idempotência da criação de decisão** (Missions 213/214/215, D-137/D-138) — **`PILOT_SCHEMA_ACTIVE / PREVIEW_APP_ACTIVE`** (Production não implantada): a mesma confirmação nunca cria duas Decisions (chave de submissão por intenção no formulário + impressão canônica versionada do pedido + índice único `decisions_idempotency_key_unique` empresa/ator/chave; reenvio devolve a mesma Decision como sucesso, mesma chave com outro pedido é recusada). Ativa no código (`develop`) e no Supabase local (Migration 019). **Migration 019 aplicada no NEXO Pilot na Mission 215 (2026-10-09; 19/19).** Desde o fechamento da Mission 216 (2026-10-10), o Preview protegido de `develop` (`8329d1d`) roda contra o Pilot com variáveis só de Preview — validação manual do usuário (login, empresa, telas principais); nenhuma Decision real foi registrada ainda (0 no Pilot). Production continua sem o produto. O app anterior segue compatível com o schema novo.
 - **Integridade temporal do resultado** (Mission 211, D-136): observação financeira só de período estritamente posterior à base da decisão (base por linhagem: diagnóstico ou cenário; manual sem base); reanálise do mesmo mês, período anterior ou sobreposto nunca é resultado; uma única regra de ordem (`periodPrecedes`) para resultado, relatório e Esperado × Observado.
 - **Decisão a partir do Executive Chat** (Mission 210, D-135): a proposta de cenário do Chat vira decisão da empresa pela ponte Cenário → Decisão existente, com a âncora financeira da resposta (`ScenarioBaselineIdentity`) — análise nova depois da resposta recusa, nunca reassocia — e origem em `scenarioContext.proposedBy`; o relatório a encontra pela mesma linhagem de cenário.
 - **Comparação temporal canônica** (Mission 209, D-134): toda variação "desde" — Visão geral, Dashboard, histórico da Análise, relatório e contexto da Executive AI — é contra o período anterior canônico, por uma autoridade única (`efos/application/history/resolveTemporalComparison.ts`). Reanálise do mesmo mês é versão, nunca "período anterior"; histórico anterior ambíguo é dito, sem delta.
@@ -51,7 +51,19 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Última missão
 
-**Mission 216 — Pilot Application Deployment Readiness & Activation Gate (2026-10-09).** Ver `docs/02_ENGINEERING/APPLICATION_DEPLOYMENT_RUNBOOK.md` e `docs/ENGINEERING_LOG.md`. **Status: `MISSION_216_STOPPED_AT_HUMAN_GATE` — `APPLICATION_DEPLOYMENT_NOT_READY` (`EXISTING_TARGET_REQUIRES_CORRECTION`).** Auditoria, plano e validação, sem deploy.
+**Mission 216 — Pilot Application Deployment Readiness, Preview Validation & Closure (2026-10-09/10).** Ver `docs/02_ENGINEERING/APPLICATION_DEPLOYMENT_RUNBOOK.md` (seção 13) e `docs/ENGINEERING_LOG.md`. **Status: `MISSION_216_CLOSED` — `PREVIEW_OPERATIONAL_ON_PILOT` (validação manual) · `PRODUCTION_NOT_READY`.**
+
+- **Fechamento (2026-10-10):**
+  - **Feito pelo usuário:** configurou as três variáveis obrigatórias só em Preview (`ANTHROPIC_API_KEY` como Sensitive), adicionou a Redirect URL do Preview no Supabase Auth do Pilot e reimplantou `8329d1d`.
+  - **Validação manual do usuário** (não é teste automatizado): Preview READY, login, empresa visível; Análise, Central de Decisões, Scenario Lab, Executive Chat e Relatórios abrem.
+  - **Conferido pelo agente, só leitura:**
+    - deployment Preview de `8329d1d` com redeploy `success` em 2026-10-10 03:05 UTC;
+    - proteção da Vercel ativa (302 para `vercel.com` sem sessão);
+    - Pilot 19/19, esquema da idempotência intacto, 0 Decisions e nenhum dado novo;
+    - último login no Pilot 3 minutos depois do redeploy (corrobora, não prova).
+  - **Não verificado:** valores das variáveis, logs de runtime da Vercel (sem acesso do agente), signup/recuperação no host do Preview, Executive AI pelo Preview, decisão real.
+  - **Avisos `npm warn install-scripts`** (`esbuild`, `sharp`, `unrs-resolver`): informativos no npm 11.19 (o script continua rodando); nenhuma dependência mudou; política `allowScripts` fica como P3.
+- **Preparação (2026-10-09):** auditoria, plano e validação, sem deploy.
 
 - **Deploy real (só leitura):**
   - o repositório está ligado à **Vercel** pela integração Git;
@@ -499,15 +511,13 @@ Ele representa o estado atual do desenvolvimento.
 
 ## Próxima missão (sugestão, não decidida)
 
-**Próximo passo (após a Mission 216) — HUMAN ACTION REQUIRED:**
-1. No painel da Vercel, sem colar valores em lugar nenhum, confirmar:
-   - as variáveis do ambiente alvo (Supabase = Pilot `ca-central-1`; chave anon/publishable; `ANTHROPIC_API_KEY` sensível, sem prefixo público);
-   - a Production Branch;
-   - a Deployment Protection.
-2. No Supabase Auth do Pilot, conferir/adicionar a Redirect URL `https://<host>/auth/confirm**` e os templates (`token_hash`/`type`).
-3. Escolher o alvo: Preview protegido de `develop` (recomendado para a ativação acompanhada) ou Production (exige merge/promote + domínio).
-4. Autorizar o deploy; seguir a ordem, o rollback e o smoke do runbook de deploy.
-5. Decisão real de fumaça só com autorização separada.
+**Próximo passo (após a Mission 216):**
+1. **Push dos commits de documentação da Mission 216** — decisão humana: todo push em `develop` reimplanta o Preview contra o Pilot (código igual a `8329d1d`; só docs mudaram).
+2. **Conferir no painel da Vercel os logs de runtime** do Preview depois de uma sessão de uso (o agente não tem acesso).
+3. **Decisão real de fumaça no Pilot** (1 confirmação; reenvio → mesma Decision) — só com autorização separada e contexto legítimo.
+4. **Fluxos de e-mail no host do Preview** (signup, recuperação) — só se forem necessários; o Preview muda de URL a cada deployment.
+5. **Production** (merge `develop` → `main` ou Promote, domínio, correção do build de julho) — missão própria; hoje `PRODUCTION_NOT_READY`.
+6. P3: política `allowScripts` do npm para `esbuild`/`sharp`/`unrs-resolver`.
 
 Nenhuma Mission 217 foi iniciada.
 
@@ -787,7 +797,7 @@ A definir (histórico, Mission 198). **Mission 198 classificou o produto como RC
 
 ## Riscos
 
-- **Push em `develop` publica (Mission 216):** a integração Vercel cria um Preview a cada push em `develop` (protegido, só o time). Se o env de Preview apontar para o Pilot, cada push põe código novo contra o Pilot. Confirmar o env de Preview antes de novos pushes de código funcional.
+- **Push em `develop` publica contra o Pilot (Mission 216):** a integração Vercel cria um Preview a cada push em `develop` (protegido, só o time) e, desde 2026-10-10, o env de Preview aponta para o Pilot (atestação do usuário). Cada push de código funcional põe código novo contra o Pilot: só empurrar `develop` com CI verde e schema compatível.
 - **Production da Vercel desatualizada (Mission 216):** o alias de produção serve um scaffold de julho e o último build de produção falhou. Um push em `main` pode disparar um build de produção.
 - **`develop` × Pilot (Missions 214/215):** o código atual exige a Migration 019 — o Pilot a tem desde a Mission 215 (19/19). Qualquer outro banco sem a 019 continua quebrando o registro de decisões com esse código (PostgREST recusa coluna desconhecida).
 - A pasta `docs/` já foi reestruturada por completo mais de uma vez entre sessões sem aviso prévio no início da conversa — qualquer nova sessão deve reconferir a árvore de `docs/` antes de assumir que os nomes de arquivo citados aqui ainda existem.

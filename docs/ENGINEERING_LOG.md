@@ -11015,3 +11015,62 @@ Os roteiros de reprodução ficaram fora do repositório (dependem de Chrome, do
 **Achados colaterais.** `.gitignore` versionado com marcadores de conflito (`<<<<<<<`/`>>>>>>>`), sem efeito prático: `.env*`, `.vercel` e `.next` continuam ignorados.
 
 **Origem.** Mission 216 — Pilot Application Deployment Readiness & Activation Gate.
+
+
+---
+
+## Mission 216 — Fechamento: Preview Validation & Closure (2026-10-10)
+
+**Status.** `MISSION_216_CLOSED` — `PREVIEW_OPERATIONAL_ON_PILOT` (validação manual do usuário) · `PRODUCTION_NOT_READY`.
+- Nenhum dado, Decision ou chamada Anthropic do agente no Pilot.
+- Nenhuma migration, DNS, Production ou merge em `main`.
+- Sem push (`develop` reimplanta o Preview automaticamente).
+
+**Git.**
+- `develop` local à frente de `origin/develop` (`8329d1d`) só com commits de documentação: `08246fa` (preparação da Mission 216) e o commit deste fechamento.
+- `8329d1d..HEAD` não muda código; o Preview publicado roda o código do HEAD.
+- Working tree limpa.
+
+**Preview — conferido pelo agente (só leitura).**
+- **Deployment:** o `Preview` da integração Vercel (`vercel[bot]`) para `8329d1d` tem dois status `success`:
+  - 2026-10-09 17:52 UTC;
+  - **2026-10-10 03:05 UTC**, redeploy depois da configuração das variáveis, que gerou um deployment novo do mesmo commit.
+- **CI de `8329d1d`:** success.
+- **Proteção:** sem sessão, `/` e `/login` dos dois deployments → 302 para `vercel.com` (Vercel Authentication).
+
+**Validação manual do usuário (não é teste automatizado).**
+- Preview READY.
+- Três variáveis obrigatórias só em Preview; `ANTHROPIC_API_KEY` como Sensitive.
+- Redirect URL do Preview adicionada no Supabase Auth do Pilot.
+- Login funciona e a empresa aparece.
+- Análise, Central de Decisões, Scenario Lab, Executive Chat e Relatórios abrem.
+
+**Pilot (só leitura).**
+- NEXO Pillot `ca-central-1` `ACTIVE_HEALTHY`; `sa-east-1` INACTIVE, intocado.
+- 19/19; `db push --dry-run` "up to date".
+- Idempotência intacta: colunas nullable, índice único válido, 3 checks, 2 policies, 12 SECURITY DEFINER em `public`.
+- 0 Decisions; nenhum documento, execução ou diagnóstico desde 2026-09-26.
+- Último login no Pilot: 2026-10-10 03:08 UTC, 3 minutos depois do redeploy. Corrobora que o Preview usa o Pilot; não identifica o cliente.
+
+**Configuração e logs.**
+- As variáveis da Vercel (valores e escopo) e os logs de runtime não são legíveis pelo agente (sem CLI nem credencial Vercel). Ficam como atestação humana e conferência no painel.
+- Fronteira de autenticação inalterada no código (`8329d1d..HEAD` só docs): login por server action, proxy e `/auth/confirm` com `next` interno.
+
+**`npm warn install-scripts`.**
+- No npm 11.19, o aviso lista pacotes com script de instalação fora de uma política `allowScripts`, mas o script **continua rodando**: só `deny` bloqueia.
+- Pacotes: `esbuild` (dev), `sharp` (opcional), `unrs-resolver` (dev); `fsevents` (opcional, macOS) também tem script no lockfile.
+- Nenhuma dependência alterada. Política `allowScripts` fica como P3.
+
+**Limitações abertas.**
+- Logs de runtime.
+- Signup/recuperação no host do Preview.
+- Executive AI pelo Preview.
+- Decisão real ponta a ponta (autorização separada).
+- Logout não relatado.
+- Production não pronta (scaffold de julho, build falho, sem domínio, variáveis só em Preview).
+
+**Privacidade.** Uma saída de erro local de ferramenta exibiu uma vez a URL do Preview (que contém o identificador do time Vercel). Não foi registrada em arquivo, Git ou relatório.
+
+**Documentação.** `docs/02_ENGINEERING/APPLICATION_DEPLOYMENT_RUNBOOK.md` (status e seção 13), `docs/FOUNDING_COMPANY_PILOT_RUNBOOK.md` (Hospedagem) e `docs/HANDOFF.md`.
+
+**Origem.** Mission 216 — Preview Validation & Closure.
